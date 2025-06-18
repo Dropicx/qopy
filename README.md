@@ -70,6 +70,23 @@ A modern, secure, and privacy-focused web application for temporary text sharing
 4. **Access the application**
    Open your browser and navigate to `http://localhost:3000`
 
+## 🚀 Deploy to Production
+
+### Railway (Recommended)
+The easiest way to deploy Qopy is using Railway.app:
+
+1. **One-Click Deploy:**
+   [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/deploy)
+
+2. **Manual Deploy:**
+   See [README.Railway.md](./README.Railway.md) for detailed Railway deployment instructions.
+
+### Docker
+Alternatively, deploy using Docker:
+```bash
+docker-compose up -d --build
+```
+
 ## 🖥 Usage
 
 ### Sharing Content

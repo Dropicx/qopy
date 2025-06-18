@@ -33,16 +33,16 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Rate limiting
 const createLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // Limit each IP to 20 requests per windowMs
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 20, // Limit each IP to 20 requests per windowMs
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const retrieveLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // More lenient for retrieval
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX_RETRIEVE_REQUESTS) || 100, // More lenient for retrieval
   message: { error: 'Too many retrieval requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -78,11 +78,13 @@ function cleanupExpiredClips() {
 setInterval(cleanupExpiredClips, 60000);
 
 // Validation middleware
+const MAX_CONTENT_LENGTH = parseInt(process.env.MAX_CONTENT_LENGTH) || 100000;
+
 const validateClipCreation = [
   body('content')
     .trim()
-    .isLength({ min: 1, max: 100000 })
-    .withMessage('Content must be between 1 and 100,000 characters'),
+    .isLength({ min: 1, max: MAX_CONTENT_LENGTH })
+    .withMessage(`Content must be between 1 and ${MAX_CONTENT_LENGTH.toLocaleString()} characters`),
   body('expiration')
     .isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr'])
     .withMessage('Invalid expiration time'),
@@ -144,7 +146,8 @@ app.post('/api/clip', validateClipCreation, (req, res) => {
   clips.set(clipId, clip);
 
   // Generate QR code for the sharing URL
-  const shareUrl = `${req.protocol}://${req.get('host')}/clip/${clipId}`;
+  const domain = process.env.DOMAIN || req.get('host');
+  const shareUrl = `${req.protocol}://${domain}/clip/${clipId}`;
   
   QRCode.toDataURL(shareUrl, (err, qrCodeUrl) => {
     if (err) {
