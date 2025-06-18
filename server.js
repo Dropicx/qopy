@@ -11,6 +11,16 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy for Railway deployment (and other reverse proxies)
+// This is required for express-rate-limit to work correctly with X-Forwarded-For headers
+if (process.env.NODE_ENV === 'production') {
+  // In production (Railway), trust the first proxy
+  app.set('trust proxy', 1);
+} else {
+  // In development, trust all proxies (for local testing with proxies)
+  app.set('trust proxy', true);
+}
+
 // In-memory storage for clips
 const clips = new Map();
 
@@ -337,4 +347,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Qopy Server running on port ${PORT}`);
   console.log(`📋 Access the app at http://localhost:${PORT}`);
   console.log(`🔐 Security features enabled: Rate limiting, Helmet, CORS`);
+  console.log(`🌐 Trust proxy setting: ${app.get('trust proxy')} (NODE_ENV: ${process.env.NODE_ENV})`);
+  console.log(`📊 Active clips will be cleaned up every minute`);
 }); 

@@ -53,6 +53,7 @@ This guide explains how to deploy Qopy on Railway.app - a modern Platform-as-a-S
 Railway automatically provides:
 - `PORT` - The port your app should listen on
 - `NODE_ENV=production` - Set automatically
+- Node.js >=18.0.0 and npm >=11.4.2 (specified in package.json engines)
 
 Optional variables you can set in Railway dashboard:
 - `DOMAIN` - Your custom domain (e.g., `qopy.io`)
@@ -142,6 +143,11 @@ npm start
 **Port Issues:**
 - Railway automatically sets `PORT` environment variable
 - Ensure your app uses `process.env.PORT`
+
+**Trust Proxy Issues:**
+- If you see `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` errors
+- Qopy automatically configures `trust proxy` for Railway
+- This allows proper IP detection for rate limiting
 
 **Memory Issues:**
 - Railway auto-scales, but you can adjust resource allocation
