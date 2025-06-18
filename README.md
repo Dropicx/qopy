@@ -41,7 +41,10 @@ A modern, secure, and privacy-focused web application for temporary text sharing
 ## 📦 Installation
 
 ### Prerequisites
-- Node.js 14.0.0 or higher
+- Node.js 18.0.0 or higher
+- **npm 11.4.2 or higher** (required for optimal performance)
+
+> 💡 **Important**: Qopy requires npm >= 11.4.2. See [npm Version Requirements](README.npm-version.md) for details.
 - npm or yarn package manager
 
 ### Quick Start

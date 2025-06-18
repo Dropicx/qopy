@@ -1,5 +1,6 @@
 [build]
 builder = "nixpacks"
+buildCommand = "node scripts/check-npm-version.js && npm ci --only=production"
 
 [deploy]
 healthcheckPath = "/api/health"

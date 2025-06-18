@@ -1,17 +1,25 @@
 # Use the official Node.js runtime as the base image
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set the working directory in the container
 WORKDIR /app
 
+# Upgrade npm to latest version
+RUN npm install -g npm@latest
+
 # Copy package files first to leverage Docker layer caching
 COPY package*.json ./
+COPY .npmrc ./
+COPY scripts/check-npm-version.js ./scripts/
 
-# Install dependencies
-RUN npm ci --only=production
+# Check npm version and install dependencies
+RUN node scripts/check-npm-version.js && npm ci --only=production
 
 # Production stage
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
+
+# Upgrade npm to latest version
+RUN npm install -g npm@latest
 
 # Set NODE_ENV to production
 ENV NODE_ENV=production
