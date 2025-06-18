@@ -588,6 +588,27 @@ footer p {
   margin: 0.5rem 0;
 }
 
+.legal-links {
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+}
+
+.legal-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.legal-links a:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.legal-links .separator {
+  margin: 0 0.5rem;
+  opacity: 0.5;
+}
+
 /* Utility Classes */
 .hidden {
   display: none !important;

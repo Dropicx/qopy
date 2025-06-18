@@ -293,11 +293,22 @@ app.get('/api/clip/:id/info', retrieveLimiter, validateClipRetrieval.slice(0, 1)
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     uptime: process.uptime(),
     activeClips: clips.size,
     timestamp: new Date().toISOString()
+  });
+});
+
+// Legal pages endpoint
+app.get('/api/legal', (req, res) => {
+  res.json({
+    impressum: '/impressum.html',
+    datenschutz: '/datenschutz.html',
+    agb: '/agb.html',
+    updated: '2025-01-01',
+    jurisdiction: 'Germany'
   });
 });
 
