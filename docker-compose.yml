@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  qopy-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: qopy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      # Optional: mount a volume for persistent storage if needed in the future
+      - qopy_data:/app/data
+    networks:
+      - qopy_network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.docker.compose.project=qopy"
+      - "com.docker.compose.service=qopy-app"
+
+volumes:
+  qopy_data:
+    driver: local
+
+networks:
+  qopy_network:
+    driver: bridge 

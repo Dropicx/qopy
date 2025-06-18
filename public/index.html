@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qopy - Secure Temporary Text Sharing</title>
+    <meta name="description" content="Share text securely with automatic expiration. No registration required.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📋</text></svg>">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>📋 Qopy</h1>
+                <p class="subtitle">Secure temporary text sharing</p>
+                <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <nav class="tab-nav">
+            <button id="share-tab" class="tab-button active">Share</button>
+            <button id="retrieve-tab" class="tab-button">Retrieve</button>
+        </nav>
+
+        <!-- Share Tab -->
+        <main id="share-section" class="section active">
+            <div class="form-container">
+                <div class="input-group">
+                    <label for="content-input" class="label">Your content:</label>
+                    <div class="textarea-container">
+                        <textarea 
+                            id="content-input" 
+                            placeholder="Paste or type your content here..." 
+                            rows="10"
+                            maxlength="100000"
+                        ></textarea>
+                        <div class="char-counter">
+                            <span id="char-count">0</span> / 100,000
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group">
+                        <label for="expiration-select" class="label">Expires in:</label>
+                        <select id="expiration-select" class="select">
+                            <option value="5min">5 minutes</option>
+                            <option value="15min">15 minutes</option>
+                            <option value="30min" selected>30 minutes</option>
+                            <option value="1hr">1 hour</option>
+                            <option value="6hr">6 hours</option>
+                            <option value="24hr">24 hours</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="one-time-checkbox">
+                            <span class="checkmark"></span>
+                            Self-destruct after first read
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group">
+                        <label for="password-input" class="label">Password (optional):</label>
+                        <input 
+                            type="password" 
+                            id="password-input" 
+                            placeholder="Enter password to protect content"
+                            maxlength="128"
+                            class="input"
+                        >
+                    </div>
+                </div>
+
+                <button id="share-button" class="primary-button">
+                    <span class="button-icon">📋</span>
+                    Create Share Link
+                </button>
+
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Creating your secure link...</p>
+                </div>
+            </div>
+
+            <!-- Success Modal -->
+            <div id="success-modal" class="modal hidden">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>✅ Link Created Successfully!</h3>
+                        <button id="close-modal" class="close-button">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="result-section">
+                            <label class="label">Share URL:</label>
+                            <div class="copy-container">
+                                <input type="text" id="share-url" readonly class="copy-input">
+                                <button id="copy-url-button" class="copy-button">Copy</button>
+                            </div>
+                        </div>
+
+                        <div class="result-section">
+                            <label class="label">Clip ID:</label>
+                            <div class="copy-container">
+                                <input type="text" id="clip-id" readonly class="copy-input">
+                                <button id="copy-id-button" class="copy-button">Copy</button>
+                            </div>
+                        </div>
+
+                        <div class="result-section">
+                            <label class="label">QR Code for mobile sharing:</label>
+                            <div class="qr-container">
+                                <img id="qr-code" alt="QR Code" class="qr-image">
+                            </div>
+                        </div>
+
+                        <div class="expiry-info">
+                            <p>⏰ Expires: <span id="expiry-time"></span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Retrieve Tab -->
+        <main id="retrieve-section" class="section">
+            <div class="form-container">
+                <div class="input-group">
+                    <label for="clip-id-input" class="label">Clip ID:</label>
+                    <input 
+                        type="text" 
+                        id="clip-id-input" 
+                        placeholder="Enter 6-character clip ID (e.g. X8K2M9)"
+                        maxlength="6"
+                        style="text-transform: uppercase;"
+                        pattern="[A-Z0-9]*"
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="characters"
+                        class="input"
+                    >
+                </div>
+
+                <div id="password-section" class="input-group hidden">
+                    <label for="retrieve-password-input" class="label">Password:</label>
+                    <input 
+                        type="password" 
+                        id="retrieve-password-input" 
+                        placeholder="Enter password"
+                        maxlength="128"
+                        class="input"
+                    >
+                </div>
+
+                <button id="retrieve-button" class="primary-button">
+                    <span class="button-icon">🔍</span>
+                    Retrieve Content
+                </button>
+
+                <div id="retrieve-loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Retrieving your content...</p>
+                </div>
+
+                <div id="content-result" class="result-container hidden">
+                    <div class="result-header">
+                        <label class="label">Retrieved Content:</label>
+                        <button id="copy-content-button" class="copy-button">Copy Content</button>
+                    </div>
+                    <div class="content-display">
+                        <pre id="retrieved-content"></pre>
+                    </div>
+                    <div class="content-info">
+                        <p>📅 Created: <span id="created-time"></span></p>
+                        <p>⏰ Expires: <span id="expires-time"></span></p>
+                        <p id="one-time-notice" class="warning hidden">🔥 This was a one-time clip and has been destroyed</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Error Toast -->
+        <div id="error-toast" class="toast error hidden">
+            <span class="toast-icon">❌</span>
+            <span id="error-message"></span>
+            <button class="toast-close">&times;</button>
+        </div>
+
+        <!-- Success Toast -->
+        <div id="success-toast" class="toast success hidden">
+            <span class="toast-icon">✅</span>
+            <span id="success-message"></span>
+            <button class="toast-close">&times;</button>
+        </div>
+    </div>
+
+    <footer>
+        <p>🔒 No logs, no tracking, auto-expires. Your privacy is protected.</p>
+        <p>⚡ Built for secure, anonymous text sharing</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html> 
