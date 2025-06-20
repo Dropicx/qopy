@@ -510,6 +510,38 @@ console.log('✅ Spam filter ready');
 // Validation middleware
 const MAX_CONTENT_LENGTH = parseInt(process.env.MAX_CONTENT_LENGTH) || 100000;
 
+// Validation middleware definitions (MUST be before route usage)
+const validateClipCreation = [
+  body('content')
+    .trim()
+    .isLength({ min: 1, max: MAX_CONTENT_LENGTH })
+    .withMessage(`Content must be between 1 and ${MAX_CONTENT_LENGTH.toLocaleString()} characters`),
+  body('expiration')
+    .isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr'])
+    .withMessage('Invalid expiration time'),
+  body('oneTime')
+    .optional()
+    .isBoolean()
+    .withMessage('oneTime must be a boolean'),
+  body('password')
+    .optional()
+    .isLength({ max: 128 })
+    .withMessage('Password must be less than 128 characters')
+];
+
+const validateClipRetrieval = [
+  param('id')
+    .isLength({ min: 6, max: 6 })
+    .matches(/^[A-Z0-9]+$/)
+    .withMessage('Invalid clip ID format'),
+  body('password')
+    .optional()
+    .isLength({ max: 128 })
+    .withMessage('Password must be less than 128 characters')
+];
+
+console.log('✅ Validation middleware defined');
+
 // Create new clip with full validation
 app.post('/api/clip', validateClipCreation, (req, res) => {
   const errors = validationResult(req);
@@ -1319,36 +1351,6 @@ app.get('/api/health/detailed', (req, res) => {
   res.status(200).json(response);
 });
 
-// Validation middleware
-const validateClipCreation = [
-  body('content')
-    .trim()
-    .isLength({ min: 1, max: MAX_CONTENT_LENGTH })
-    .withMessage(`Content must be between 1 and ${MAX_CONTENT_LENGTH.toLocaleString()} characters`),
-  body('expiration')
-    .isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr'])
-    .withMessage('Invalid expiration time'),
-  body('oneTime')
-    .optional()
-    .isBoolean()
-    .withMessage('oneTime must be a boolean'),
-  body('password')
-    .optional()
-    .isLength({ max: 128 })
-    .withMessage('Password must be less than 128 characters')
-];
-
-const validateClipRetrieval = [
-  param('id')
-    .isLength({ min: 6, max: 6 })
-    .matches(/^[A-Z0-9]+$/)
-    .withMessage('Invalid clip ID format'),
-  body('password')
-    .optional()
-    .isLength({ max: 128 })
-    .withMessage('Password must be less than 128 characters')
-];
-
 // Serve the main application
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1396,32 +1398,10 @@ app.use((req, res) => {
   });
 });
 
-// Process error handlers
-process.on('uncaughtException', (error) => {
-  logMessage('error', '💥 Uncaught Exception', {
-    error: error.message,
-    stack: error.stack,
-    type: 'uncaughtException'
-  });
-  
-  // Attempt graceful shutdown
-  if (!isShuttingDown) {
-    gracefulShutdown();
-  }
-});
+// Process error handlers (MOVE TO AFTER SERVER DEFINITION)
+// These will be set after server initialization
 
-process.on('unhandledRejection', (reason, promise) => {
-  logMessage('error', '💥 Unhandled Promise Rejection', {
-    reason: reason,
-    promise: promise,
-    type: 'unhandledRejection'
-  });
-  
-  // Don't exit on unhandled rejections in production
-  if (process.env.NODE_ENV === 'development') {
-    process.exit(1);
-  }
-});
+// Also move unhandled rejection handler
 
 console.log('✅ Enhanced admin and debug endpoints ready');
 console.log('✅ Validation middleware ready');  
@@ -1682,4 +1662,33 @@ function debugDump() {
 // Register signal handlers
 Object.keys(signals).forEach(signal => {
   process.on(signal, () => handleSignal(signal));
-}); 
+});
+
+// Process error handlers (NOW SAFE TO USE)
+process.on('uncaughtException', (error) => {
+  logMessage('error', '💥 Uncaught Exception', {
+    error: error.message,
+    stack: error.stack,
+    type: 'uncaughtException'
+  });
+  
+  // Attempt graceful shutdown
+  if (!isShuttingDown) {
+    gracefulShutdown();
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logMessage('error', '💥 Unhandled Promise Rejection', {
+    reason: reason,
+    promise: promise,
+    type: 'unhandledRejection'
+  });
+  
+  // Don't exit on unhandled rejections in production
+  if (process.env.NODE_ENV === 'development') {
+    process.exit(1);
+  }
+});
+
+console.log('✅ Process error handlers ready'); 
