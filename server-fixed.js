@@ -168,6 +168,7 @@ function addToBlacklist(ip, reason = 'Manual') {
     blockedIPs.add(ip);
     ipBlockStats.totalBlocked++;
     
+    // Note: logMessage is defined later, use simpleLog for now
     simpleLog('info', `IP ${ip} added to blacklist`, {
       ip: ip,
       reason: reason,
@@ -385,10 +386,10 @@ app.post('/api/clip', (req, res) => {
       
       if (spamAnalysis.score >= SPAM_SCORE_THRESHOLD) {
         spamStats.blocked++;
-        simpleLog('warn', `Spam content blocked from IP ${req.ip}`, {
-          score: spamAnalysis.score,
-          reasons: spamAnalysis.reasons
-        });
+                 logMessage('warn', `Spam content blocked from IP ${req.ip}`, {
+           score: spamAnalysis.score,
+           reasons: spamAnalysis.reasons
+         });
         
         return res.status(403).json({
           error: 'Content blocked',
@@ -427,12 +428,12 @@ app.post('/api/clip', (req, res) => {
     
     clips.set(id, clip);
     
-    simpleLog('info', `Clip created: ${id}`, {
-      expiration,
-      oneTime,
-      hasPassword: !!password,
-      ip: req.ip
-    });
+         logMessage('info', `Clip created: ${id}`, {
+       expiration,
+       oneTime,
+       hasPassword: !!password,
+       ip: req.ip
+     });
     
     res.json({
       success: true,
@@ -489,11 +490,11 @@ app.get('/api/clip/:id', (req, res) => {
       clips.delete(id);
     }
     
-    simpleLog('info', `Clip retrieved: ${id}`, {
-      oneTime: clip.oneTime,
-      deleted: clip.oneTime,
-      ip: req.ip
-    });
+         logMessage('info', `Clip retrieved: ${id}`, {
+       oneTime: clip.oneTime,
+       deleted: clip.oneTime,
+       ip: req.ip
+     });
     
     res.json({
       success: true,
@@ -529,6 +530,183 @@ app.head('/api/clip/:id', (req, res) => {
 });
 
 console.log('✅ Essential routes completed');
+
+// Admin Authentication Middleware
+function requireAdminAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const adminToken = process.env.ADMIN_TOKEN || 'qopy-admin-2024';
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ 
+      error: 'Unauthorized',
+      message: 'Admin token required. Set Authorization header with Bearer token.'
+    });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  
+  if (token !== adminToken) {
+    return res.status(401).json({ 
+      error: 'Unauthorized',
+      message: 'Invalid admin token.'
+    });
+  }
+  
+  next();
+}
+
+// In-memory log storage
+const systemLogs = [];
+const MAX_LOGS = 1000;
+
+// Enhanced logging function
+function logMessage(level, message, metadata = {}) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level: level,
+    message: message,
+    metadata: metadata,
+    source: 'qopy-server'
+  };
+  
+  systemLogs.push(logEntry);
+  
+  if (systemLogs.length > MAX_LOGS) {
+    systemLogs.shift();
+  }
+  
+  console.log(`[${logEntry.timestamp}] [${level.toUpperCase()}] ${message}`);
+  if (Object.keys(metadata).length > 0) {
+    console.log('  Metadata:', JSON.stringify(metadata));
+  }
+}
+
+console.log('✅ Admin system ready');
+
+// Admin endpoints
+app.get('/api/admin/stats', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Stats accessed by IP ${req.ip}`, { 
+    endpoint: '/api/admin/stats',
+    method: 'GET' 
+  });
+  
+  res.json({
+    success: true,
+    stats: {
+      server: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        pid: process.pid,
+        nodeVersion: process.version,
+        environment: process.env.NODE_ENV || 'development'
+      },
+      clips: {
+        active: clips.size,
+        total: spamStats.totalAnalyzed
+      },
+      spam: {
+        totalAnalyzed: spamStats.totalAnalyzed,
+        blocked: spamStats.blocked,
+        suspicious: spamStats.suspicious,
+        blockRate: spamStats.totalAnalyzed > 0 ? (spamStats.blocked / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%'
+      },
+      ipBlocking: {
+        totalBlockedIPs: blockedIPs.size,
+        lastUpdated: new Date(ipBlockStats.lastUpdated).toISOString(),
+        sources: ipBlockStats.sources
+      }
+    }
+  });
+});
+
+app.get('/api/admin/blacklist', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Blacklist accessed by IP ${req.ip}`, { 
+    endpoint: '/api/admin/blacklist',
+    method: 'GET' 
+  });
+  
+  res.json({
+    success: true,
+    blockedIPs: Array.from(blockedIPs),
+    stats: ipBlockStats
+  });
+});
+
+app.post('/api/admin/blacklist', requireAdminAuth, (req, res) => {
+  const { ip, reason } = req.body;
+  
+  if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+    logMessage('warn', `[ADMIN] Invalid IP format attempted: ${ip}`, { 
+      adminIP: req.ip,
+      attemptedIP: ip 
+    });
+    return res.status(400).json({ error: 'Invalid IP address format' });
+  }
+  
+  const added = addToBlacklist(ip, reason || 'Manual admin action');
+  
+  logMessage('info', `[ADMIN] IP ${ip} ${added ? 'added to' : 'already in'} blacklist`, {
+    adminIP: req.ip,
+    targetIP: ip,
+    reason: reason || 'Manual admin action',
+    action: 'add'
+  });
+  
+  res.json({
+    success: true,
+    added: added,
+    message: added ? `IP ${ip} added to blacklist` : `IP ${ip} already in blacklist`
+  });
+});
+
+app.delete('/api/admin/blacklist/:ip', requireAdminAuth, (req, res) => {
+  const ip = req.params.ip;
+  
+  const removed = removeFromBlacklist(ip);
+  
+  logMessage('info', `[ADMIN] IP ${ip} ${removed ? 'removed from' : 'not found in'} blacklist`, {
+    adminIP: req.ip,
+    targetIP: ip,
+    action: 'remove'
+  });
+  
+  res.json({
+    success: true,
+    removed: removed,
+    message: removed ? `IP ${ip} removed from blacklist` : `IP ${ip} not found in blacklist`
+  });
+});
+
+app.get('/api/admin/logs', requireAdminAuth, (req, res) => {
+  const limit = parseInt(req.query.limit) || 100;
+  const level = req.query.level;
+  
+  let logs = [...systemLogs];
+  
+  if (level) {
+    logs = logs.filter(log => log.level === level);
+  }
+  
+  logs = logs.slice(-limit).reverse();
+  
+  res.json({
+    success: true,
+    logs: logs,
+    total: systemLogs.length,
+    filtered: logs.length
+  });
+});
+
+console.log('✅ Admin endpoints ready');
+
+// Generate admin token if not set
+if (!process.env.ADMIN_TOKEN) {
+  const crypto = require('crypto');
+  const generatedToken = crypto.randomBytes(32).toString('hex');
+  console.log('🔑 Generated Admin Token (add to Railway environment variables):');
+  console.log(`ADMIN_TOKEN=${generatedToken}`);
+  console.log('⚠️ Save this token - it will not be displayed again!');
+}
 
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
