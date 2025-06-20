@@ -21,6 +21,21 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', true);
 }
 
+// Early health check (before any middleware that might fail) 
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    port: PORT || 3000,
+    environment: process.env.NODE_ENV || 'development',
+    railway: !!process.env.RAILWAY_ENVIRONMENT,
+    ready: true,
+    pid: process.pid,
+    nodeVersion: process.version
+  });
+});
+
 // In-memory storage for clips
 const clips = new Map();
 
@@ -658,30 +673,46 @@ app.get('/api/clip/:id/info', retrieveLimiter, validateClipRetrieval.slice(0, 1)
   });
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
+// Detailed health check endpoint (after all initialization)
+app.get('/api/health/detailed', (req, res) => {
+  const response = {
     status: 'OK',
     uptime: process.uptime(),
-    activeClips: clips.size,
+    activeClips: clips ? clips.size : 0,
     timestamp: new Date().toISOString(),
-    spamFilter: {
-      enabled: SPAM_FILTER_ENABLED,
-      threshold: SPAM_SCORE_THRESHOLD,
-      stats: {
-        totalAnalyzed: spamStats.totalAnalyzed,
-        suspicious: spamStats.suspicious,
-        blocked: spamStats.blocked,
-        blockRate: spamStats.totalAnalyzed > 0 ? (spamStats.blocked / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%',
-        suspiciousRate: spamStats.totalAnalyzed > 0 ? (spamStats.suspicious / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%'
-      }
-    },
-    ipBlacklist: {
-      totalBlockedIPs: blockedIPs.size,
-      lastUpdated: new Date(ipBlockStats.lastUpdated).toISOString(),
-      sources: ipBlockStats.sources
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    railway: !!process.env.RAILWAY_ENVIRONMENT
+  };
+  
+  // Add detailed info only if server is fully initialized
+  try {
+    if (spamStats && typeof spamStats.totalAnalyzed !== 'undefined') {
+      response.spamFilter = {
+        enabled: SPAM_FILTER_ENABLED,
+        threshold: SPAM_SCORE_THRESHOLD,
+        stats: {
+          totalAnalyzed: spamStats.totalAnalyzed,
+          suspicious: spamStats.suspicious,
+          blocked: spamStats.blocked,
+          blockRate: spamStats.totalAnalyzed > 0 ? (spamStats.blocked / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%',
+          suspiciousRate: spamStats.totalAnalyzed > 0 ? (spamStats.suspicious / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%'
+        }
+      };
     }
-  });
+    
+    if (blockedIPs && ipBlockStats) {
+      response.ipBlacklist = {
+        totalBlockedIPs: blockedIPs.size,
+        lastUpdated: new Date(ipBlockStats.lastUpdated).toISOString(),
+        sources: ipBlockStats.sources || []
+      };
+    }
+  } catch (error) {
+    response.note = 'Some stats not yet available: ' + error.message;
+  }
+  
+  res.status(200).json(response);
 });
 
 // Legal pages endpoint
@@ -1340,9 +1371,11 @@ if (process.env.RAILWAY_ENVIRONMENT) {
   });
 }
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
+  // Railway requires binding to 0.0.0.0, not just localhost
   const startupInfo = {
     port: PORT,
+    host: '0.0.0.0',
     environment: process.env.NODE_ENV || 'development',
     pid: process.pid,
     nodeVersion: process.version,
@@ -1365,9 +1398,10 @@ const server = app.listen(PORT, () => {
   
   logMessage('info', '🚀 Qopy Server successfully started', startupInfo);
   
-  // Console output for immediate visibility
-  console.log(`🚀 Qopy Server running on port ${PORT}`);
-  console.log(`📋 Access the app at http://localhost:${PORT}`);
+  // Enhanced console output for Railway debugging
+  console.log(`🚀 Qopy Server running on 0.0.0.0:${PORT}`);
+  console.log(`📋 Railway Environment: ${process.env.RAILWAY_ENVIRONMENT || 'local'}`);
+  console.log(`📋 Health check endpoint: http://localhost:${PORT}/api/health`);
   console.log(`🔐 Security features enabled: Rate limiting, Helmet, CORS`);
   console.log(`🌐 Trust proxy setting: ${app.get('trust proxy')} (NODE_ENV: ${process.env.NODE_ENV})`);
   console.log(`📊 Active clips will be cleaned up every minute`);
@@ -1378,7 +1412,11 @@ const server = app.listen(PORT, () => {
   if (process.env.RAILWAY_PUBLIC_DOMAIN) {
     console.log(`🌐 Public URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
     console.log(`🎛️ Admin URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/admin`);
+    console.log(`🏥 Health check: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/health`);
   }
+  
+  // Force log the health endpoint for debugging
+  console.log(`🩺 Health endpoint available at: http://0.0.0.0:${PORT}/api/health`);
 });
 
 server.on('error', (err) => {

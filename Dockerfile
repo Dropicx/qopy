@@ -117,6 +117,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=5 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Start the application with fallback options
-# Try startup script first, fallback to direct node start  
-CMD ["/bin/sh", "-c", "if [ -x /app/startup.sh ]; then /app/startup.sh; else echo 'Startup script failed, starting directly...'; node server.js; fi"] 
+# Start the application directly for Railway compatibility
+# Railway will override this with startCommand in railway.toml
+CMD ["node", "server.js"] 
