@@ -5,11 +5,11 @@ buildCommand = "node scripts/check-npm-version.js && npm ci --only=production"
 [deploy]
 startCommand = "node server-progressive.js"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 60
-healthcheckInterval = 30
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
-terminationGracePeriodSeconds = 60
+healthcheckTimeout = 30
+healthcheckInterval = 10
+restartPolicyType = "never"
+restartPolicyMaxRetries = 0
+terminationGracePeriodSeconds = 30
 
 [env]
 NODE_ENV = "production"

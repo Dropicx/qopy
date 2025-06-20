@@ -18,16 +18,21 @@ if (process.env.NODE_ENV === 'production') {
 
 // Early health check (same as minimal)
 app.get('/api/health', (req, res) => {
-  console.log('🩺 Health check requested');
-  res.status(200).json({
+  console.log('🩺 Health check requested - uptime:', process.uptime());
+  const response = {
     status: 'OK',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     port: PORT,
     environment: process.env.NODE_ENV || 'development',
     railway: !!process.env.RAILWAY_ENVIRONMENT,
-    version: 'progressive-1.0.0'
-  });
+    version: 'progressive-1.0.0',
+    memory: process.memoryUsage(),
+    pid: process.pid
+  };
+  
+  console.log('🩺 Health check response:', JSON.stringify(response, null, 2));
+  res.status(200).json(response);
 });
 
 // Progressive feature additions
@@ -108,11 +113,24 @@ console.log('✅ Step 6: Logging function ready');
 
 // STEP 7: Basic routes
 app.get('/', (req, res) => {
+  console.log('📱 Root endpoint accessed');
   res.json({
     message: 'Progressive Qopy Server is running',
     status: 'OK',
     timestamp: new Date().toISOString(),
-    features: 'progressive-loading'
+    features: 'progressive-loading',
+    uptime: process.uptime(),
+    pid: process.pid
+  });
+});
+
+// Anti-idle endpoint
+app.get('/api/ping', (req, res) => {
+  console.log('🏓 Ping received');
+  res.json({ 
+    pong: true, 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
   });
 });
 
@@ -148,6 +166,13 @@ app.post('/api/clip', (req, res) => {
 });
 
 console.log('✅ Step 7: Basic routes enabled');
+
+// STEP 8: Keep-alive mechanism
+setInterval(() => {
+  console.log(`💓 Server heartbeat - uptime: ${process.uptime()}s, memory: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+}, 30000); // Every 30 seconds
+
+console.log('✅ Step 8: Keep-alive enabled');
 
 // Error handling
 app.use((err, req, res, next) => {
