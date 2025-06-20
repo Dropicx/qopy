@@ -7,8 +7,8 @@ startCommand = "node server-progressive.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30
 healthcheckInterval = 10
-restartPolicyType = "never"
-restartPolicyMaxRetries = 0
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 1
 terminationGracePeriodSeconds = 30
 
 [env]
