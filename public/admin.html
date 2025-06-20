@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qopy Admin Dashboard</title>
+    <link rel="icon" href="logos/Favicon.png" type="image/png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Login Form */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .login-form {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-form h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+        }
+
+        .dashboard.active {
+            display: block;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+        }
+
+        .logout-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #ff3838;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 2px solid #e1e5e9;
+            padding-bottom: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e1e5e9;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #666;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .ip-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .ip-form input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+        }
+
+        .ip-form button {
+            background: #2ed573;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .ip-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+        }
+
+        .ip-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .ip-item:last-child {
+            border-bottom: none;
+        }
+
+        .ip-item .ip-info {
+            flex: 1;
+        }
+
+        .ip-item .ip-address {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .ip-item .ip-reason {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .remove-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .logs {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            height: 400px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .log-timestamp {
+            color: #888;
+        }
+
+        .log-level-error {
+            color: #ff6b6b;
+        }
+
+        .log-level-warn {
+            color: #ffd93d;
+        }
+
+        .log-level-info {
+            color: #74c0fc;
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+            }
+
+            .ip-form {
+                flex-direction: column;
+            }
+
+            .ip-form input {
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Form -->
+    <div id="login-container" class="login-container">
+        <form id="login-form" class="login-form">
+            <h2>🔐 Qopy Admin Login</h2>
+            <div class="form-group">
+                <label for="admin-token">Admin Token:</label>
+                <input type="password" id="admin-token" placeholder="Enter admin token" required>
+            </div>
+            <button type="submit" class="btn">Login</button>
+            <div id="login-error" class="alert error hidden">
+                Invalid admin token. Please try again.
+            </div>
+        </form>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="dashboard">
+        <div class="container">
+            <div class="header">
+                <h1>🎛️ Qopy Admin Dashboard</h1>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+
+            <!-- Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div id="active-clips" class="stat-number">-</div>
+                    <div class="stat-label">Active Clips</div>
+                </div>
+                <div class="stat-card">
+                    <div id="blocked-ips" class="stat-number">-</div>
+                    <div class="stat-label">Blocked IPs</div>
+                </div>
+                <div class="stat-card">
+                    <div id="spam-blocked" class="stat-number">-</div>
+                    <div class="stat-label">Spam Blocked</div>
+                </div>
+                <div class="stat-card">
+                    <div id="uptime" class="stat-number">-</div>
+                    <div class="stat-label">Server Uptime</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="section">
+                <div class="tabs">
+                    <button class="tab active" onclick="showTab('ip-management')">🚫 IP Management</button>
+                    <button class="tab" onclick="showTab('logs')">📋 Logs</button>
+                    <button class="tab" onclick="showTab('spam-stats')">📊 Spam Statistics</button>
+                    <button class="tab" onclick="showTab('system')">⚙️ System</button>
+                </div>
+
+                <!-- IP Management Tab -->
+                <div id="ip-management" class="tab-content active">
+                    <h2>🚫 IP Blacklist Management</h2>
+                    
+                    <div class="ip-form">
+                        <input type="text" id="new-ip" placeholder="IP Address (e.g., 192.168.1.100)" 
+                               pattern="^(\d{1,3}\.){3}\d{1,3}$">
+                        <input type="text" id="block-reason" placeholder="Reason (optional)">
+                        <button onclick="addIP()">Block IP</button>
+                        <button onclick="refreshIPs()" class="refresh-btn">🔄 Refresh</button>
+                    </div>
+
+                    <div id="ip-alert" class="alert hidden"></div>
+
+                    <div id="ip-list" class="ip-list">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <!-- Logs Tab -->
+                <div id="logs" class="tab-content">
+                    <h2>📋 System Logs</h2>
+                    <button onclick="refreshLogs()" class="refresh-btn">🔄 Refresh Logs</button>
+                    <div id="logs-container" class="logs">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <!-- Spam Statistics Tab -->
+                <div id="spam-stats" class="tab-content">
+                    <h2>📊 Spam Detection Statistics</h2>
+                    <button onclick="refreshSpamStats()" class="refresh-btn">🔄 Refresh</button>
+                    <div id="spam-stats-content">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <!-- System Tab -->
+                <div id="system" class="tab-content">
+                    <h2>⚙️ System Information</h2>
+                    <button onclick="refreshSystemInfo()" class="refresh-btn">🔄 Refresh</button>
+                    <div id="system-info">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let adminToken = '';
+        let refreshInterval = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if already logged in
+            const savedToken = localStorage.getItem('qopy-admin-token');
+            if (savedToken) {
+                adminToken = savedToken;
+                showDashboard();
+            }
+
+            // Login form handler
+            document.getElementById('login-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                login();
+            });
+
+            // Logout button handler
+            document.getElementById('logout-btn').addEventListener('click', logout);
+        });
+
+        // Authentication
+        function login() {
+            const token = document.getElementById('admin-token').value;
+            
+            if (!token) {
+                showLoginError('Please enter admin token');
+                return;
+            }
+
+            // Test token with API call
+            fetch('/api/admin/blacklist', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    adminToken = token;
+                    localStorage.setItem('qopy-admin-token', token);
+                    showDashboard();
+                } else {
+                    showLoginError('Invalid admin token');
+                }
+            })
+            .catch(error => {
+                showLoginError('Connection error. Please try again.');
+            });
+        }
+
+        function logout() {
+            adminToken = '';
+            localStorage.removeItem('qopy-admin-token');
+            showLogin();
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('login-container').style.display = 'flex';
+            document.getElementById('dashboard').classList.remove('active');
+        }
+
+        function showDashboard() {
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+            loadDashboardData();
+            
+            // Auto-refresh every 30 seconds
+            refreshInterval = setInterval(loadDashboardData, 30000);
+        }
+
+        function showLoginError(message) {
+            const errorDiv = document.getElementById('login-error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+        }
+
+        // Dashboard functions
+        function loadDashboardData() {
+            loadStats();
+            refreshIPs();
+        }
+
+        function loadStats() {
+            fetch('/api/health', {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('active-clips').textContent = data.activeClips || 0;
+                document.getElementById('blocked-ips').textContent = data.ipBlacklist?.totalBlockedIPs || 0;
+                document.getElementById('spam-blocked').textContent = data.spamFilter?.stats?.blocked || 0;
+                
+                // Format uptime
+                const uptimeSeconds = data.uptime || 0;
+                const hours = Math.floor(uptimeSeconds / 3600);
+                const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+                document.getElementById('uptime').textContent = `${hours}h ${minutes}m`;
+            })
+            .catch(error => {
+                console.error('Error loading stats:', error);
+            });
+        }
+
+        function showTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+
+            // Load tab-specific data
+            switch(tabName) {
+                case 'logs':
+                    refreshLogs();
+                    break;
+                case 'spam-stats':
+                    refreshSpamStats();
+                    break;
+                case 'system':
+                    refreshSystemInfo();
+                    break;
+            }
+        }
+
+        // IP Management
+        function refreshIPs() {
+            const ipList = document.getElementById('ip-list');
+            ipList.innerHTML = '<div class="spinner"></div>';
+
+            fetch('/api/admin/blacklist', {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayIPs(data.blockedIPs || []);
+            })
+            .catch(error => {
+                ipList.innerHTML = '<p>Error loading IP list</p>';
+            });
+        }
+
+        function displayIPs(ips) {
+            const ipList = document.getElementById('ip-list');
+            
+            if (ips.length === 0) {
+                ipList.innerHTML = '<div class="ip-item"><div class="ip-info">No blocked IPs</div></div>';
+                return;
+            }
+
+            ipList.innerHTML = ips.map(ip => `
+                <div class="ip-item">
+                    <div class="ip-info">
+                        <div class="ip-address">${ip}</div>
+                        <div class="ip-reason">Auto-blocked</div>
+                    </div>
+                    <button class="remove-btn" onclick="removeIP('${ip}')">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        function addIP() {
+            const ipInput = document.getElementById('new-ip');
+            const reasonInput = document.getElementById('block-reason');
+            const ip = ipInput.value.trim();
+            const reason = reasonInput.value.trim() || 'Manual admin action';
+
+            if (!ip) {
+                showAlert('ip-alert', 'Please enter an IP address', 'error');
+                return;
+            }
+
+            if (!validateIP(ip)) {
+                showAlert('ip-alert', 'Please enter a valid IP address', 'error');
+                return;
+            }
+
+            fetch('/api/admin/blacklist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ ip, reason })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('ip-alert', `IP ${ip} blocked successfully`, 'success');
+                    ipInput.value = '';
+                    reasonInput.value = '';
+                    refreshIPs();
+                } else {
+                    showAlert('ip-alert', data.message || 'Error blocking IP', 'error');
+                }
+            })
+            .catch(error => {
+                showAlert('ip-alert', 'Network error', 'error');
+            });
+        }
+
+        function removeIP(ip) {
+            if (!confirm(`Remove IP ${ip} from blacklist?`)) {
+                return;
+            }
+
+            fetch(`/api/admin/blacklist/${ip}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('ip-alert', `IP ${ip} removed successfully`, 'success');
+                    refreshIPs();
+                } else {
+                    showAlert('ip-alert', data.message || 'Error removing IP', 'error');
+                }
+            })
+            .catch(error => {
+                showAlert('ip-alert', 'Network error', 'error');
+            });
+        }
+
+        function validateIP(ip) {
+            const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            return ipRegex.test(ip);
+        }
+
+        // Logs
+        function refreshLogs() {
+            const logsContainer = document.getElementById('logs-container');
+            logsContainer.innerHTML = '<div class="spinner"></div>';
+
+            fetch('/api/admin/logs', {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayLogs(data.logs || []);
+            })
+            .catch(error => {
+                logsContainer.innerHTML = '<div class="log-entry">Error loading logs</div>';
+            });
+        }
+
+        function displayLogs(logs) {
+            const logsContainer = document.getElementById('logs-container');
+            
+            if (logs.length === 0) {
+                logsContainer.innerHTML = '<div class="log-entry">No logs available</div>';
+                return;
+            }
+
+            logsContainer.innerHTML = logs.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                const levelClass = `log-level-${log.level}`;
+                return `
+                    <div class="log-entry">
+                        <span class="log-timestamp">[${timestamp}]</span>
+                        <span class="${levelClass}">[${log.level.toUpperCase()}]</span>
+                        ${log.message}
+                    </div>
+                `;
+            }).join('');
+
+            // Scroll to bottom
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // Spam Statistics
+        function refreshSpamStats() {
+            const statsContainer = document.getElementById('spam-stats-content');
+            statsContainer.innerHTML = '<div class="spinner"></div>';
+
+            fetch('/api/health', {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                displaySpamStats(data.spamFilter || {});
+            })
+            .catch(error => {
+                statsContainer.innerHTML = '<p>Error loading spam statistics</p>';
+            });
+        }
+
+        function displaySpamStats(spamFilter) {
+            const statsContainer = document.getElementById('spam-stats-content');
+            const stats = spamFilter.stats || {};
+
+            statsContainer.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.totalAnalyzed || 0}</div>
+                        <div class="stat-label">Total Analyzed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.suspicious || 0}</div>
+                        <div class="stat-label">Suspicious Content</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.blocked || 0}</div>
+                        <div class="stat-label">Blocked Content</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.blockRate || '0%'}</div>
+                        <div class="stat-label">Block Rate</div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h3>Configuration</h3>
+                    <p><strong>Spam Filter:</strong> ${spamFilter.enabled ? '✅ Enabled' : '❌ Disabled'}</p>
+                    <p><strong>Threshold:</strong> ${spamFilter.threshold || 'N/A'}</p>
+                </div>
+            `;
+        }
+
+        // System Information
+        function refreshSystemInfo() {
+            const systemContainer = document.getElementById('system-info');
+            systemContainer.innerHTML = '<div class="spinner"></div>';
+
+            fetch('/api/health', {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                displaySystemInfo(data);
+            })
+            .catch(error => {
+                systemContainer.innerHTML = '<p>Error loading system information</p>';
+            });
+        }
+
+        function displaySystemInfo(data) {
+            const systemContainer = document.getElementById('system-info');
+            const uptime = Math.floor(data.uptime || 0);
+            const uptimeFormatted = formatUptime(uptime);
+
+            systemContainer.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">${data.activeClips || 0}</div>
+                        <div class="stat-label">Active Clips</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${uptimeFormatted}</div>
+                        <div class="stat-label">Uptime</div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h3>Server Status</h3>
+                    <p><strong>Status:</strong> ${data.status || 'Unknown'}</p>
+                    <p><strong>Timestamp:</strong> ${data.timestamp || 'N/A'}</p>
+                    <p><strong>IP Blacklist Sources:</strong> ${data.ipBlacklist?.sources?.length || 0}</p>
+                    <p><strong>Last Update:</strong> ${data.ipBlacklist?.lastUpdated || 'Never'}</p>
+                </div>
+            `;
+        }
+
+        // Utility functions
+        function showAlert(elementId, message, type) {
+            const alertDiv = document.getElementById(elementId);
+            alertDiv.textContent = message;
+            alertDiv.className = `alert ${type}`;
+            alertDiv.classList.remove('hidden');
+            setTimeout(() => alertDiv.classList.add('hidden'), 5000);
+        }
+
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+
+            if (days > 0) {
+                return `${days}d ${hours}h`;
+            } else if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            } else {
+                return `${minutes}m`;
+            }
+        }
+    </script>
+</body>
+</html> 

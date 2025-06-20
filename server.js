@@ -24,6 +24,127 @@ if (process.env.NODE_ENV === 'production') {
 // In-memory storage for clips
 const clips = new Map();
 
+// IP Blacklist Management
+const blockedIPs = new Set([
+  // Beispiel-IPs (können Sie durch echte Spam-IPs ersetzen)
+  // '192.168.1.100',
+  // '10.0.0.50'
+]);
+
+// IP-Blockierung Statistiken
+let ipBlockStats = {
+  totalBlocked: 0,
+  lastUpdated: Date.now(),
+  sources: []
+};
+
+// Externe Spam-IP-Listen laden
+function loadExternalSpamLists() {
+  const fs = require('fs');
+  const path = require('path');
+  
+  try {
+    const spamIPFile = path.join(__dirname, 'data', 'spam-ips.json');
+    
+    if (fs.existsSync(spamIPFile)) {
+      const data = JSON.parse(fs.readFileSync(spamIPFile, 'utf8'));
+      
+      console.log(`📥 Loading ${data.totalIPs} spam IPs from external sources...`);
+      
+      let loaded = 0;
+      for (const ip of data.ips) {
+        if (!blockedIPs.has(ip)) {
+          blockedIPs.add(ip);
+          loaded++;
+        }
+      }
+      
+      ipBlockStats.sources = data.sources || [];
+      ipBlockStats.lastUpdated = Date.now();
+      
+      console.log(`✅ Loaded ${loaded} new spam IPs from external sources`);
+      console.log(`📊 Total blocked IPs: ${blockedIPs.size}`);
+      
+      return loaded;
+    } else {
+      console.log('ℹ️ No external spam IP file found. Run spam-ip-updater.js to download lists.');
+      return 0;
+    }
+  } catch (error) {
+    console.error('❌ Error loading external spam lists:', error.message);
+    return 0;
+  }
+}
+
+// Beim Server-Start externe Listen laden
+setTimeout(() => {
+  loadExternalSpamLists();
+}, 5000); // 5 Sekunden nach dem Start
+
+// Automatisches Update alle 24 Stunden
+setInterval(() => {
+  console.log('🔄 Checking for spam IP list updates...');
+  loadExternalSpamLists();
+}, 24 * 60 * 60 * 1000);
+
+// Funktion zum Hinzufügen einer IP zur Blacklist
+function addToBlacklist(ip, reason = 'Manual') {
+  if (!blockedIPs.has(ip)) {
+    blockedIPs.add(ip);
+    ipBlockStats.totalBlocked++;
+    
+    logMessage('info', `IP ${ip} added to blacklist`, {
+      ip: ip,
+      reason: reason,
+      totalBlockedIPs: blockedIPs.size,
+      action: 'blacklist_add'
+    });
+    
+    return true;
+  }
+  return false;
+}
+
+// Funktion zum Entfernen einer IP aus der Blacklist
+function removeFromBlacklist(ip) {
+  if (blockedIPs.has(ip)) {
+    blockedIPs.delete(ip);
+    
+    logMessage('info', `IP ${ip} removed from blacklist`, {
+      ip: ip,
+      totalBlockedIPs: blockedIPs.size,
+      action: 'blacklist_remove'
+    });
+    
+    return true;
+  }
+  return false;
+}
+
+// Middleware zum Prüfen von blockierten IPs
+function checkBlacklist(req, res, next) {
+  const clientIP = req.ip;
+  
+  if (blockedIPs.has(clientIP)) {
+    logMessage('warn', `Blocked request from blacklisted IP: ${clientIP}`, {
+      blockedIP: clientIP,
+      userAgent: req.get('User-Agent'),
+      path: req.path,
+      method: req.method,
+      blocked: true
+    });
+    
+    return res.status(403).json({ 
+      error: 'Access denied',
+      message: 'Your IP address has been blocked due to suspicious activity.',
+      blocked: true,
+      ip: clientIP
+    });
+  }
+  
+  next();
+}
+
 // Spam filter statistics
 let spamStats = {
   totalAnalyzed: 0,
@@ -66,8 +187,9 @@ const retrieveLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Apply rate limiting to API routes
-app.use('/api/clip', createLimiter);
+// Apply IP blacklist and rate limiting to API routes
+app.use('/api/clip', checkBlacklist, createLimiter);
+app.use('/api', checkBlacklist); // Schutz für alle API-Routen
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -337,6 +459,24 @@ app.post('/api/clip', validateClipCreation, (req, res) => {
     // Block content if score exceeds threshold
     if (spamAnalysis.score >= SPAM_SCORE_THRESHOLD) {
       spamStats.blocked++;
+      
+      logMessage('warn', `Spam content blocked from IP ${req.ip}`, {
+        ip: req.ip,
+        score: spamAnalysis.score,
+        threshold: SPAM_SCORE_THRESHOLD,
+        reasons: spamAnalysis.reasons.slice(0, 3),
+        contentPreview: content.substring(0, 100) + '...'
+      });
+      
+      // Bei sehr hohem Spam-Score: IP zur Blacklist hinzufügen
+      if (spamAnalysis.score >= SPAM_SCORE_THRESHOLD * 2) {
+        addToBlacklist(req.ip, `High spam score: ${spamAnalysis.score}`);
+        logMessage('error', `IP ${req.ip} auto-blocked for high spam score`, {
+          score: spamAnalysis.score,
+          autoBlocked: true
+        });
+      }
+      
       return res.status(403).json({ 
         error: 'Content blocked due to suspicious patterns',
         message: 'Your content contains patterns that are commonly associated with spam or malicious content. Please review and try again.',
@@ -535,6 +675,11 @@ app.get('/api/health', (req, res) => {
         blockRate: spamStats.totalAnalyzed > 0 ? (spamStats.blocked / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%',
         suspiciousRate: spamStats.totalAnalyzed > 0 ? (spamStats.suspicious / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%'
       }
+    },
+    ipBlacklist: {
+      totalBlockedIPs: blockedIPs.size,
+      lastUpdated: new Date(ipBlockStats.lastUpdated).toISOString(),
+      sources: ipBlockStats.sources
     }
   });
 });
@@ -550,9 +695,383 @@ app.get('/api/legal', (req, res) => {
   });
 });
 
+// Admin Authentication Middleware
+function requireAdminAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const adminToken = process.env.ADMIN_TOKEN || 'qopy-admin-2024'; // Set via Railway environment variables
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ 
+      error: 'Unauthorized',
+      message: 'Admin token required. Set Authorization header with Bearer token.'
+    });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  
+  if (token !== adminToken) {
+    return res.status(401).json({ 
+      error: 'Unauthorized',
+      message: 'Invalid admin token.'
+    });
+  }
+  
+  next();
+}
+
+// In-memory log storage for Railway
+const systemLogs = [];
+const MAX_LOGS = 1000; // Keep last 1000 log entries
+
+// Enhanced logging function
+function logMessage(level, message, metadata = {}) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level: level,
+    message: message,
+    metadata: metadata,
+    source: 'qopy-server'
+  };
+  
+  systemLogs.push(logEntry);
+  
+  // Keep only last MAX_LOGS entries
+  if (systemLogs.length > MAX_LOGS) {
+    systemLogs.shift();
+  }
+  
+  // Console log for Railway logs
+  const logLine = `[${logEntry.timestamp}] [${level.toUpperCase()}] ${message}`;
+  console.log(logLine);
+  
+  // Additional metadata for Railway
+  if (Object.keys(metadata).length > 0) {
+    console.log('  Metadata:', JSON.stringify(metadata));
+  }
+}
+
+// Override console methods to capture logs
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
+console.log = (...args) => {
+  const message = args.join(' ');
+  if (!message.includes('[ADMIN]')) { // Avoid infinite recursion
+    logMessage('info', message);
+  }
+  originalConsoleLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  const message = args.join(' ');
+  logMessage('error', message);
+  originalConsoleError.apply(console, args);
+};
+
+console.warn = (...args) => {
+  const message = args.join(' ');
+  logMessage('warn', message);
+  originalConsoleWarn.apply(console, args);
+};
+
+// Admin endpoints for IP management
+app.get('/api/admin/blacklist', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Blacklist accessed by IP ${req.ip}`, { 
+    endpoint: '/api/admin/blacklist',
+    method: 'GET' 
+  });
+  
+  res.json({
+    success: true,
+    blockedIPs: Array.from(blockedIPs),
+    stats: ipBlockStats
+  });
+});
+
+app.post('/api/admin/blacklist', requireAdminAuth, (req, res) => {
+  const { ip, reason } = req.body;
+  
+  if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+    logMessage('warn', `[ADMIN] Invalid IP format attempted: ${ip}`, { 
+      adminIP: req.ip,
+      attemptedIP: ip 
+    });
+    return res.status(400).json({ error: 'Invalid IP address format' });
+  }
+  
+  const added = addToBlacklist(ip, reason || 'Manual admin action');
+  
+  logMessage('info', `[ADMIN] IP ${ip} ${added ? 'added to' : 'already in'} blacklist`, {
+    adminIP: req.ip,
+    targetIP: ip,
+    reason: reason || 'Manual admin action',
+    action: 'add'
+  });
+  
+  res.json({
+    success: true,
+    added: added,
+    message: added ? `IP ${ip} added to blacklist` : `IP ${ip} already in blacklist`
+  });
+});
+
+app.delete('/api/admin/blacklist/:ip', requireAdminAuth, (req, res) => {
+  const ip = req.params.ip;
+  
+  const removed = removeFromBlacklist(ip);
+  
+  logMessage('info', `[ADMIN] IP ${ip} ${removed ? 'removed from' : 'not found in'} blacklist`, {
+    adminIP: req.ip,
+    targetIP: ip,
+    action: 'remove'
+  });
+  
+  res.json({
+    success: true,
+    removed: removed,
+    message: removed ? `IP ${ip} removed from blacklist` : `IP ${ip} not found in blacklist`
+  });
+});
+
+// Admin logs endpoint
+app.get('/api/admin/logs', requireAdminAuth, (req, res) => {
+  const limit = parseInt(req.query.limit) || 100;
+  const level = req.query.level; // filter by log level
+  
+  let logs = [...systemLogs];
+  
+  // Filter by level if specified
+  if (level) {
+    logs = logs.filter(log => log.level === level);
+  }
+  
+  // Get last N entries
+  logs = logs.slice(-limit);
+  
+  logMessage('info', `[ADMIN] Logs accessed`, { 
+    adminIP: req.ip,
+    limit: limit,
+    level: level || 'all',
+    totalLogs: logs.length
+  });
+  
+  res.json({
+    success: true,
+    logs: logs,
+    totalLogs: systemLogs.length,
+    filteredLogs: logs.length
+  });
+});
+
+// Admin system update endpoint
+app.post('/api/admin/update-spam-lists', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Manual spam list update triggered`, { 
+    adminIP: req.ip 
+  });
+  
+  // Trigger spam list update
+  const loadedCount = loadExternalSpamLists();
+  
+  res.json({
+    success: true,
+    message: `Updated spam lists. Loaded ${loadedCount} new IPs.`,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Debug endpoints for troubleshooting
+app.get('/api/admin/debug/process', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Process debug info requested`, { adminIP: req.ip });
+  
+  const processInfo = {
+    pid: process.pid,
+    ppid: process.ppid,
+    platform: process.platform,
+    arch: process.arch,
+    nodeVersion: process.version,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    cpuUsage: process.cpuUsage(),
+    versions: process.versions,
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
+      RAILWAY_SERVICE_NAME: process.env.RAILWAY_SERVICE_NAME,
+      RAILWAY_REGION: process.env.RAILWAY_REGION,
+      DEBUG: process.env.DEBUG
+    },
+    argv: process.argv,
+    execPath: process.execPath,
+    cwd: process.cwd()
+  };
+  
+  res.json({
+    success: true,
+    processInfo: processInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/admin/debug/server', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Server debug info requested`, { adminIP: req.ip });
+  
+  const serverInfo = {
+    listening: server.listening,
+    connections: server._connections || 'unknown',
+    maxConnections: server.maxConnections,
+    timeout: server.timeout,
+    keepAliveTimeout: server.keepAliveTimeout,
+    headersTimeout: server.headersTimeout,
+    requestTimeout: server.requestTimeout,
+    address: server.address(),
+    eventNames: server.eventNames(),
+    listenerCount: {
+      connection: server.listenerCount('connection'),
+      request: server.listenerCount('request'),
+      close: server.listenerCount('close'),
+      error: server.listenerCount('error')
+    }
+  };
+  
+  res.json({
+    success: true,
+    serverInfo: serverInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/admin/debug/memory', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Memory debug info requested`, { adminIP: req.ip });
+  
+  const memoryInfo = {
+    process: process.memoryUsage(),
+    heap: {
+      totalHeapSize: 'v8 not available',
+      totalHeapSizeExecutable: 'v8 not available',
+      totalPhysicalSize: 'v8 not available',
+      totalAvailableSize: 'v8 not available',
+      usedHeapSize: 'v8 not available',
+      heapSizeLimit: 'v8 not available'
+    },
+    applicationData: {
+      activeClips: clips.size,
+      blockedIPs: blockedIPs.size,
+      systemLogs: systemLogs.length,
+      spamStats: spamStats,
+      ipBlockStats: ipBlockStats
+    }
+  };
+  
+  // Try to get V8 heap statistics if available
+  try {
+    const v8 = require('v8');
+    memoryInfo.heap = v8.getHeapStatistics();
+    memoryInfo.heapSpaceStatistics = v8.getHeapSpaceStatistics();
+  } catch (error) {
+    // V8 module not available or error getting stats
+  }
+  
+  res.json({
+    success: true,
+    memoryInfo: memoryInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/admin/debug/signals', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Signal debug info requested`, { adminIP: req.ip });
+  
+  const signalInfo = {
+    supportedSignals: [
+      'SIGTERM', 'SIGINT', 'SIGHUP', 'SIGUSR1', 'SIGUSR2',
+      'SIGKILL', 'SIGSTOP', 'SIGCONT', 'SIGQUIT'
+    ],
+    registeredListeners: {
+      SIGTERM: process.listenerCount('SIGTERM'),
+      SIGINT: process.listenerCount('SIGINT'),
+      SIGHUP: process.listenerCount('SIGHUP'),
+      SIGUSR1: process.listenerCount('SIGUSR1'),
+      SIGUSR2: process.listenerCount('SIGUSR2'),
+      uncaughtException: process.listenerCount('uncaughtException'),
+      unhandledRejection: process.listenerCount('unhandledRejection'),
+      warning: process.listenerCount('warning')
+    },
+    shutdownState: {
+      isShuttingDown: isShuttingDown,
+      debugMode: DEBUG_MODE,
+      shutdownTimeout: SHUTDOWN_TIMEOUT
+    },
+    railwaySignals: {
+      description: 'Railway typically sends SIGTERM for graceful shutdown',
+      commonCauses: [
+        'New deployment',
+        'Auto-scaling',
+        'Maintenance',
+        'Resource limits exceeded',
+        'Health check failures'
+      ]
+    }
+  };
+  
+  res.json({
+    success: true,
+    signalInfo: signalInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Force debug dump endpoint
+app.post('/api/admin/debug/dump', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Full debug dump requested`, { adminIP: req.ip });
+  
+  const fullDump = {
+    timestamp: new Date().toISOString(),
+    process: {
+      pid: process.pid,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      cpuUsage: process.cpuUsage(),
+      platform: process.platform,
+      nodeVersion: process.version
+    },
+    server: {
+      listening: server.listening,
+      connections: server._connections,
+      address: server.address()
+    },
+    application: {
+      activeClips: clips.size,
+      blockedIPs: blockedIPs.size,
+      systemLogs: systemLogs.length,
+      spamStats: spamStats,
+      ipBlockStats: ipBlockStats
+    },
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
+      DEBUG: process.env.DEBUG,
+      ADMIN_TOKEN: process.env.ADMIN_TOKEN ? 'SET' : 'NOT_SET'
+    },
+    recentLogs: systemLogs.slice(-20) // Last 20 log entries
+  };
+  
+  logMessage('info', '🔍 Full debug dump generated', fullDump);
+  
+  res.json({
+    success: true,
+    debugDump: fullDump
+  });
+});
+
 // Serve the main application
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Serve admin dashboard
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // Serve clip retrieval page
@@ -571,42 +1090,335 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Graceful shutdown handling
+// Enhanced process monitoring and debugging
+const DEBUG_MODE = process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development';
+const SHUTDOWN_TIMEOUT = parseInt(process.env.SHUTDOWN_TIMEOUT) || 30000; // 30 seconds
+
+// Process start logging
+logMessage('info', '🚀 Qopy server process started', {
+  pid: process.pid,
+  nodeVersion: process.version,
+  platform: process.platform,
+  arch: process.arch,
+  memory: process.memoryUsage(),
+  uptime: process.uptime(),
+  railwayEnv: process.env.RAILWAY_ENVIRONMENT || 'unknown',
+  debugMode: DEBUG_MODE
+});
+
+// Memory monitoring
+let memoryCheckInterval;
+if (DEBUG_MODE) {
+  memoryCheckInterval = setInterval(() => {
+    const memUsage = process.memoryUsage();
+    const memMB = {
+      rss: Math.round(memUsage.rss / 1024 / 1024),
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+      external: Math.round(memUsage.external / 1024 / 1024)
+    };
+    
+    // Log if memory usage is high
+    if (memMB.rss > 400 || memMB.heapUsed > 200) {
+      logMessage('warn', '⚠️ High memory usage detected', {
+        memory: memMB,
+        activeClips: clips.size,
+        blockedIPs: blockedIPs.size,
+        systemLogs: systemLogs.length
+      });
+    } else if (DEBUG_MODE) {
+      logMessage('info', '📊 Memory check', { memory: memMB });
+    }
+  }, 60000); // Check every minute
+}
+
+// Enhanced graceful shutdown handling
+let isShuttingDown = false;
+let shutdownTimer;
+
+function initiateShutdown(signal, exitCode = 0) {
+  if (isShuttingDown) {
+    logMessage('warn', `🔄 Already shutting down, ignoring ${signal}`);
+    return;
+  }
+  
+  isShuttingDown = true;
+  
+  logMessage('info', `🛑 ${signal} received, initiating graceful shutdown...`, {
+    signal: signal,
+    pid: process.pid,
+    uptime: process.uptime(),
+    activeClips: clips.size,
+    blockedIPs: blockedIPs.size,
+    memoryUsage: process.memoryUsage(),
+    railwayEnv: process.env.RAILWAY_ENVIRONMENT || 'unknown'
+  });
+
+  // Set shutdown timeout
+  shutdownTimer = setTimeout(() => {
+    logMessage('error', '💥 Forced shutdown after timeout', {
+      timeoutMs: SHUTDOWN_TIMEOUT,
+      signal: signal
+    });
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT);
+
+  // Cleanup sequence
+  try {
+    // Stop memory monitoring
+    if (memoryCheckInterval) {
+      clearInterval(memoryCheckInterval);
+      logMessage('info', '🔄 Stopped memory monitoring');
+    }
+
+    // Stop spam list updates
+    logMessage('info', '🔄 Stopping background tasks...');
+
+    // Close server gracefully
+    if (server && server.listening) {
+      logMessage('info', '🔄 Closing HTTP server...');
+      server.close((err) => {
+        if (err) {
+          logMessage('error', '❌ Error closing server', { error: err.message });
+        } else {
+          logMessage('info', '✅ HTTP server closed successfully');
+        }
+        
+        // Final cleanup
+        performFinalCleanup(exitCode);
+      });
+    } else {
+      performFinalCleanup(exitCode);
+    }
+  } catch (error) {
+    logMessage('error', '💥 Error during shutdown sequence', {
+      error: error.message,
+      stack: error.stack
+    });
+    performFinalCleanup(1);
+  }
+}
+
+function performFinalCleanup(exitCode) {
+  logMessage('info', '🧹 Performing final cleanup...', {
+    exitCode: exitCode,
+    totalUptime: process.uptime()
+  });
+
+  // Clear shutdown timer
+  if (shutdownTimer) {
+    clearTimeout(shutdownTimer);
+  }
+
+  // Log final statistics
+  logMessage('info', '📊 Final server statistics', {
+    totalClipsProcessed: spamStats.totalAnalyzed,
+    totalSpamBlocked: spamStats.blocked,
+    totalIPsBlocked: blockedIPs.size,
+    finalMemoryUsage: process.memoryUsage(),
+    totalUptime: process.uptime()
+  });
+
+  logMessage('info', '👋 Qopy server shutdown complete', {
+    exitCode: exitCode,
+    timestamp: new Date().toISOString()
+  });
+
+  // Small delay to ensure logs are written
+  setTimeout(() => {
+    process.exit(exitCode);
+  }, 100);
+}
+
+// Signal handlers with enhanced logging
 process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully...');
-  process.exit(0);
+  logMessage('warn', '📡 SIGTERM signal received', {
+    source: 'Railway/Container orchestrator',
+    reason: 'Deployment, scaling, or maintenance',
+    action: 'Graceful shutdown initiated'
+  });
+  initiateShutdown('SIGTERM', 0);
 });
 
 process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, shutting down gracefully...');
-  process.exit(0);
+  logMessage('warn', '📡 SIGINT signal received', {
+    source: 'User interrupt (Ctrl+C)',
+    action: 'Graceful shutdown initiated'
+  });
+  initiateShutdown('SIGINT', 0);
 });
 
+process.on('SIGHUP', () => {
+  logMessage('warn', '📡 SIGHUP signal received', {
+    source: 'Hangup signal',
+    action: 'Graceful restart initiated'
+  });
+  initiateShutdown('SIGHUP', 0);
+});
+
+// Enhanced error handling
 process.on('uncaughtException', (err) => {
-  console.error('💥 Uncaught Exception:', err);
-  process.exit(1);
+  logMessage('error', '💥 Uncaught Exception detected', {
+    error: err.message,
+    stack: err.stack,
+    pid: process.pid,
+    memory: process.memoryUsage(),
+    uptime: process.uptime(),
+    activeConnections: server ? server._connections : 'unknown'
+  });
+  
+  // Try graceful shutdown first
+  initiateShutdown('UNCAUGHT_EXCEPTION', 1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  logMessage('error', '💥 Unhandled Promise Rejection detected', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+    promise: promise.toString(),
+    pid: process.pid,
+    memory: process.memoryUsage(),
+    uptime: process.uptime()
+  });
+  
+  // Log but don't exit immediately for unhandled rejections
+  // This allows the application to continue running
 });
 
+// Additional debugging signals
+if (DEBUG_MODE) {
+  process.on('SIGUSR1', () => {
+    const debugInfo = {
+      pid: process.pid,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      activeClips: clips.size,
+      blockedIPs: blockedIPs.size,
+      systemLogs: systemLogs.length,
+      spamStats: spamStats,
+      ipBlockStats: ipBlockStats,
+      environment: {
+        nodeEnv: process.env.NODE_ENV,
+        railwayEnv: process.env.RAILWAY_ENVIRONMENT,
+        railwayService: process.env.RAILWAY_SERVICE_NAME,
+        railwayRegion: process.env.RAILWAY_REGION
+      }
+    };
+    
+    logMessage('info', '🔍 Debug info dump (SIGUSR1)', debugInfo);
+  });
+
+  process.on('SIGUSR2', () => {
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+      logMessage('info', '🗑️ Manual garbage collection triggered', {
+        memoryAfterGC: process.memoryUsage()
+      });
+    } else {
+      logMessage('warn', '🗑️ Garbage collection not available (start with --expose-gc)');
+    }
+  });
+}
+
+// Monitor for potential memory leaks
+process.on('warning', (warning) => {
+  logMessage('warn', '⚠️ Node.js warning detected', {
+    name: warning.name,
+    message: warning.message,
+    stack: warning.stack
+  });
+});
+
+// Railway-specific monitoring
+if (process.env.RAILWAY_ENVIRONMENT) {
+  logMessage('info', '🚂 Railway environment detected', {
+    environment: process.env.RAILWAY_ENVIRONMENT,
+    service: process.env.RAILWAY_SERVICE_NAME,
+    region: process.env.RAILWAY_REGION,
+    publicDomain: process.env.RAILWAY_PUBLIC_DOMAIN
+  });
+}
+
 const server = app.listen(PORT, () => {
+  const startupInfo = {
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    pid: process.pid,
+    nodeVersion: process.version,
+    trustProxy: app.get('trust proxy'),
+    spamFilterEnabled: SPAM_FILTER_ENABLED,
+    spamThreshold: SPAM_SCORE_THRESHOLD,
+    rateLimit: {
+      maxRequests: process.env.RATE_LIMIT_MAX_REQUESTS || 20,
+      windowMs: process.env.RATE_LIMIT_WINDOW_MS || 900000
+    },
+    memory: process.memoryUsage(),
+    railway: {
+      environment: process.env.RAILWAY_ENVIRONMENT,
+      service: process.env.RAILWAY_SERVICE_NAME,
+      region: process.env.RAILWAY_REGION,
+      publicDomain: process.env.RAILWAY_PUBLIC_DOMAIN
+    },
+    debugMode: DEBUG_MODE
+  };
+  
+  logMessage('info', '🚀 Qopy Server successfully started', startupInfo);
+  
+  // Console output for immediate visibility
   console.log(`🚀 Qopy Server running on port ${PORT}`);
   console.log(`📋 Access the app at http://localhost:${PORT}`);
   console.log(`🔐 Security features enabled: Rate limiting, Helmet, CORS`);
   console.log(`🌐 Trust proxy setting: ${app.get('trust proxy')} (NODE_ENV: ${process.env.NODE_ENV})`);
   console.log(`📊 Active clips will be cleaned up every minute`);
   console.log(`🛡️ Spam filter enabled: ${SPAM_FILTER_ENABLED}`);
+  console.log(`🎛️ Admin dashboard: http://localhost:${PORT}/admin`);
+  console.log(`🔍 Debug mode: ${DEBUG_MODE ? 'ENABLED' : 'DISABLED'}`);
+  
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    console.log(`🌐 Public URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+    console.log(`🎛️ Admin URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/admin`);
+  }
 });
 
 server.on('error', (err) => {
+  const errorInfo = {
+    error: err.message,
+    code: err.code,
+    port: PORT,
+    pid: process.pid,
+    stack: err.stack
+  };
+  
   if (err.code === 'EADDRINUSE') {
+    logMessage('error', `❌ Port ${PORT} is already in use`, errorInfo);
     console.error(`❌ Port ${PORT} is already in use`);
     process.exit(1);
   } else {
+    logMessage('error', '❌ Server startup error', errorInfo);
     console.error('❌ Server error:', err);
     process.exit(1);
   }
+});
+
+// Server connection monitoring
+server.on('connection', (socket) => {
+  if (DEBUG_MODE) {
+    logMessage('info', '🔗 New connection established', {
+      remoteAddress: socket.remoteAddress,
+      remotePort: socket.remotePort,
+      connections: server._connections || 'unknown'
+    });
+  }
+});
+
+server.on('close', () => {
+  logMessage('info', '🔌 Server closed', {
+    uptime: process.uptime(),
+    finalStats: {
+      totalClips: spamStats.totalAnalyzed,
+      blockedSpam: spamStats.blocked,
+      blockedIPs: blockedIPs.size
+    }
+  });
 }); 

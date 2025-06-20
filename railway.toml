@@ -1,12 +1,17 @@
 [build]
 builder = "nixpacks"
-buildCommand = "node scripts/check-npm-version.js && npm ci --only=production"
+buildCommand = "node scripts/check-npm-version.js && npm ci --only=production && npm run setup-admin"
 
 [deploy]
+startCommand = "npm run railway-deploy && npm start"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 60
+healthcheckInterval = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+terminationGracePeriodSeconds = 60
 
 [env]
-NODE_ENV = "production" 
+NODE_ENV = "production"
+DEBUG = "false"
+SHUTDOWN_TIMEOUT = "45000" 

@@ -10,6 +10,9 @@
     "health-check": "node scripts/health-check.js",
     "build": "npm ci && echo '🎉 Build completed successfully'",
     "check-npm": "node scripts/check-npm-version.js",
+    "update-spam-ips": "node scripts/spam-ip-updater.js",
+    "setup-admin": "node scripts/setup-admin.js",
+    "railway-deploy": "bash scripts/railway-deploy.sh",
     "postinstall": "echo '📦 Installation completed with npm' && npm --version"
   },
   "keywords": ["clipboard", "sharing", "anonymous", "temporary", "qopy"],
