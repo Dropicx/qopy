@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background rounded rectangle -->
+  <rect x="32" y="32" width="448" height="320" rx="80" ry="80" fill="#2d2d2d"/>
+  
+  <!-- Speech bubble tail -->
+  <path d="M180 352 L180 420 Q180 448 208 448 L280 448 Q308 448 308 420 L308 380 Q308 352 280 352 Z" fill="#2d2d2d"/>
+  
+  <!-- Inner rounded rectangle (the "Q" hole) -->
+  <rect x="192" y="128" width="128" height="160" rx="32" ry="32" fill="#ffffff"/>
+</svg> 
