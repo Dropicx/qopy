@@ -1411,6 +1411,28 @@ app.get('/api/admin/token-info', (req, res) => {
   });
 });
 
+// EMERGENCY ADMIN TOKEN REVEAL (only works once per server restart)
+let tokenRevealed = false;
+app.get('/api/admin/emergency-token', (req, res) => {
+  if (tokenRevealed) {
+    return res.status(403).json({ 
+      error: 'Token already revealed', 
+      message: 'For security, token can only be revealed once per server restart' 
+    });
+  }
+  
+  const adminToken = process.env.ADMIN_TOKEN || 'qopy-admin-2024';
+  tokenRevealed = true;
+  
+  console.log('🚨 EMERGENCY: Admin token revealed via API');
+  
+  res.json({
+    adminToken: adminToken,
+    message: 'SECURITY WARNING: Token revealed. Use immediately and consider changing it.',
+    expiresAfter: 'This endpoint is now disabled until server restart'
+  });
+});
+
 // Serve clip retrieval page (CRITICAL MISSING ROUTE)
 app.get('/clip/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
