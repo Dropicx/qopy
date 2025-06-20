@@ -517,11 +517,15 @@
                 }
             })
             .then(response => {
+                console.log('🔧 Login response status:', response.status);
                 if (response.ok) {
+                    console.log('✅ Login successful, setting token');
                     adminToken = token;
                     localStorage.setItem('qopy-admin-token', token);
+                    console.log('🔧 About to call showDashboard()');
                     showDashboard();
                 } else {
+                    console.log('❌ Login failed with status:', response.status);
                     showLoginError('Invalid admin token');
                 }
             })
@@ -545,12 +549,39 @@
         }
 
         function showDashboard() {
-            document.getElementById('login-container').style.display = 'none';
-            document.getElementById('dashboard').classList.add('active');
-            loadDashboardData();
+            console.log('🔧 showDashboard called');
             
-            // Auto-refresh every 30 seconds
-            refreshInterval = setInterval(loadDashboardData, 30000);
+            try {
+                const loginContainer = document.getElementById('login-container');
+                const dashboard = document.getElementById('dashboard');
+                
+                console.log('🔧 Login container:', loginContainer);
+                console.log('🔧 Dashboard element:', dashboard);
+                
+                if (loginContainer) {
+                    loginContainer.style.display = 'none';
+                    console.log('✅ Login container hidden');
+                } else {
+                    console.error('❌ Login container not found');
+                }
+                
+                if (dashboard) {
+                    dashboard.classList.add('active');
+                    console.log('✅ Dashboard activated');
+                } else {
+                    console.error('❌ Dashboard element not found');
+                }
+                
+                loadDashboardData();
+                
+                // Auto-refresh every 30 seconds
+                refreshInterval = setInterval(loadDashboardData, 30000);
+                console.log('✅ Dashboard setup complete');
+                
+            } catch (error) {
+                console.error('❌ Error in showDashboard:', error);
+                alert('Error showing dashboard: ' + error.message);
+            }
         }
 
         function showLoginError(message) {
