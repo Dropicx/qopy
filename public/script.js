@@ -2,38 +2,17 @@
 class ClipboardApp {
     constructor() {
         this.baseUrl = window.location.origin;
-        this.currentTheme = localStorage.getItem('theme') || 'light';
         this.init();
     }
 
     init() {
-        this.setupTheme();
         this.setupEventListeners();
         this.setupRouting();
         this.setupKeyboardShortcuts();
     }
 
-    // Theme Management
-    setupTheme() {
-        document.documentElement.setAttribute('data-theme', this.currentTheme);
-        const themeIcon = document.querySelector('.theme-icon');
-        themeIcon.textContent = this.currentTheme === 'dark' ? '☀️' : '🌙';
-    }
-
-    toggleTheme() {
-        this.currentTheme = this.currentTheme === 'light' ? 'dark' : 'light';
-        localStorage.setItem('theme', this.currentTheme);
-        this.setupTheme();
-        this.showToast('Theme changed to ' + this.currentTheme + ' mode', 'success');
-    }
-
     // Event Listeners
     setupEventListeners() {
-        // Theme toggle
-        document.getElementById('theme-toggle').addEventListener('click', () => {
-            this.toggleTheme();
-        });
-
         // Tab navigation
         document.getElementById('share-tab').addEventListener('click', () => {
             this.switchTab('share');
@@ -98,12 +77,6 @@ class ClipboardApp {
     // Keyboard Shortcuts
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-            // Ctrl/Cmd + T for theme toggle
-            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
-                e.preventDefault();
-                this.toggleTheme();
-            }
-
             // Ctrl/Cmd + 1 for share tab
             if ((e.ctrlKey || e.metaKey) && e.key === '1') {
                 e.preventDefault();
