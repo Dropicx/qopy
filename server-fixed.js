@@ -1340,11 +1340,28 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Serve admin dashboard
+// Serve admin dashboard (EXPLICIT ROUTE WITH ERROR HANDLING)
 app.get('/admin', (req, res) => {
   console.log('🔧 Admin dashboard requested:', req.url);
-  console.log('🔧 Serving file:', path.join(__dirname, 'public', 'admin.html'));
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+  const adminFilePath = path.join(__dirname, 'public', 'admin.html');
+  console.log('🔧 Serving file:', adminFilePath);
+  
+  // Check if file exists first
+  const fs = require('fs');
+  if (fs.existsSync(adminFilePath)) {
+    console.log('✅ Admin file exists, serving...');
+    res.sendFile(adminFilePath, (err) => {
+      if (err) {
+        console.error('❌ Error serving admin.html:', err);
+        res.status(500).send('Error loading admin dashboard');
+      } else {
+        console.log('✅ Admin dashboard served successfully');
+      }
+    });
+  } else {
+    console.error('❌ Admin file not found:', adminFilePath);
+    res.status(404).send('Admin dashboard not found');
+  }
 });
 
 // Serve clip retrieval page (CRITICAL MISSING ROUTE)
