@@ -3,7 +3,7 @@ builder = "nixpacks"
 buildCommand = "node scripts/check-npm-version.js && npm ci --only=production"
 
 [deploy]
-startCommand = "node server-minimal.js"
+startCommand = "node server-progressive.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 60
 healthcheckInterval = 30
