@@ -69,7 +69,6 @@ ecosystem.config.js
 *.tmp
 
 # Application specific
-data/
 uploads/
 public/uploads/
 
