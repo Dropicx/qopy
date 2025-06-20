@@ -1361,6 +1361,11 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+// Serve clip retrieval page (CRITICAL MISSING ROUTE)
+app.get('/clip/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Global error handlers
 app.use((err, req, res, next) => {
   // Log the error
