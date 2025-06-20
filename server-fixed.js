@@ -339,18 +339,7 @@ console.log('✅ Keep-alive enabled');
 // I'll continue with the rest of the routes in the next part...
 // This is a foundation with all the critical fixes applied.
 
-// Basic routes first
-app.get('/', (req, res) => {
-  console.log('📱 Root endpoint accessed');
-  res.json({
-    message: 'Qopy Server is running',
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    activeClips: clips.size,
-    version: 'fixed-1.0.0'
-  });
-});
+// Remove the JSON root route - static files will handle it
 
 // Comprehensive spam filter
 const SUSPICIOUS_KEYWORDS = [
@@ -1388,7 +1377,33 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+console.log('✅ Enhanced admin and debug endpoints ready');
+console.log('✅ Validation middleware ready');  
+console.log('✅ Frontend routes ready');
+
+// Global error handlers (AFTER all routes)
+app.use((err, req, res, next) => {
+  // Log the error
+  logMessage('error', '🚨 Unhandled application error', {
+    error: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+
+  // Don't leak error details in production
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  res.status(err.status || 500).json({
+    error: 'Internal server error',
+    message: isDevelopment ? err.message : 'Something went wrong',
+    ...(isDevelopment && { stack: err.stack })
+  });
+});
+
+// 404 handler (MUST be last)
 app.use((req, res) => {
   logMessage('warn', '🔍 404 - Route not found', {
     url: req.url,
@@ -1403,14 +1418,6 @@ app.use((req, res) => {
   });
 });
 
-// Process error handlers (MOVE TO AFTER SERVER DEFINITION)
-// These will be set after server initialization
-
-// Also move unhandled rejection handler
-
-console.log('✅ Enhanced admin and debug endpoints ready');
-console.log('✅ Validation middleware ready');  
-console.log('✅ Frontend routes ready');
 console.log('✅ Global error handlers ready');
 
 // Generate admin token if not set
