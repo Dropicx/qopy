@@ -1381,6 +1381,21 @@ app.get('/admin-test', (req, res) => {
   });
 });
 
+// DIRECT ADMIN CONTENT ENDPOINT (works around routing issues)
+app.get('/api/admin/dashboard', (req, res) => {
+  console.log('🔧 Direct admin dashboard content requested');
+  const fs = require('fs');
+  const adminFilePath = path.join(__dirname, 'public', 'admin.html');
+  
+  if (fs.existsSync(adminFilePath)) {
+    const content = fs.readFileSync(adminFilePath, 'utf8');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(content);
+  } else {
+    res.status(404).json({ error: 'Admin dashboard not found' });
+  }
+});
+
 // Serve clip retrieval page (CRITICAL MISSING ROUTE)
 app.get('/clip/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
