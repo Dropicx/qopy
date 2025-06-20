@@ -13,7 +13,5 @@ terminationGracePeriodSeconds = 30
 
 [env]
 NODE_ENV = "production"
-DEBUG = "true"
-SHUTDOWN_TIMEOUT = "45000"
-# Use minimal server for now to debug health check issues
-USE_MINIMAL_SERVER = "true" 
+DEBUG = "false"
+SHUTDOWN_TIMEOUT = "45000" 

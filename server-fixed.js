@@ -33,7 +33,7 @@ app.get('/api/health', (req, res) => {
     port: PORT,
     environment: process.env.NODE_ENV || 'development',
     railway: !!process.env.RAILWAY_ENVIRONMENT,
-    version: 'fixed-1.0.0',
+    version: 'fixed-1.0.2-admin-debug',
     memory: process.memoryUsage(),
     pid: process.pid
   };
