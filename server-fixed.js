@@ -292,11 +292,6 @@ app.use('/api', checkBlacklist);
 
 console.log('✅ Rate limiting configured');
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-console.log('✅ Static files enabled');
-
 // Generate 6-character unique ID
 function generateClipId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1356,6 +1351,11 @@ app.get('/admin', (req, res) => {
 app.get('/clip/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Serve static files AFTER specific routes to avoid conflicts
+app.use(express.static(path.join(__dirname, 'public')));
+
+console.log('✅ Static files enabled');
 
 // Removed duplicate error handler
 
