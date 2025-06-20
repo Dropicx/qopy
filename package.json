@@ -4,12 +4,11 @@
   "description": "Qopy - Secure temporary text sharing web application",
   "main": "server.js",
   "scripts": {
-    "preinstall": "node scripts/check-npm-version.js",
-    "start": "node server.js",
+    "start": "node --max-old-space-size=512 server.js",
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "health-check": "node scripts/health-check.js",
-    "build": "node scripts/check-npm-version.js && npm ci && echo '🎉 Build completed successfully'",
+    "build": "npm ci && echo '🎉 Build completed successfully'",
     "check-npm": "node scripts/check-npm-version.js",
     "postinstall": "echo '📦 Installation completed with npm' && npm --version"
   },
@@ -31,10 +30,10 @@
   },
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=11.4.2"
+    "npm": ">=10.0.0"
   },
   "volta": {
     "node": "20.10.0",
-    "npm": "11.4.2"
+    "npm": "10.8.0"
   }
 } 

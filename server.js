@@ -571,10 +571,42 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+const server = app.listen(PORT, () => {
   console.log(`🚀 Qopy Server running on port ${PORT}`);
   console.log(`📋 Access the app at http://localhost:${PORT}`);
   console.log(`🔐 Security features enabled: Rate limiting, Helmet, CORS`);
   console.log(`🌐 Trust proxy setting: ${app.get('trust proxy')} (NODE_ENV: ${process.env.NODE_ENV})`);
   console.log(`📊 Active clips will be cleaned up every minute`);
+  console.log(`🛡️ Spam filter enabled: ${SPAM_FILTER_ENABLED}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use`);
+    process.exit(1);
+  } else {
+    console.error('❌ Server error:', err);
+    process.exit(1);
+  }
 }); 
