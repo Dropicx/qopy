@@ -947,9 +947,16 @@ function logMessage(level, message, metadata = {}) {
     systemLogs.shift();
   }
   
-  console.log(`[${logEntry.timestamp}] [${level.toUpperCase()}] ${message}`);
-  if (Object.keys(metadata).length > 0) {
-    console.log('  Metadata:', JSON.stringify(metadata));
+  // Use simple console.log to avoid any recursion issues
+  const logLine = `[${logEntry.timestamp}] [${level.toUpperCase()}] ${message}`;
+  // Just use regular console.log
+  try {
+    console.log(logLine);
+    if (Object.keys(metadata).length > 0) {
+      console.log('  Metadata:', JSON.stringify(metadata));
+    }
+  } catch (error) {
+    // Fallback if even console.log fails
   }
 }
 
@@ -1071,30 +1078,14 @@ app.get('/api/admin/logs', requireAdminAuth, (req, res) => {
 
 // Enhanced console logging will use existing systemLogs array
 
-// Override console methods to capture logs
+// Override console methods to capture logs (DISABLED to prevent infinite loops)
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 
-console.log = (...args) => {
-  const message = args.join(' ');
-  if (!message.includes('[ADMIN]')) { // Avoid infinite recursion
-    logMessage('info', message);
-  }
-  originalConsoleLog.apply(console, args);
-};
-
-console.error = (...args) => {
-  const message = args.join(' ');
-  logMessage('error', message);
-  originalConsoleError.apply(console, args);
-};
-
-console.warn = (...args) => {
-  const message = args.join(' ');
-  logMessage('warn', message);
-  originalConsoleWarn.apply(console, args);
-};
+// Note: Console override disabled to prevent infinite recursion issues
+// All important logs should use logMessage() directly
+console.log('⚠️ Console override disabled to prevent infinite loops');
 
 // Debug endpoints for troubleshooting
 app.get('/api/admin/debug/process', requireAdminAuth, (req, res) => {
