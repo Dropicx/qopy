@@ -114,6 +114,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for admin dashboard
+      scriptSrcAttr: ["'unsafe-inline'"], // Allow onclick attributes
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
