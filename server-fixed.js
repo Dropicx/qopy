@@ -1364,6 +1364,23 @@ app.get('/admin', (req, res) => {
   }
 });
 
+// Alternative admin route for testing
+app.get('/dashboard', (req, res) => {
+  console.log('🔧 Alternative admin dashboard requested:', req.url);
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Admin route test
+app.get('/admin-test', (req, res) => {
+  console.log('🧪 Admin test route accessed');
+  res.json({
+    message: 'Admin route is working!',
+    timestamp: new Date().toISOString(),
+    filePath: path.join(__dirname, 'public', 'admin.html'),
+    fileExists: require('fs').existsSync(path.join(__dirname, 'public', 'admin.html'))
+  });
+});
+
 // Serve clip retrieval page (CRITICAL MISSING ROUTE)
 app.get('/clip/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
