@@ -106,7 +106,7 @@ class ClipboardApp {
     // URL Routing
     setupRouting() {
         const path = window.location.pathname;
-        const clipIdMatch = path.match(/^\/clip\/([A-Za-z0-9]{16})$/);
+        const clipIdMatch = path.match(/^\/([A-Z0-9]{6})$/);
         
         if (clipIdMatch) {
             const clipId = clipIdMatch[1];
@@ -161,7 +161,7 @@ class ClipboardApp {
         const clipId = document.getElementById('clip-id-input').value.trim();
         const passwordSection = document.getElementById('password-section');
         
-        if (clipId.length === 16) {
+        if (clipId.length === 6) {
             try {
                 const response = await fetch(`/api/clip/${clipId}/info`);
                 if (response.ok) {
@@ -291,7 +291,17 @@ class ClipboardApp {
     showShareResult(data) {
         document.getElementById('share-url').value = data.shareUrl;
         document.getElementById('clip-id').value = data.clipId;
-        document.getElementById('qr-code').src = data.qrCode;
+        
+        // Handle QR code
+        const qrCodeImg = document.getElementById('qr-code');
+        if (data.qrCode) {
+            qrCodeImg.src = data.qrCode;
+            qrCodeImg.style.display = 'block';
+        } else {
+            qrCodeImg.style.display = 'none';
+            console.warn('QR code not available');
+        }
+        
         document.getElementById('expiry-time').textContent = new Date(data.expiresAt).toLocaleString();
         
         document.getElementById('success-modal').classList.remove('hidden');

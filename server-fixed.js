@@ -435,11 +435,43 @@ app.post('/api/clip', (req, res) => {
        ip: req.ip
      });
     
-    res.json({
-      success: true,
-      id,
-      url: `${req.protocol}://${req.get('host')}/${id}`,
-      expiresAt: clip.expiresAt
+    // Generate QR code and send complete response
+    const shareUrl = `${req.protocol}://${req.get('host')}/${id}`;
+    
+    QRCode.toDataURL(shareUrl, {
+      errorCorrectionLevel: 'M',
+      type: 'image/png',
+      quality: 0.92,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    }, (err, dataUrl) => {
+      if (err) {
+        console.error('❌ QR Code generation error:', err);
+        // Send response without QR code
+        return res.json({
+          success: true,
+          clipId: id,
+          shareUrl: shareUrl,
+          qrCode: null,
+          expiresAt: clip.expiresAt,
+          oneTime: clip.oneTime,
+          hasPassword: !!password
+        });
+      }
+      
+      // Send response with QR code
+      res.json({
+        success: true,
+        clipId: id,
+        shareUrl: shareUrl,
+        qrCode: dataUrl,
+        expiresAt: clip.expiresAt,
+        oneTime: clip.oneTime,
+        hasPassword: !!password
+      });
     });
     
   } catch (error) {
@@ -450,7 +482,7 @@ app.post('/api/clip', (req, res) => {
 
 console.log('✅ Clip creation endpoint ready');
 
-// Retrieve clip
+// Retrieve clip (GET for password-less clips)
 app.get('/api/clip/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -500,7 +532,8 @@ app.get('/api/clip/:id', (req, res) => {
       success: true,
       content: clip.content,
       createdAt: clip.createdAt,
-      expiresAt: clip.expiresAt
+      expiresAt: clip.expiresAt,
+      oneTime: clip.oneTime
     });
     
   } catch (error) {
@@ -509,7 +542,67 @@ app.get('/api/clip/:id', (req, res) => {
   }
 });
 
-console.log('✅ Clip retrieval endpoint ready');
+// Retrieve clip with password (POST)
+app.post('/api/clip/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    
+    if (!id || id.length !== 6) {
+      return res.status(400).json({ error: 'Invalid clip ID' });
+    }
+    
+    const clip = clips.get(id);
+    if (!clip) {
+      return res.status(404).json({ error: 'Clip not found' });
+    }
+    
+    // Check expiration
+    if (new Date(clip.expiresAt) < new Date()) {
+      clips.delete(id);
+      return res.status(410).json({ error: 'Clip has expired' });
+    }
+    
+    // Check password
+    if (clip.password && clip.password !== password) {
+      return res.status(401).json({ error: 'Password required or incorrect' });
+    }
+    
+    // One-time check
+    if (clip.oneTime && clip.retrieved) {
+      clips.delete(id);
+      return res.status(410).json({ error: 'This clip has been viewed and destroyed' });
+    }
+    
+    // Mark as retrieved
+    clip.retrieved = true;
+    
+    // Delete if one-time
+    if (clip.oneTime) {
+      setTimeout(() => clips.delete(id), 100);
+    }
+    
+    logMessage('info', `Clip retrieved via POST: ${id}`, {
+      oneTime: clip.oneTime,
+      hasPassword: !!clip.password,
+      ip: req.ip
+    });
+    
+    res.json({
+      success: true,
+      content: clip.content,
+      createdAt: clip.createdAt,
+      expiresAt: clip.expiresAt,
+      oneTime: clip.oneTime
+    });
+    
+  } catch (error) {
+    console.error('❌ Clip retrieval (POST) error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+console.log('✅ Clip retrieval endpoints ready');
 
 // Check clip info
 app.head('/api/clip/:id', (req, res) => {
@@ -529,6 +622,123 @@ app.head('/api/clip/:id', (req, res) => {
   });
 });
 
+// QR Code generation endpoint
+app.get('/api/qr/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id || id.length !== 6) {
+      return res.status(400).json({ error: 'Invalid clip ID' });
+    }
+    
+    const clip = clips.get(id);
+    if (!clip) {
+      return res.status(404).json({ error: 'Clip not found' });
+    }
+    
+    // Check expiration
+    if (new Date(clip.expiresAt) < new Date()) {
+      clips.delete(id);
+      return res.status(410).json({ error: 'Clip has expired' });
+    }
+    
+    const url = `${req.protocol}://${req.get('host')}/${id}`;
+    
+    QRCode.toDataURL(url, {
+      errorCorrectionLevel: 'M',
+      type: 'image/png',
+      quality: 0.92,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    }, (err, dataUrl) => {
+      if (err) {
+        console.error('❌ QR Code generation error:', err);
+        return res.status(500).json({ error: 'Failed to generate QR code' });
+      }
+      
+      res.json({
+        success: true,
+        qrCode: dataUrl,
+        url: url,
+        id: id
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ QR Code endpoint error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Frontend route for clip access
+app.get('/:id', (req, res) => {
+  const { id } = req.params;
+  
+  // Check if it's a valid clip ID format
+  if (!id || id.length !== 6 || !/^[A-Z0-9]+$/.test(id)) {
+    // If not a clip ID, let static files handle it
+    return res.redirect('/');
+  }
+  
+  // Check if clip exists (without revealing content)
+  const clip = clips.get(id);
+  if (!clip || new Date(clip.expiresAt) < new Date()) {
+    return res.redirect('/?error=expired');
+  }
+  
+  // Serve the main page (which will handle the clip retrieval via JS)
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Clip info endpoint for frontend
+app.get('/api/clip/:id/info', (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id || id.length !== 6) {
+      return res.status(400).json({ error: 'Invalid clip ID' });
+    }
+    
+    const clip = clips.get(id);
+    if (!clip) {
+      return res.status(404).json({ error: 'Clip not found' });
+    }
+    
+    // Check expiration
+    if (new Date(clip.expiresAt) < new Date()) {
+      clips.delete(id);
+      return res.status(410).json({ error: 'Clip has expired' });
+    }
+    
+    res.json({
+      success: true,
+      hasPassword: !!clip.password,
+      oneTime: clip.oneTime,
+      expiresAt: clip.expiresAt,
+      createdAt: clip.createdAt
+    });
+    
+  } catch (error) {
+    console.error('❌ Clip info error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Legal pages endpoint
+app.get('/api/legal', (req, res) => {
+  res.json({
+    impressum: '/impressum.html',
+    datenschutz: '/datenschutz.html',
+    agb: '/agb.html',
+    updated: '2025-01-01',
+    jurisdiction: 'Germany'
+  });
+});
+
+console.log('✅ Frontend routes completed');
 console.log('✅ Essential routes completed');
 
 // Admin Authentication Middleware
