@@ -3,7 +3,7 @@ builder = "nixpacks"
 buildCommand = "node scripts/check-npm-version.js && npm ci --only=production"
 
 [deploy]
-startCommand = "node server.js"
+startCommand = "node server-minimal.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 60
 healthcheckInterval = 30
@@ -13,5 +13,7 @@ terminationGracePeriodSeconds = 60
 
 [env]
 NODE_ENV = "production"
-DEBUG = "false"
-SHUTDOWN_TIMEOUT = "45000" 
+DEBUG = "true"
+SHUTDOWN_TIMEOUT = "45000"
+# Use minimal server for now to debug health check issues
+USE_MINIMAL_SERVER = "true" 

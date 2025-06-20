@@ -102,13 +102,22 @@ setInterval(() => {
   loadExternalSpamLists();
 }, 24 * 60 * 60 * 1000);
 
+// Simple logging function (defined early)
+function simpleLog(level, message, metadata = {}) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [${level.toUpperCase()}] ${message}`);
+  if (Object.keys(metadata).length > 0) {
+    console.log('  Metadata:', JSON.stringify(metadata));
+  }
+}
+
 // Funktion zum Hinzufügen einer IP zur Blacklist
 function addToBlacklist(ip, reason = 'Manual') {
   if (!blockedIPs.has(ip)) {
     blockedIPs.add(ip);
     ipBlockStats.totalBlocked++;
     
-    logMessage('info', `IP ${ip} added to blacklist`, {
+    simpleLog('info', `IP ${ip} added to blacklist`, {
       ip: ip,
       reason: reason,
       totalBlockedIPs: blockedIPs.size,
@@ -125,7 +134,7 @@ function removeFromBlacklist(ip) {
   if (blockedIPs.has(ip)) {
     blockedIPs.delete(ip);
     
-    logMessage('info', `IP ${ip} removed from blacklist`, {
+    simpleLog('info', `IP ${ip} removed from blacklist`, {
       ip: ip,
       totalBlockedIPs: blockedIPs.size,
       action: 'blacklist_remove'
@@ -141,7 +150,7 @@ function checkBlacklist(req, res, next) {
   const clientIP = req.ip;
   
   if (blockedIPs.has(clientIP)) {
-    logMessage('warn', `Blocked request from blacklisted IP: ${clientIP}`, {
+    simpleLog('warn', `Blocked request from blacklisted IP: ${clientIP}`, {
       blockedIP: clientIP,
       userAgent: req.get('User-Agent'),
       path: req.path,
