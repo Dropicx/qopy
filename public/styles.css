@@ -101,7 +101,7 @@ header {
   text-align: center;
   margin-bottom: 2rem;
   position: relative;
-  padding: 1.5rem 1.5rem;
+  padding: 1rem 1.5rem;
   background: var(--gradient-header);
   border-radius: 20px;
   box-shadow: 
@@ -137,7 +137,7 @@ header::before {
 }
 
 .main-logo {
-  max-height: 100px;
+  max-height: 120px;
   height: auto;
   width: auto;
   max-width: 100%;
@@ -949,11 +949,11 @@ footer p {
   }
 
   .main-logo {
-    max-height: 75px;
+    max-height: 90px;
   }
   
   header {
-    padding: 1.2rem 1rem;
+    padding: 0.8rem 1rem;
   }
 
   .form-container {
