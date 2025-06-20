@@ -67,82 +67,41 @@ USER qopy
 # Note: Admin setup and spam list downloads moved to runtime startup script
 # This avoids permission issues during build phase
 
-# Create a startup script that handles runtime initialization
+# Create a simplified startup script for better reliability
 RUN echo '#!/bin/sh' > /app/startup.sh && \
-    echo 'echo "🚀 Starting Qopy with automated setup..."' >> /app/startup.sh && \
+    echo 'set -e' >> /app/startup.sh && \
+    echo 'echo "🚀 Starting Qopy..."' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Debug information' >> /app/startup.sh && \
-    echo 'echo "🔍 Debug Information:"' >> /app/startup.sh && \
-    echo 'echo "  - Container ID: \$(hostname)"' >> /app/startup.sh && \
-    echo 'echo "  - User: \$(whoami)"' >> /app/startup.sh && \
-    echo 'echo "  - Working Directory: \$(pwd)"' >> /app/startup.sh && \
-    echo 'echo "  - Node Version: \$(node --version)"' >> /app/startup.sh && \
-    echo 'echo "  - NPM Version: \$(npm --version)"' >> /app/startup.sh && \
-    echo 'echo "  - Memory: \$(free -h | grep Mem | awk '\''{print \$2}'\'')"' >> /app/startup.sh && \
-    echo 'echo "  - Debug Mode: \${DEBUG:-false}"' >> /app/startup.sh && \
-    echo 'echo "  - Railway Environment: \${RAILWAY_ENVIRONMENT:-unknown}"' >> /app/startup.sh && \
+    echo '# Basic startup info' >> /app/startup.sh && \
+    echo 'echo "User: $(whoami)"' >> /app/startup.sh && \
+    echo 'echo "Working Directory: $(pwd)"' >> /app/startup.sh && \
+    echo 'echo "Node Version: $(node --version)"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Check for required files' >> /app/startup.sh && \
-    echo 'echo "📁 Checking required files..."' >> /app/startup.sh && \
+    echo '# Quick file check' >> /app/startup.sh && \
     echo 'if [ ! -f "server.js" ]; then' >> /app/startup.sh && \
     echo '  echo "❌ ERROR: server.js not found!"' >> /app/startup.sh && \
     echo '  exit 1' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
-    echo 'if [ ! -f "public/admin.html" ]; then' >> /app/startup.sh && \
-    echo '  echo "⚠️ WARNING: admin.html not found!"' >> /app/startup.sh && \
-    echo 'fi' >> /app/startup.sh && \
-    echo 'echo "✅ Required files check completed"' >> /app/startup.sh && \
+    echo 'echo "✅ Server file found"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Setup admin dashboard if not already done' >> /app/startup.sh && \
+    echo '# Optional admin setup (non-blocking)' >> /app/startup.sh && \
     echo 'if [ ! -f "ADMIN-QUICKSTART.md" ]; then' >> /app/startup.sh && \
-    echo '  echo "🎛️ Setting up admin dashboard..."' >> /app/startup.sh && \
-    echo '  if npm run setup-admin; then' >> /app/startup.sh && \
-    echo '    echo "✅ Admin dashboard setup completed"' >> /app/startup.sh && \
-    echo '  else' >> /app/startup.sh && \
-    echo '    echo "⚠️ Warning: Admin setup failed, continuing without admin files"' >> /app/startup.sh && \
-    echo '  fi' >> /app/startup.sh && \
-    echo 'else' >> /app/startup.sh && \
-    echo '  echo "ℹ️ Admin dashboard already configured"' >> /app/startup.sh && \
+    echo '  echo "🎛️ Setting up admin..."' >> /app/startup.sh && \
+    echo '  npm run setup-admin || echo "⚠️ Admin setup skipped"' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Try to update spam lists at startup if not already present' >> /app/startup.sh && \
-    echo 'if [ ! -f "data/spam-ips.json" ] || [ $(find data/spam-ips.json -mtime +1 2>/dev/null | wc -l) -gt 0 ]; then' >> /app/startup.sh && \
-    echo '  echo "📥 Updating spam IP lists..."' >> /app/startup.sh && \
-    echo '  if npm run update-spam-ips; then' >> /app/startup.sh && \
-    echo '    echo "✅ Spam IP lists updated successfully"' >> /app/startup.sh && \
-    echo '  else' >> /app/startup.sh && \
-    echo '    echo "⚠️ Warning: Could not update spam lists. Continuing with existing data."' >> /app/startup.sh && \
-    echo '  fi' >> /app/startup.sh && \
-    echo 'else' >> /app/startup.sh && \
-    echo '  echo "ℹ️ Spam IP lists are up to date"' >> /app/startup.sh && \
+    echo '# Optional spam lists (non-blocking)' >> /app/startup.sh && \
+    echo 'if [ ! -f "data/spam-ips.json" ]; then' >> /app/startup.sh && \
+    echo '  echo "📥 Downloading spam lists..."' >> /app/startup.sh && \
+    echo '  npm run update-spam-ips || echo "⚠️ Spam lists skipped"' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Display admin info' >> /app/startup.sh && \
-    echo 'if [ -f "ADMIN-QUICKSTART.md" ]; then' >> /app/startup.sh && \
-    echo '  echo "🎛️ Admin Dashboard available at: https://\$RAILWAY_PUBLIC_DOMAIN/admin"' >> /app/startup.sh && \
-    echo '  echo "🔑 Check ADMIN-QUICKSTART.md for login token"' >> /app/startup.sh && \
-    echo 'else' >> /app/startup.sh && \
-    echo '  echo "⚠️ Admin setup not completed"' >> /app/startup.sh && \
-    echo 'fi' >> /app/startup.sh && \
-    echo '' >> /app/startup.sh && \
-    echo '# Signal handling information' >> /app/startup.sh && \
-    echo 'echo "📡 Process will handle these signals:"' >> /app/startup.sh && \
-    echo 'echo "  - SIGTERM: Graceful shutdown (Railway deployments)"' >> /app/startup.sh && \
-    echo 'echo "  - SIGINT: Interrupt signal"' >> /app/startup.sh && \
-    echo 'echo "  - SIGHUP: Hangup signal"' >> /app/startup.sh && \
-    echo 'if [ "\$DEBUG" = "true" ]; then' >> /app/startup.sh && \
-    echo '  echo "🔍 Debug signals available:"' >> /app/startup.sh && \
-    echo '  echo "  - SIGUSR1: Debug info dump"' >> /app/startup.sh && \
-    echo '  echo "  - SIGUSR2: Force garbage collection"' >> /app/startup.sh && \
-    echo 'fi' >> /app/startup.sh && \
-    echo '' >> /app/startup.sh && \
-    echo '# Start the application with appropriate options' >> /app/startup.sh && \
-    echo 'echo "🚀 Starting Qopy server..."' >> /app/startup.sh && \
-    echo 'if [ "\$DEBUG" = "true" ]; then' >> /app/startup.sh && \
-    echo '  echo "🔍 Starting in DEBUG mode with enhanced logging"' >> /app/startup.sh && \
+    echo '# Start server directly with node' >> /app/startup.sh && \
+    echo 'echo "🚀 Starting server..."' >> /app/startup.sh && \
+    echo 'if [ "$DEBUG" = "true" ]; then' >> /app/startup.sh && \
     echo '  exec node --trace-warnings --expose-gc server.js' >> /app/startup.sh && \
     echo 'else' >> /app/startup.sh && \
-    echo '  exec npm start' >> /app/startup.sh && \
+    echo '  exec node server.js' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
     chmod +x /app/startup.sh
 
@@ -154,9 +113,10 @@ USER qopy
 # Expose the port the app runs on
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+# Health check with more generous startup time
+HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=5 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Start the application with our custom startup script
-CMD ["/app/startup.sh"] 
+# Start the application with fallback options
+# Try startup script first, fallback to direct node start  
+CMD ["/bin/sh", "-c", "if [ -x /app/startup.sh ]; then /app/startup.sh; else echo 'Startup script failed, starting directly...'; node server.js; fi"] 

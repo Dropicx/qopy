@@ -1,7 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
-# Railway Deployment Script für Qopy
+# Railway Deployment Script für Qopy  
 # Dieses Skript wird automatisch bei Railway-Deployments ausgeführt
+# Kompatibel mit Alpine Linux (sh)
 
 set -e
 
