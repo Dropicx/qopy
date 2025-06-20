@@ -58,9 +58,20 @@ LOG_SUSPICIOUS_CONTENT=true
 `;
 
   const envFile = path.join(__dirname, '..', '.env.example');
-  fs.writeFileSync(envFile, envContent);
   
-  console.log('📝 Generated .env.example with secure admin token');
+  try {
+    // Check if directory is writable
+    const dir = path.dirname(envFile);
+    fs.accessSync(dir, fs.constants.W_OK);
+    
+    fs.writeFileSync(envFile, envContent);
+    console.log('📝 Generated .env.example with secure admin token');
+  } catch (error) {
+    console.warn('⚠️ Could not write .env.example file:', error.message);
+    console.log('📝 .env.example content (copy manually if needed):');
+    console.log(envContent);
+  }
+  
   console.log(`🔑 Your admin token: ${adminToken}`);
   console.log('⚠️  Keep this token secure and add it to Railway environment variables!');
   
@@ -119,9 +130,15 @@ Generated on: ${new Date().toISOString()}
 `;
 
   const guideFile = path.join(__dirname, '..', 'ADMIN-QUICKSTART.md');
-  fs.writeFileSync(guideFile, guideContent);
   
-  console.log('📚 Created ADMIN-QUICKSTART.md guide');
+  try {
+    fs.writeFileSync(guideFile, guideContent);
+    console.log('📚 Created ADMIN-QUICKSTART.md guide');
+  } catch (error) {
+    console.warn('⚠️ Could not write ADMIN-QUICKSTART.md file:', error.message);
+    console.log('📚 Guide content (copy manually if needed):');
+    console.log(guideContent.substring(0, 500) + '...');
+  }
 }
 
 function showNextSteps(adminToken) {

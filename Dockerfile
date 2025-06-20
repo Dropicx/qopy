@@ -56,14 +56,16 @@ RUN mkdir -p data logs && \
 # Remove unnecessary files but keep scripts
 RUN rm -f start.sh
 
-# Switch to non-root user temporarily for setup
+# Ensure qopy user owns the entire app directory and can write
+RUN chown -R qopy:nodejs /app && \
+    chmod -R 755 /app && \
+    chmod -R 775 data logs
+
+# Switch to non-root user for setup
 USER qopy
 
-# Run admin setup to generate configuration
-RUN npm run setup-admin
-
-# Download initial spam IP lists (with error handling)
-RUN npm run update-spam-ips || echo "⚠️ Warning: Could not download spam lists during build. Will retry at runtime."
+# Note: Admin setup and spam list downloads moved to runtime startup script
+# This avoids permission issues during build phase
 
 # Create a startup script that handles runtime initialization
 RUN echo '#!/bin/sh' > /app/startup.sh && \
@@ -90,6 +92,18 @@ RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo '  echo "⚠️ WARNING: admin.html not found!"' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
     echo 'echo "✅ Required files check completed"' >> /app/startup.sh && \
+    echo '' >> /app/startup.sh && \
+    echo '# Setup admin dashboard if not already done' >> /app/startup.sh && \
+    echo 'if [ ! -f "ADMIN-QUICKSTART.md" ]; then' >> /app/startup.sh && \
+    echo '  echo "🎛️ Setting up admin dashboard..."' >> /app/startup.sh && \
+    echo '  if npm run setup-admin; then' >> /app/startup.sh && \
+    echo '    echo "✅ Admin dashboard setup completed"' >> /app/startup.sh && \
+    echo '  else' >> /app/startup.sh && \
+    echo '    echo "⚠️ Warning: Admin setup failed, continuing without admin files"' >> /app/startup.sh && \
+    echo '  fi' >> /app/startup.sh && \
+    echo 'else' >> /app/startup.sh && \
+    echo '  echo "ℹ️ Admin dashboard already configured"' >> /app/startup.sh && \
+    echo 'fi' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
     echo '# Try to update spam lists at startup if not already present' >> /app/startup.sh && \
     echo 'if [ ! -f "data/spam-ips.json" ] || [ $(find data/spam-ips.json -mtime +1 2>/dev/null | wc -l) -gt 0 ]; then' >> /app/startup.sh && \
