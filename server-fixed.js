@@ -1396,6 +1396,21 @@ app.get('/api/admin/dashboard', (req, res) => {
   }
 });
 
+// ADMIN TOKEN INFO ENDPOINT (for debugging)
+app.get('/api/admin/token-info', (req, res) => {
+  const adminToken = process.env.ADMIN_TOKEN || 'qopy-admin-2024';
+  const isDefaultToken = !process.env.ADMIN_TOKEN;
+  
+  res.json({
+    hasCustomToken: !isDefaultToken,
+    defaultToken: isDefaultToken ? adminToken : 'CUSTOM_SET',
+    tokenLength: adminToken.length,
+    message: isDefaultToken ? 
+      `Use default token: ${adminToken}` : 
+      'Custom admin token is configured'
+  });
+});
+
 // Serve clip retrieval page (CRITICAL MISSING ROUTE)
 app.get('/clip/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
