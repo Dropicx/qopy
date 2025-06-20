@@ -107,10 +107,37 @@ let spamStats = {
 
 console.log('✅ Storage initialized');
 
+// Enhanced middleware configuration
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+app.use(cors());
+app.use(compression());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Rate limiting will be defined later
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+console.log('✅ Enhanced middleware initialized');
+
 // Configuration from environment
 const SPAM_FILTER_ENABLED = process.env.SPAM_FILTER_ENABLED !== 'false';
 const SPAM_SCORE_THRESHOLD = parseInt(process.env.SPAM_SCORE_THRESHOLD) || 50;
 const DEBUG_MODE = process.env.DEBUG === 'true';
+
+// Additional spam filter configuration
+const LOG_SUSPICIOUS_CONTENT = process.env.LOG_SUSPICIOUS_CONTENT !== 'false'; // Default: enabled
 
 console.log('✅ Configuration loaded');
 
@@ -325,7 +352,66 @@ app.get('/', (req, res) => {
   });
 });
 
-// Essential spam filter (simplified)
+// Comprehensive spam filter
+const SUSPICIOUS_KEYWORDS = [
+  // Phishing & Scam
+  'urgent action required', 'verify your account', 'suspended account', 'click here immediately',
+  'limited time offer', 'act now', 'congratulations you have won', 'claim your prize',
+  'nigerian prince', 'inheritance', 'lottery winner', 'tax refund',
+  
+  // Malware & Hacking
+  'download crack', 'free hack', 'keylogger', 'trojan', 'ransomware',
+  'exploit kit', 'botnet', 'ddos attack', 'sql injection',
+  
+  // Illegal Content
+  'buy drugs', 'sell drugs', 'illegal weapons', 'fake passport', 'fake id',
+  'money laundering', 'credit card fraud', 'identity theft',
+  
+  // Spam Patterns
+  'make money fast', 'work from home', 'get rich quick', 'easy money',
+  'no experience required', 'guaranteed income', 'financial freedom',
+  
+  // Adult/NSFW (basic detection)
+  'adult content', 'explicit material', 'nsfw content',
+  
+  // Cryptocurrency Scams
+  'crypto giveaway', 'bitcoin generator', 'free cryptocurrency', 'mining bot',
+  'pump and dump', 'rug pull', 'defi exploit',
+  
+  // Social Engineering
+  'your computer has been infected', 'virus detected', 'system error',
+  'microsoft support', 'apple support', 'google support', 'tech support scam',
+  
+  // Investment Scams
+  'guaranteed returns', 'risk-free investment', 'insider trading',
+  'forex trading bot', 'binary options', 'investment opportunity',
+  
+  // Romance/Dating Scams
+  'lonely widow', 'military overseas', 'stranded abroad', 'need money urgently',
+  
+  // Job Scams
+  'envelope stuffing', 'mystery shopper', 'easy home job',
+  'pay processing', 'reshipping', 'money transfer agent',
+  
+  // Fake Services
+  'fake reviews', 'buy followers', 'boost engagement', 'fake likes',
+  'academic writing', 'essay writing service', 'homework help',
+  
+  // Malicious Links
+  'download now', 'install software', 'update required', 'security update',
+  'adobe flash update', 'java update', 'browser update'
+];
+
+const SUSPICIOUS_PATTERNS = [
+  /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, // Credit card numbers
+  /\b\d{3}[-.]?\d{2}[-.]?\d{4}\b/g, // SSN patterns
+  /(?:https?:\/\/)?bit\.ly\/\w+/gi, // Shortened URLs (often spam)
+  /(?:https?:\/\/)?tinyurl\.com\/\w+/gi, // Shortened URLs
+  /(?:https?:\/\/)?t\.co\/\w+/gi, // Twitter shortened URLs
+  /\b(?:call|text|whatsapp)[\s:]+\+?\d{10,15}\b/gi, // Phone numbers in suspicious context
+  /\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}[A-Z0-9]{1,23}\b/g, // IBAN patterns
+];
+
 function analyzeContent(content) {
   const analysis = {
     isSuspicious: false,
@@ -335,27 +421,85 @@ function analyzeContent(content) {
 
   const lowerContent = content.toLowerCase();
   
-  // Only the most obvious spam keywords
-  const CRITICAL_SPAM_KEYWORDS = [
-    'free money', 'click here', 'buy now', 'limited time',
-    'make money fast', 'get rich quick', 'work from home',
-    'guaranteed income', 'no experience needed'
-  ];
-  
-  for (const keyword of CRITICAL_SPAM_KEYWORDS) {
-    if (lowerContent.includes(keyword)) {
+  // Check for suspicious keywords
+  for (const keyword of SUSPICIOUS_KEYWORDS) {
+    if (lowerContent.includes(keyword.toLowerCase())) {
       analysis.isSuspicious = true;
-      analysis.reasons.push(`Spam keyword: "${keyword}"`);
-      analysis.score += 20;
+      analysis.reasons.push(`Suspicious keyword: "${keyword}"`);
+      analysis.score += 10;
     }
   }
   
-  // Basic heuristics
+  // Check for suspicious patterns
+  for (const pattern of SUSPICIOUS_PATTERNS) {
+    const matches = content.match(pattern);
+    if (matches) {
+      analysis.isSuspicious = true;
+      analysis.reasons.push(`Suspicious pattern detected: ${pattern.toString()}`);
+      analysis.score += 15;
+    }
+  }
+  
+  // Additional heuristics
+  const lines = content.split('\n');
+  const words = content.split(/\s+/);
+  
+  // Too many URLs (potential spam) - increased threshold
   const urlMatches = content.match(/https?:\/\/[^\s]+/gi) || [];
-  if (urlMatches.length > 15) {
+  if (urlMatches.length > 10) {
     analysis.isSuspicious = true;
-    analysis.reasons.push(`Too many URLs: ${urlMatches.length}`);
+    analysis.reasons.push(`Too many URLs detected: ${urlMatches.length}`);
+    analysis.score += 15;
+  }
+  
+  // Excessive repetition
+  const uniqueLines = new Set(lines.map(line => line.trim().toLowerCase()));
+  if (lines.length > 10 && uniqueLines.size / lines.length < 0.5) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Excessive repetition detected');
+    analysis.score += 15;
+  }
+  
+  // Too many uppercase words (SPAM STYLE) - more lenient for code
+  const uppercaseWords = words.filter(word => word.length > 3 && word === word.toUpperCase() && !/^[A-Z_]+$/.test(word)); // Exclude constants
+  if (uppercaseWords.length > words.length * 0.5) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Excessive uppercase text');
+    analysis.score += 5;
+  }
+  
+  // Excessive special characters - more lenient for code
+  const specialChars = content.match(/[!@#$%^&*()_+={}\[\]|\\:";'<>?,./]/g) || [];
+  if (specialChars.length > content.length * 0.4) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Excessive special characters');
+    analysis.score += 5;
+  }
+  
+  // Suspicious file extensions (only really dangerous ones)
+  const suspiciousExtensions = content.match(/\.(exe|bat|cmd|scr|pif|com|vbs|ps1)\b/gi) || [];
+  if (suspiciousExtensions.length > 0) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push(`Suspicious file extensions: ${suspiciousExtensions.join(', ')}`);
     analysis.score += 25;
+  }
+  
+  // Excessive emoji usage (spam indicator)
+  const emojiPattern = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+  const emojiMatches = content.match(emojiPattern) || [];
+  if (emojiMatches.length > words.length * 0.3) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Excessive emoji usage');
+    analysis.score += 10;
+  }
+  
+  // Suspicious IP addresses - more lenient for network configs
+  const ipPattern = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
+  const ipMatches = content.match(ipPattern) || [];
+  if (ipMatches.length > 5) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push(`Many IP addresses detected: ${ipMatches.length}`);
+    analysis.score += 10;
   }
   
   return analysis;
@@ -379,27 +523,45 @@ app.post('/api/clip', (req, res) => {
       });
     }
     
-    // Spam filter (if enabled)
+    // Enhanced spam filter analysis
     if (SPAM_FILTER_ENABLED) {
       const spamAnalysis = analyzeContent(content);
-      spamStats.totalAnalyzed++;
       
+      // Update statistics
+      spamStats.totalAnalyzed++;
+      if (spamAnalysis.score > 0) spamStats.suspicious++;
+      
+      // Log suspicious content if enabled
+      if (LOG_SUSPICIOUS_CONTENT && spamAnalysis.score > 0) {
+        logMessage('warn', `⚠️ Suspicious content detected from IP ${req.ip}`, {
+          score: spamAnalysis.score,
+          threshold: SPAM_SCORE_THRESHOLD,
+          blocked: spamAnalysis.score >= SPAM_SCORE_THRESHOLD,
+          reasons: spamAnalysis.reasons,
+          contentPreview: content.substring(0, 100) + '...'
+        });
+      }
+      
+      // Block if score exceeds threshold
       if (spamAnalysis.score >= SPAM_SCORE_THRESHOLD) {
         spamStats.blocked++;
-                 logMessage('warn', `Spam content blocked from IP ${req.ip}`, {
-           score: spamAnalysis.score,
-           reasons: spamAnalysis.reasons
-         });
+        
+        // Auto-add repeat offenders to IP blacklist
+        if (spamAnalysis.score > SPAM_SCORE_THRESHOLD * 2) {
+          addToBlacklist(req.ip, `Auto-blocked for high spam score: ${spamAnalysis.score}`);
+          logMessage('warn', `🚫 IP ${req.ip} auto-added to blacklist for spam score ${spamAnalysis.score}`, {
+            autoBlocked: true,
+            score: spamAnalysis.score,
+            threshold: SPAM_SCORE_THRESHOLD
+          });
+        }
         
         return res.status(403).json({
           error: 'Content blocked',
           message: 'Your content was flagged as potential spam.',
-          reasons: spamAnalysis.reasons
+          score: spamAnalysis.score,
+          threshold: SPAM_SCORE_THRESHOLD
         });
-      }
-      
-      if (spamAnalysis.score > 0) {
-        spamStats.suspicious++;
       }
     }
     
@@ -907,7 +1069,304 @@ app.get('/api/admin/logs', requireAdminAuth, (req, res) => {
   });
 });
 
-console.log('✅ Admin endpoints ready');
+// Enhanced console logging will use existing systemLogs array
+
+// Override console methods to capture logs
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
+console.log = (...args) => {
+  const message = args.join(' ');
+  if (!message.includes('[ADMIN]')) { // Avoid infinite recursion
+    logMessage('info', message);
+  }
+  originalConsoleLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  const message = args.join(' ');
+  logMessage('error', message);
+  originalConsoleError.apply(console, args);
+};
+
+console.warn = (...args) => {
+  const message = args.join(' ');
+  logMessage('warn', message);
+  originalConsoleWarn.apply(console, args);
+};
+
+// Debug endpoints for troubleshooting
+app.get('/api/admin/debug/process', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Process debug info requested`, { adminIP: req.ip });
+  
+  const processInfo = {
+    pid: process.pid,
+    ppid: process.ppid,
+    platform: process.platform,
+    arch: process.arch,
+    nodeVersion: process.version,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    cpuUsage: process.cpuUsage(),
+    versions: process.versions,
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
+      RAILWAY_SERVICE_NAME: process.env.RAILWAY_SERVICE_NAME,
+      RAILWAY_REGION: process.env.RAILWAY_REGION,
+      DEBUG: process.env.DEBUG
+    },
+    argv: process.argv,
+    execPath: process.execPath,
+    cwd: process.cwd()
+  };
+  
+  res.json({
+    success: true,
+    processInfo: processInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/admin/debug/server', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Server debug info requested`, { adminIP: req.ip });
+  
+  const serverInfo = {
+    listening: server ? server.listening : 'server not available',
+    connections: server ? (server._connections || 'unknown') : 'server not available',
+    maxConnections: server ? server.maxConnections : 'server not available',
+    timeout: server ? server.timeout : 'server not available',
+    address: server ? server.address() : 'server not available'
+  };
+  
+  res.json({
+    success: true,
+    serverInfo: serverInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/admin/debug/memory', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Memory debug info requested`, { adminIP: req.ip });
+  
+  const memoryInfo = {
+    process: process.memoryUsage(),
+    heap: {
+      totalHeapSize: 'v8 not available',
+      totalHeapSizeExecutable: 'v8 not available',
+      totalPhysicalSize: 'v8 not available',
+      totalAvailableSize: 'v8 not available',
+      usedHeapSize: 'v8 not available',
+      heapSizeLimit: 'v8 not available'
+    },
+    applicationData: {
+      activeClips: clips.size,
+      blockedIPs: blockedIPs.size,
+      systemLogs: systemLogs.length,
+      spamStats: spamStats,
+      ipBlockStats: ipBlockStats
+    }
+  };
+  
+  // Try to get V8 heap statistics if available
+  try {
+    const v8 = require('v8');
+    memoryInfo.heap = v8.getHeapStatistics();
+    memoryInfo.heapSpaceStatistics = v8.getHeapSpaceStatistics();
+  } catch (error) {
+    // V8 module not available or error getting stats
+  }
+  
+  res.json({
+    success: true,
+    memoryInfo: memoryInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/admin/debug/signals', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Signal debug info requested`, { adminIP: req.ip });
+  
+  const signalInfo = {
+    supportedSignals: [
+      'SIGTERM', 'SIGINT', 'SIGHUP', 'SIGUSR1', 'SIGUSR2',
+      'SIGKILL', 'SIGSTOP', 'SIGCONT', 'SIGQUIT'
+    ],
+    registeredListeners: {
+      SIGTERM: process.listenerCount('SIGTERM'),
+      SIGINT: process.listenerCount('SIGINT'),
+      SIGHUP: process.listenerCount('SIGHUP'),
+      SIGUSR1: process.listenerCount('SIGUSR1'),
+      SIGUSR2: process.listenerCount('SIGUSR2'),
+      uncaughtException: process.listenerCount('uncaughtException'),
+      unhandledRejection: process.listenerCount('unhandledRejection'),
+      warning: process.listenerCount('warning')
+    },
+    debugMode: DEBUG_MODE,
+    railwaySignals: {
+      description: 'Railway typically sends SIGTERM for graceful shutdown',
+      commonCauses: [
+        'New deployment',
+        'Auto-scaling',
+        'Maintenance',
+        'Resource limits exceeded',
+        'Health check failures'
+      ]
+    }
+  };
+  
+  res.json({
+    success: true,
+    signalInfo: signalInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Force debug dump endpoint
+app.post('/api/admin/debug/dump', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Full debug dump requested`, { adminIP: req.ip });
+  
+  const fullDump = {
+    timestamp: new Date().toISOString(),
+    process: {
+      pid: process.pid,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      cpuUsage: process.cpuUsage(),
+      platform: process.platform,
+      nodeVersion: process.version
+    },
+    server: {
+      listening: server ? server.listening : false,
+      connections: server ? server._connections : 'unknown',
+      address: server ? server.address() : null
+    },
+    application: {
+      activeClips: clips.size,
+      blockedIPs: blockedIPs.size,
+      systemLogs: systemLogs.length,
+      spamStats: spamStats,
+      ipBlockStats: ipBlockStats
+    },
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
+      DEBUG: process.env.DEBUG,
+      ADMIN_TOKEN: process.env.ADMIN_TOKEN ? 'SET' : 'NOT_SET'
+    },
+    recentLogs: systemLogs.slice(-20) // Last 20 log entries
+  };
+  
+  logMessage('info', '🔍 Full debug dump generated', fullDump);
+  
+  res.json({
+    success: true,
+    debugDump: fullDump
+  });
+});
+
+// Manual spam list update endpoint
+app.post('/api/admin/update-spam-lists', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] Manual spam list update triggered`, { 
+    adminIP: req.ip 
+  });
+  
+  // Trigger spam list update
+  const loadedCount = loadExternalSpamLists();
+  
+  res.json({
+    success: true,
+    message: `Updated spam lists. Loaded ${loadedCount} new IPs.`,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Detailed health check endpoint
+app.get('/api/health/detailed', (req, res) => {
+  const response = {
+    status: 'OK',
+    uptime: process.uptime(),
+    activeClips: clips ? clips.size : 0,
+    timestamp: new Date().toISOString(),
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    railway: !!process.env.RAILWAY_ENVIRONMENT
+  };
+  
+  // Add detailed info only if server is fully initialized
+  try {
+    if (spamStats && typeof spamStats.totalAnalyzed !== 'undefined') {
+      response.spamFilter = {
+        enabled: SPAM_FILTER_ENABLED,
+        threshold: SPAM_SCORE_THRESHOLD,
+        stats: {
+          totalAnalyzed: spamStats.totalAnalyzed,
+          suspicious: spamStats.suspicious,
+          blocked: spamStats.blocked,
+          blockRate: spamStats.totalAnalyzed > 0 ? (spamStats.blocked / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%',
+          suspiciousRate: spamStats.totalAnalyzed > 0 ? (spamStats.suspicious / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%'
+        }
+      };
+    }
+    
+    if (blockedIPs && ipBlockStats) {
+      response.ipBlacklist = {
+        totalBlockedIPs: blockedIPs.size,
+        lastUpdated: new Date(ipBlockStats.lastUpdated).toISOString(),
+        sources: ipBlockStats.sources || []
+      };
+    }
+  } catch (error) {
+    response.note = 'Some stats not yet available: ' + error.message;
+  }
+  
+  res.status(200).json(response);
+});
+
+// Validation middleware
+const validateClipCreation = [
+  body('content')
+    .trim()
+    .isLength({ min: 1, max: MAX_CONTENT_LENGTH })
+    .withMessage(`Content must be between 1 and ${MAX_CONTENT_LENGTH.toLocaleString()} characters`),
+  body('expiration')
+    .isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr'])
+    .withMessage('Invalid expiration time'),
+  body('oneTime')
+    .optional()
+    .isBoolean()
+    .withMessage('oneTime must be a boolean'),
+  body('password')
+    .optional()
+    .isLength({ max: 128 })
+    .withMessage('Password must be less than 128 characters')
+];
+
+const validateClipRetrieval = [
+  param('id')
+    .isLength({ min: 6, max: 6 })
+    .matches(/^[A-Z0-9]+$/)
+    .withMessage('Invalid clip ID format'),
+  body('password')
+    .optional()
+    .isLength({ max: 128 })
+    .withMessage('Password must be less than 128 characters')
+];
+
+// Serve the main application
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Serve admin dashboard
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+console.log('✅ Enhanced admin and debug endpoints ready');
+console.log('✅ Validation middleware ready');
+console.log('✅ Frontend routes ready');
 
 // Generate admin token if not set
 if (!process.env.ADMIN_TOKEN) {
