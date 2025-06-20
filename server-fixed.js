@@ -510,18 +510,15 @@ console.log('✅ Spam filter ready');
 // Validation middleware
 const MAX_CONTENT_LENGTH = parseInt(process.env.MAX_CONTENT_LENGTH) || 100000;
 
-// Create new clip (essential functionality)
-app.post('/api/clip', (req, res) => {
+// Create new clip with full validation
+app.post('/api/clip', validateClipCreation, (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: 'Invalid input', details: errors.array() });
+  }
+
   try {
     const { content, expiration = '24hr', oneTime = false, password } = req.body;
-    
-    // Basic validation
-    if (!content || content.length > MAX_CONTENT_LENGTH) {
-      return res.status(400).json({ 
-        error: 'Invalid content',
-        message: `Content must be between 1 and ${MAX_CONTENT_LENGTH.toLocaleString()} characters`
-      });
-    }
     
     // Enhanced spam filter analysis
     if (SPAM_FILTER_ENABLED) {
@@ -645,14 +642,14 @@ app.post('/api/clip', (req, res) => {
 console.log('✅ Clip creation endpoint ready');
 
 // Retrieve clip (GET for password-less clips)
-app.get('/api/clip/:id', (req, res) => {
+app.get('/api/clip/:id', retrieveLimiter, validateClipRetrieval.slice(0, 1), (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: 'Invalid clip ID format' });
+  }
+
   try {
     const { id } = req.params;
-    const { password } = req.body;
-    
-    if (!id || id.length !== 6) {
-      return res.status(400).json({ error: 'Invalid clip ID' });
-    }
     
     const clip = clips.get(id);
     if (!clip) {
@@ -705,14 +702,15 @@ app.get('/api/clip/:id', (req, res) => {
 });
 
 // Retrieve clip with password (POST)
-app.post('/api/clip/:id', (req, res) => {
+app.post('/api/clip/:id', retrieveLimiter, validateClipRetrieval, (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: 'Invalid clip ID format' });
+  }
+
   try {
     const { id } = req.params;
     const { password } = req.body;
-    
-    if (!id || id.length !== 6) {
-      return res.status(400).json({ error: 'Invalid clip ID' });
-    }
     
     const clip = clips.get(id);
     if (!clip) {
@@ -856,13 +854,14 @@ app.get('/:id', (req, res) => {
 });
 
 // Clip info endpoint for frontend
-app.get('/api/clip/:id/info', (req, res) => {
+app.get('/api/clip/:id/info', retrieveLimiter, validateClipRetrieval.slice(0, 1), (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: 'Invalid clip ID format' });
+  }
+
   try {
     const { id } = req.params;
-    
-    if (!id || id.length !== 6) {
-      return res.status(400).json({ error: 'Invalid clip ID' });
-    }
     
     const clip = clips.get(id);
     if (!clip) {
@@ -1240,6 +1239,11 @@ app.post('/api/admin/debug/dump', requireAdminAuth, (req, res) => {
       spamStats: spamStats,
       ipBlockStats: ipBlockStats
     },
+    memoryMonitoring: {
+      current: process.memoryUsage(),
+      stats: memoryStats,
+      warnings: memoryStats.warnings.length > 0 ? memoryStats.warnings : null
+    },
     environment: {
       NODE_ENV: process.env.NODE_ENV,
       RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
@@ -1355,9 +1359,74 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+// Global error handlers
+app.use((err, req, res, next) => {
+  // Log the error
+  logMessage('error', '🚨 Unhandled application error', {
+    error: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+
+  // Don't leak error details in production
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  res.status(err.status || 500).json({
+    error: 'Internal server error',
+    message: isDevelopment ? err.message : 'Something went wrong',
+    ...(isDevelopment && { stack: err.stack })
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  logMessage('warn', '🔍 404 - Route not found', {
+    url: req.url,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+  
+  res.status(404).json({
+    error: 'Not found',
+    message: 'The requested resource was not found'
+  });
+});
+
+// Process error handlers
+process.on('uncaughtException', (error) => {
+  logMessage('error', '💥 Uncaught Exception', {
+    error: error.message,
+    stack: error.stack,
+    type: 'uncaughtException'
+  });
+  
+  // Attempt graceful shutdown
+  if (!isShuttingDown) {
+    gracefulShutdown();
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logMessage('error', '💥 Unhandled Promise Rejection', {
+    reason: reason,
+    promise: promise,
+    type: 'unhandledRejection'
+  });
+  
+  // Don't exit on unhandled rejections in production
+  if (process.env.NODE_ENV === 'development') {
+    process.exit(1);
+  }
+});
+
 console.log('✅ Enhanced admin and debug endpoints ready');
-console.log('✅ Validation middleware ready');
+console.log('✅ Validation middleware ready');  
 console.log('✅ Frontend routes ready');
+console.log('✅ Global error handlers ready');
 
 // Generate admin token if not set
 if (!process.env.ADMIN_TOKEN) {
@@ -1368,39 +1437,249 @@ if (!process.env.ADMIN_TOKEN) {
   console.log('⚠️ Save this token - it will not be displayed again!');
 }
 
+// Memory monitoring system
+let memoryStats = {
+  maxHeapUsed: 0,
+  maxRSS: 0,
+  gcCount: 0,
+  lastGC: null,
+  warnings: [],
+  monitoringStarted: new Date()
+};
+
+// Memory monitoring with warnings
+function monitorMemory() {
+  const usage = process.memoryUsage();
+  const heap = usage.heapUsed / 1024 / 1024; // MB
+  const rss = usage.rss / 1024 / 1024; // MB
+  
+  // Update max values
+  memoryStats.maxHeapUsed = Math.max(memoryStats.maxHeapUsed, heap);
+  memoryStats.maxRSS = Math.max(memoryStats.maxRSS, rss);
+  
+  // Memory warnings
+  const HEAP_WARNING_MB = 100; // Warning at 100MB heap
+  const RSS_WARNING_MB = 200;  // Warning at 200MB RSS
+  
+  if (heap > HEAP_WARNING_MB && !memoryStats.warnings.includes('heap')) {
+    memoryStats.warnings.push('heap');
+    logMessage('warn', `⚠️ High heap usage: ${heap.toFixed(2)}MB`, {
+      heapUsed: heap,
+      heapTotal: usage.heapTotal / 1024 / 1024,
+      rss: rss,
+      external: usage.external / 1024 / 1024
+    });
+  }
+  
+  if (rss > RSS_WARNING_MB && !memoryStats.warnings.includes('rss')) {
+    memoryStats.warnings.push('rss');
+    logMessage('warn', `⚠️ High RSS usage: ${rss.toFixed(2)}MB`, {
+      rss: rss,
+      heapUsed: heap,
+      activeClips: clips.size,
+      blockedIPs: blockedIPs.size
+    });
+  }
+  
+  // Reset warnings periodically
+  if (memoryStats.warnings.length > 0 && Date.now() % 300000 < 5000) { // Every 5 minutes
+    memoryStats.warnings = [];
+  }
+}
+
+// Monitor memory every 30 seconds
+const memoryMonitorInterval = setInterval(monitorMemory, 30000);
+
+// GC event tracking (if available)
+if (global.gc) {
+  const originalGC = global.gc;
+  global.gc = function() {
+    memoryStats.gcCount++;
+    memoryStats.lastGC = new Date();
+    const result = originalGC();
+    logMessage('debug', '🗑️ Manual garbage collection triggered', {
+      gcCount: memoryStats.gcCount,
+      memoryAfterGC: process.memoryUsage()
+    });
+    return result;
+  };
+}
+
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Qopy Server (Fixed) running on 0.0.0.0:${PORT}`);
   console.log(`🩺 Health check: http://0.0.0.0:${PORT}/api/health`);
+  console.log(`📊 Memory monitoring active`);
   console.log(`✅ All essential features loaded`);
   
   if (process.env.RAILWAY_PUBLIC_DOMAIN) {
     console.log(`🌐 Public: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
     console.log(`🩺 Health: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/health`);
   }
+  
+  // Initial memory check
+  monitorMemory();
 });
 
+// Enhanced server startup with comprehensive error handling
 server.on('error', (err) => {
-  console.error('❌ Server startup error:', err);
+  logMessage('error', '❌ Server startup error', {
+    error: err.message,
+    code: err.code,
+    port: PORT,
+    stack: err.stack
+  });
+  
   if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use`);
+    logMessage('error', `❌ Port ${PORT} is already in use - trying alternative ports`);
+    
+    // Try alternative ports
+    const tryPort = (port) => {
+      const alternativeServer = app.listen(port, '0.0.0.0', () => {
+        logMessage('info', `🚀 Server started on alternative port ${port}`);
+        console.log(`🚀 Qopy Server running on 0.0.0.0:${port}`);
+      });
+      
+      alternativeServer.on('error', (altErr) => {
+        if (altErr.code === 'EADDRINUSE' && port < PORT + 10) {
+          tryPort(port + 1);
+        } else {
+          logMessage('error', '❌ Could not start server on any port');
+          process.exit(1);
+        }
+      });
+    };
+    
+    tryPort(PORT + 1);
+  } else if (err.code === 'EACCES') {
+    logMessage('error', `❌ Permission denied - cannot bind to port ${PORT}`);
+    process.exit(1);
+  } else {
+    logMessage('error', '❌ Unknown server error');
     process.exit(1);
   }
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('📡 SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('✅ Server closed');
-    process.exit(0);
+// Enhanced server listening event
+server.on('listening', () => {
+  const addr = server.address();
+  logMessage('info', '🎉 Server successfully started', {
+    port: addr.port,
+    address: addr.address,
+    family: addr.family,
+    uptime: process.uptime(),
+    nodeVersion: process.version,
+    pid: process.pid
   });
 });
 
-process.on('SIGINT', () => {
-  console.log('📡 SIGINT received, shutting down gracefully');
+// Connection monitoring
+server.on('connection', (socket) => {
+  logMessage('debug', '🔌 New connection established', {
+    remoteAddress: socket.remoteAddress,
+    remotePort: socket.remotePort,
+    activeConnections: activeConnections.size
+  });
+});
+
+// Server close monitoring  
+server.on('close', () => {
+  logMessage('info', '🔌 Server closed');
+  
+  // Clean up intervals
+  if (memoryMonitorInterval) {
+    clearInterval(memoryMonitorInterval);
+  }
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+  }
+});
+
+// Enhanced Signal handlers with graceful shutdown
+const signals = {
+  'SIGINT': false,
+  'SIGTERM': false,
+  'SIGQUIT': false,
+  'SIGUSR1': false,
+  'SIGUSR2': false
+};
+
+let isShuttingDown = false;
+const activeConnections = new Set();
+
+// Track connections
+server.on('connection', (connection) => {
+  activeConnections.add(connection);
+  connection.on('close', () => {
+    activeConnections.delete(connection);
+  });
+});
+
+function handleSignal(signal) {
+  logMessage('info', `📡 Received ${signal} signal`, { signal });
+  signals[signal] = true;
+  
+  if ((signal === 'SIGTERM' || signal === 'SIGINT') && !isShuttingDown) {
+    isShuttingDown = true;
+    logMessage('info', '🔄 Initiating graceful shutdown...', { signal });
+    gracefulShutdown();
+  } else if (signal === 'SIGUSR1') {
+    // Reload configuration or restart workers
+    logMessage('info', '🔄 Reload signal received - performing soft restart', { signal });
+    reloadConfiguration();
+  } else if (signal === 'SIGUSR2') {
+    // Debug dump signal
+    logMessage('info', '🔍 Debug dump signal received', { signal });
+    debugDump();
+  }
+}
+
+function gracefulShutdown() {
+  logMessage('info', '🛑 Starting graceful shutdown sequence');
+  
+  // Stop accepting new connections
   server.close(() => {
-    console.log('✅ Server closed');
+    logMessage('info', '🔌 HTTP server closed');
+    
+    // Close all active connections
+    activeConnections.forEach(connection => {
+      connection.destroy();
+    });
+    
+    // Final cleanup
+    logMessage('info', `✅ All connections closed (${activeConnections.size}). Exiting...`);
     process.exit(0);
   });
+  
+  // Force shutdown after timeout
+  setTimeout(() => {
+    logMessage('error', '⏰ Force shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+}
+
+function reloadConfiguration() {
+  // Reload external spam lists
+  const loadedCount = loadExternalSpamLists();
+  logMessage('info', `🔄 Configuration reloaded - ${loadedCount} new IPs loaded`);
+}
+
+function debugDump() {
+  const dump = {
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    activeClips: clips.size,
+    blockedIPs: blockedIPs.size,
+    signals: signals,
+    activeConnections: activeConnections.size,
+    spamStats: spamStats,
+    ipBlockStats: ipBlockStats
+  };
+  logMessage('debug', `🔍 Debug dump generated`, dump);
+}
+
+// Register signal handlers
+Object.keys(signals).forEach(signal => {
+  process.on(signal, () => handleSignal(signal));
 }); 
