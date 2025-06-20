@@ -113,7 +113,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for admin dashboard
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
@@ -250,17 +250,7 @@ function checkBlacklist(req, res, next) {
 
 console.log('✅ IP management functions ready');
 
-// Middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-}));
+// Middleware (duplicate removed - using configuration above)
 
 app.use(cors());
 app.use(compression());
