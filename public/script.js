@@ -72,6 +72,13 @@ class ClipboardApp {
         document.getElementById('retrieve-password-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.retrieveContent();
         });
+
+        // FAQ Accordion
+        document.querySelectorAll('.faq-question').forEach(button => {
+            button.addEventListener('click', () => {
+                this.toggleFAQ(button.dataset.faq);
+            });
+        });
     }
 
     // Keyboard Shortcuts
@@ -395,6 +402,34 @@ class ClipboardApp {
         const div = document.createElement('div');
         div.textContent = input;
         return div.innerHTML;
+    }
+
+    // FAQ Accordion functionality
+    toggleFAQ(faqId) {
+        const question = document.querySelector(`[data-faq="${faqId}"]`);
+        const answer = document.getElementById(`faq-${faqId}`);
+        
+        // Close all other FAQs
+        document.querySelectorAll('.faq-question').forEach(btn => {
+            if (btn !== question) {
+                btn.classList.remove('active');
+                const otherId = btn.dataset.faq;
+                const otherAnswer = document.getElementById(`faq-${otherId}`);
+                if (otherAnswer) {
+                    otherAnswer.classList.remove('active');
+                }
+            }
+        });
+        
+        // Toggle current FAQ
+        const isActive = question.classList.contains('active');
+        if (isActive) {
+            question.classList.remove('active');
+            answer.classList.remove('active');
+        } else {
+            question.classList.add('active');
+            answer.classList.add('active');
+        }
     }
 }
 

@@ -24,6 +24,14 @@ if (process.env.NODE_ENV === 'production') {
 // In-memory storage for clips
 const clips = new Map();
 
+// Spam filter statistics
+let spamStats = {
+  totalAnalyzed: 0,
+  blocked: 0,
+  suspicious: 0,
+  lastReset: Date.now()
+};
+
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -87,6 +95,183 @@ function cleanupExpiredClips() {
 // Run cleanup every minute
 setInterval(cleanupExpiredClips, 60000);
 
+// Spam Filter Configuration
+const SPAM_FILTER_ENABLED = process.env.SPAM_FILTER_ENABLED !== 'false'; // Default: enabled
+const SPAM_SCORE_THRESHOLD = parseInt(process.env.SPAM_SCORE_THRESHOLD) || 25; // Threshold for blocking
+const LOG_SUSPICIOUS_CONTENT = process.env.LOG_SUSPICIOUS_CONTENT !== 'false'; // Default: enabled
+
+// Spam Filter - Content Analysis
+const SUSPICIOUS_KEYWORDS = [
+  // Phishing & Scam
+  'urgent action required', 'verify your account', 'suspended account', 'click here immediately',
+  'limited time offer', 'act now', 'congratulations you have won', 'claim your prize',
+  'nigerian prince', 'inheritance', 'lottery winner', 'tax refund',
+  
+  // Malware & Hacking
+  'download crack', 'free hack', 'keylogger', 'trojan', 'ransomware',
+  'exploit kit', 'botnet', 'ddos attack', 'sql injection',
+  
+  // Illegal Content
+  'buy drugs', 'sell drugs', 'illegal weapons', 'fake passport', 'fake id',
+  'money laundering', 'credit card fraud', 'identity theft',
+  
+  // Spam Patterns
+  'make money fast', 'work from home', 'get rich quick', 'easy money',
+  'no experience required', 'guaranteed income', 'financial freedom',
+  
+  // Adult/NSFW (basic detection)
+  'adult content', 'explicit material', 'nsfw content',
+  
+  // Cryptocurrency Scams
+  'crypto giveaway', 'bitcoin generator', 'free cryptocurrency', 'mining bot',
+  'pump and dump', 'rug pull', 'defi exploit',
+  
+  // Social Engineering
+  'your computer has been infected', 'virus detected', 'system error',
+  'microsoft support', 'apple support', 'google support', 'tech support scam',
+  
+  // Investment Scams
+  'guaranteed returns', 'risk-free investment', 'insider trading',
+  'forex trading bot', 'binary options', 'investment opportunity',
+  
+  // Romance/Dating Scams
+  'lonely widow', 'military overseas', 'stranded abroad', 'need money urgently',
+  
+  // Job Scams
+  'envelope stuffing', 'mystery shopper', 'easy home job',
+  'pay processing', 'reshipping', 'money transfer agent',
+  
+  // Fake Services
+  'fake reviews', 'buy followers', 'boost engagement', 'fake likes',
+  'academic writing', 'essay writing service', 'homework help',
+  
+  // Malicious Links
+  'download now', 'install software', 'update required', 'security update',
+  'adobe flash update', 'java update', 'browser update'
+];
+
+const SUSPICIOUS_PATTERNS = [
+  /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, // Credit card numbers
+  /\b\d{3}[-.]?\d{2}[-.]?\d{4}\b/g, // SSN patterns
+  /password[\s:=]+\w+/gi, // Password leaks
+  /api[_\s]?key[\s:=]+[\w-]+/gi, // API keys
+  /token[\s:=]+[\w.-]+/gi, // Tokens
+  /(?:https?:\/\/)?bit\.ly\/\w+/gi, // Shortened URLs (often spam)
+  /(?:https?:\/\/)?tinyurl\.com\/\w+/gi, // Shortened URLs
+  /(?:https?:\/\/)?t\.co\/\w+/gi, // Twitter shortened URLs
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, // Email harvesting pattern
+  /\b(?:call|text|whatsapp)[\s:]+\+?\d{10,15}\b/gi, // Phone numbers in suspicious context
+  /\$\d+(?:,\d{3})*(?:\.\d{2})?/g, // Money amounts (potential scam)
+  /\b(?:bitcoin|btc|ethereum|eth|crypto)[\s:]+[13][a-km-z1-9]{25,34}\b/gi, // Crypto addresses
+  /(?:telegram|discord|whatsapp)[\s:@]+\w+/gi, // Social media handles in suspicious context
+  /(?:paypal|venmo|cashapp|zelle)[\s:@]+\w+/gi, // Payment app handles
+  /\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}[A-Z0-9]{1,23}\b/g, // IBAN patterns
+  /\b\d{9,18}\b/g, // Bank account numbers
+];
+
+function analyzeContent(content) {
+  const analysis = {
+    isSuspicious: false,
+    reasons: [],
+    score: 0
+  };
+
+  const lowerContent = content.toLowerCase();
+  
+  // Check for suspicious keywords
+  for (const keyword of SUSPICIOUS_KEYWORDS) {
+    if (lowerContent.includes(keyword.toLowerCase())) {
+      analysis.isSuspicious = true;
+      analysis.reasons.push(`Suspicious keyword: "${keyword}"`);
+      analysis.score += 10;
+    }
+  }
+  
+  // Check for suspicious patterns
+  for (const pattern of SUSPICIOUS_PATTERNS) {
+    const matches = content.match(pattern);
+    if (matches) {
+      analysis.isSuspicious = true;
+      analysis.reasons.push(`Suspicious pattern detected: ${pattern.toString()}`);
+      analysis.score += 15;
+    }
+  }
+  
+  // Additional heuristics
+  const lines = content.split('\n');
+  const words = content.split(/\s+/);
+  
+  // Too many URLs (potential spam)
+  const urlMatches = content.match(/https?:\/\/[^\s]+/gi) || [];
+  if (urlMatches.length > 5) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push(`Too many URLs detected: ${urlMatches.length}`);
+    analysis.score += 20;
+  }
+  
+  // Excessive repetition
+  const uniqueLines = new Set(lines.map(line => line.trim().toLowerCase()));
+  if (lines.length > 10 && uniqueLines.size / lines.length < 0.5) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Excessive repetition detected');
+    analysis.score += 15;
+  }
+  
+  // Too many uppercase words (SPAM STYLE)
+  const uppercaseWords = words.filter(word => word.length > 3 && word === word.toUpperCase());
+  if (uppercaseWords.length > words.length * 0.3) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Excessive uppercase text');
+    analysis.score += 10;
+  }
+  
+  // Excessive special characters
+  const specialChars = content.match(/[!@#$%^&*()_+={}\[\]|\\:";'<>?,./]/g) || [];
+  if (specialChars.length > content.length * 0.2) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Excessive special characters');
+    analysis.score += 10;
+  }
+  
+  // Suspicious file extensions
+  const suspiciousExtensions = content.match(/\.(exe|bat|cmd|scr|pif|com|jar|vbs|js|ps1|sh|dmg|pkg|deb|rpm)\b/gi) || [];
+  if (suspiciousExtensions.length > 0) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push(`Suspicious file extensions: ${suspiciousExtensions.join(', ')}`);
+    analysis.score += 25;
+  }
+  
+  // Base64 encoded content (potential malware)
+  const base64Pattern = /(?:[A-Za-z0-9+\/]{4})*(?:[A-Za-z0-9+\/]{2}==|[A-Za-z0-9+\/]{3}=)?/g;
+  const base64Matches = content.match(base64Pattern) || [];
+  const longBase64 = base64Matches.filter(match => match.length > 100);
+  if (longBase64.length > 0) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Suspicious base64 encoded content detected');
+    analysis.score += 20;
+  }
+  
+  // Excessive emoji usage (spam indicator)
+  const emojiPattern = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+  const emojiMatches = content.match(emojiPattern) || [];
+  if (emojiMatches.length > words.length * 0.3) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push('Excessive emoji usage');
+    analysis.score += 10;
+  }
+  
+  // Suspicious IP addresses
+  const ipPattern = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
+  const ipMatches = content.match(ipPattern) || [];
+  if (ipMatches.length > 2) {
+    analysis.isSuspicious = true;
+    analysis.reasons.push(`Multiple IP addresses detected: ${ipMatches.length}`);
+    analysis.score += 15;
+  }
+  
+  return analysis;
+}
+
 // Validation middleware
 const MAX_CONTENT_LENGTH = parseInt(process.env.MAX_CONTENT_LENGTH) || 100000;
 
@@ -129,6 +314,38 @@ app.post('/api/clip', validateClipCreation, (req, res) => {
   }
 
   const { content, expiration, oneTime = false, password } = req.body;
+  
+  // Spam filter analysis
+  if (SPAM_FILTER_ENABLED) {
+    const spamAnalysis = analyzeContent(content);
+    
+    // Update statistics
+    spamStats.totalAnalyzed++;
+    if (spamAnalysis.score > 0) spamStats.suspicious++;
+    
+    // Log suspicious content if enabled
+    if (LOG_SUSPICIOUS_CONTENT && spamAnalysis.score > 0) {
+      console.log(`⚠️ Suspicious content detected from IP ${req.ip}:`, {
+        score: spamAnalysis.score,
+        threshold: SPAM_SCORE_THRESHOLD,
+        blocked: spamAnalysis.score >= SPAM_SCORE_THRESHOLD,
+        reasons: spamAnalysis.reasons,
+        contentPreview: content.substring(0, 100) + '...'
+      });
+    }
+    
+    // Block content if score exceeds threshold
+    if (spamAnalysis.score >= SPAM_SCORE_THRESHOLD) {
+      spamStats.blocked++;
+      return res.status(403).json({ 
+        error: 'Content blocked due to suspicious patterns',
+        message: 'Your content contains patterns that are commonly associated with spam or malicious content. Please review and try again.',
+        blocked: true,
+        score: spamAnalysis.score,
+        reasons: spamAnalysis.reasons.slice(0, 3) // Only show first 3 reasons to user
+      });
+    }
+  }
   
   // Calculate expiration time
   const expirationMs = {
@@ -307,7 +524,18 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     uptime: process.uptime(),
     activeClips: clips.size,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    spamFilter: {
+      enabled: SPAM_FILTER_ENABLED,
+      threshold: SPAM_SCORE_THRESHOLD,
+      stats: {
+        totalAnalyzed: spamStats.totalAnalyzed,
+        suspicious: spamStats.suspicious,
+        blocked: spamStats.blocked,
+        blockRate: spamStats.totalAnalyzed > 0 ? (spamStats.blocked / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%',
+        suspiciousRate: spamStats.totalAnalyzed > 0 ? (spamStats.suspicious / spamStats.totalAnalyzed * 100).toFixed(2) + '%' : '0%'
+      }
+    }
   });
 });
 
