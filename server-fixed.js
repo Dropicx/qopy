@@ -1347,6 +1347,8 @@ app.get('/', (req, res) => {
 
 // Serve admin dashboard
 app.get('/admin', (req, res) => {
+  console.log('🔧 Admin dashboard requested:', req.url);
+  console.log('🔧 Serving file:', path.join(__dirname, 'public', 'admin.html'));
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
@@ -1355,27 +1357,7 @@ app.get('/clip/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Global error handlers
-app.use((err, req, res, next) => {
-  // Log the error
-  logMessage('error', '🚨 Unhandled application error', {
-    error: err.message,
-    stack: err.stack,
-    url: req.url,
-    method: req.method,
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
-  });
-
-  // Don't leak error details in production
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  res.status(err.status || 500).json({
-    error: 'Internal server error',
-    message: isDevelopment ? err.message : 'Something went wrong',
-    ...(isDevelopment && { stack: err.stack })
-  });
-});
+// Removed duplicate error handler
 
 console.log('✅ Enhanced admin and debug endpoints ready');
 console.log('✅ Validation middleware ready');  
