@@ -20,7 +20,7 @@ function generateSecureToken(length = 32) {
 function checkRequiredFiles() {
   const requiredFiles = [
     'public/admin.html',
-    'server.js',
+    'server-fixed.js',
     'package.json'
   ];
   
@@ -163,7 +163,7 @@ function testAdminEndpoints() {
   
   // Test if admin endpoints are properly defined
   try {
-    const serverContent = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+    const serverContent = fs.readFileSync(path.join(__dirname, '..', 'server-fixed.js'), 'utf8');
     
     const requiredEndpoints = [
       'requireAdminAuth',
