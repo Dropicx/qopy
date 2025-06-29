@@ -16,6 +16,18 @@ console.log(`📋 Port: ${PORT}`);
 console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`📋 Railway: ${process.env.RAILWAY_ENVIRONMENT || 'local'}`);
 
+// Security Configuration Check
+if (!process.env.ADMIN_TOKEN) {
+  console.log('');
+  console.log('⚠️  SECURITY WARNING: ADMIN_TOKEN not configured!');
+  console.log('   Admin dashboard will be DISABLED for security.');
+  console.log('   Set ADMIN_TOKEN environment variable to enable admin features.');
+  console.log('   Run: npm run setup-admin (to generate secure token)');
+  console.log('');
+} else {
+  console.log('✅ Admin token configured');
+}
+
 // Trust proxy for Railway deployment
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
@@ -912,9 +924,27 @@ console.log('✅ Essential routes completed');
 // Admin Authentication Middleware
 function requireAdminAuth(req, res, next) {
   const authHeader = req.headers.authorization;
-  const adminToken = process.env.ADMIN_TOKEN || 'qopy-admin-2024';
+  const adminToken = process.env.ADMIN_TOKEN;
+  
+  // Check if admin token is configured
+  if (!adminToken) {
+    logMessage('error', 'Admin access attempted but ADMIN_TOKEN not configured', {
+      clientIP: req.ip,
+      userAgent: req.get('User-Agent'),
+      endpoint: req.path
+    });
+    return res.status(503).json({ 
+      error: 'Service Unavailable',
+      message: 'Admin functionality is not configured. Please set ADMIN_TOKEN environment variable.'
+    });
+  }
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    logMessage('warn', 'Admin access attempted without proper authorization header', {
+      clientIP: req.ip,
+      userAgent: req.get('User-Agent'),
+      endpoint: req.path
+    });
     return res.status(401).json({ 
       error: 'Unauthorized',
       message: 'Admin token required. Set Authorization header with Bearer token.'
@@ -924,11 +954,22 @@ function requireAdminAuth(req, res, next) {
   const token = authHeader.split(' ')[1];
   
   if (token !== adminToken) {
+    logMessage('warn', 'Admin access attempted with invalid token', {
+      clientIP: req.ip,
+      userAgent: req.get('User-Agent'),
+      endpoint: req.path,
+      tokenLength: token ? token.length : 0
+    });
     return res.status(401).json({ 
       error: 'Unauthorized',
       message: 'Invalid admin token.'
     });
   }
+  
+  logMessage('info', 'Successful admin authentication', {
+    clientIP: req.ip,
+    endpoint: req.path
+  });
   
   next();
 }
@@ -967,6 +1008,20 @@ function logMessage(level, message, metadata = {}) {
 }
 
 console.log('✅ Admin system ready');
+
+// Admin info endpoint (no auth required - just shows if admin is available)
+app.get('/api/admin/info', (req, res) => {
+  const adminAvailable = !!process.env.ADMIN_TOKEN;
+  
+  res.json({
+    success: true,
+    adminAvailable: adminAvailable,
+    message: adminAvailable 
+      ? 'Admin dashboard is available. Use /admin to access.'
+      : 'Admin dashboard is disabled. Set ADMIN_TOKEN environment variable to enable.',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Admin endpoints
 app.get('/api/admin/stats', requireAdminAuth, (req, res) => {

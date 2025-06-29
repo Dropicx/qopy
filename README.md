@@ -129,8 +129,10 @@ docker run -p 3000:3000 qopy
 
 ### Environment Variables
 
+Required configuration:
+- `ADMIN_TOKEN` - Admin dashboard access token (REQUIRED for security - no default)
+
 Optional configuration:
-- `ADMIN_TOKEN` - Admin dashboard access token (default: `qopy-admin-2024`)
 - `RATE_LIMIT_WINDOW_MS` - Rate limiting window (default: 900000ms)
 - `RATE_LIMIT_MAX_REQUESTS` - Max requests per window (default: 20)
 - `MAX_CONTENT_LENGTH` - Maximum content length (default: 100000)
@@ -249,9 +251,9 @@ GET /api/health
 
 ## 🛡️ Admin Dashboard
 
-Access the admin dashboard at `/api/admin/dashboard` with the admin token.
+Access the admin dashboard at `/admin` with the admin token.
 
-**Default Token**: `qopy-admin-2024` (change via `ADMIN_TOKEN` environment variable)
+**Security**: You MUST set the `ADMIN_TOKEN` environment variable. No default token is provided for security reasons.
 
 **Features:**
 - 📊 **System Statistics** - Active clips, blocked IPs, spam statistics
@@ -352,7 +354,7 @@ qopy/
 
 **Admin Dashboard Not Loading:**
 - Check CSP errors in browser console
-- Verify admin token: default is `qopy-admin-2024`
+- Set admin token via `ADMIN_TOKEN` environment variable (required)
 - Clear browser cache and cookies
 
 **Memory Issues:**

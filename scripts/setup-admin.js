@@ -43,16 +43,23 @@ function generateEnvTemplate() {
   const adminToken = generateSecureToken();
   
   const envContent = `# Qopy Admin Dashboard Configuration
-# Copy these to your Railway.app environment variables
+# IMPORTANT: Copy these to your Railway.app environment variables
 
+# REQUIRED: Admin token for dashboard access (no default for security)
 ADMIN_TOKEN=${adminToken}
+
+# Optional: Spam filter configuration
 SPAM_FILTER_ENABLED=true
 SPAM_SCORE_THRESHOLD=50
+
+# Optional: Rate limiting configuration
 RATE_LIMIT_MAX_REQUESTS=20
 RATE_LIMIT_WINDOW_MS=900000
+
+# Environment
 NODE_ENV=production
 
-# Optional: Additional configuration
+# Optional: Additional security configuration
 MAX_CONTENT_LENGTH=100000
 LOG_SUSPICIOUS_CONTENT=true
 `;
