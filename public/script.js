@@ -16,7 +16,11 @@ class ClipboardApp {
     setupTypingAnimation() {
         const text = 'qopy.app';
         const typingElement = document.getElementById('typing-text');
+        const cursorElement = document.querySelector('.cursor');
         let currentIndex = 0;
+        
+        // Hide cursor initially
+        cursorElement.style.opacity = '0';
         
         const typeNextChar = () => {
             if (currentIndex < text.length) {
@@ -30,6 +34,9 @@ class ClipboardApp {
                 
                 // Add slight delay between characters
                 setTimeout(typeNextChar, 150);
+            } else {
+                // Animation complete - show cursor
+                cursorElement.style.opacity = '1';
             }
         };
         

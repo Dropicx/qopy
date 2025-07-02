@@ -167,6 +167,7 @@ header::before {
   margin-left: 4px;
   animation: blink 1s infinite;
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  transition: opacity 0.3s ease;
 }
 
 @keyframes blink {
@@ -179,7 +180,7 @@ header::before {
   display: inline-block;
   opacity: 0;
   transform: translateY(20px);
-  animation: typeChar 0.1s ease forwards;
+  animation: typeChar 0.3s ease forwards;
 }
 
 @keyframes typeChar {
