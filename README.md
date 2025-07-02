@@ -11,6 +11,8 @@ A modern, secure, and privacy-focused web application for temporary text sharing
 - **QR code generation** for easy mobile sharing
 - **Copy-to-clipboard functionality** for all shared content
 - **Mobile-first responsive design**
+- **Persistent storage** with SQLite database
+- **Docker volume support** for data persistence
 
 ### Security & Privacy
 - **No permanent storage** - everything expires automatically
@@ -32,13 +34,22 @@ A modern, secure, and privacy-focused web application for temporary text sharing
 - **URL routing** for direct clip access
 - **Admin dashboard** for system monitoring
 
+### Database Features
+- **SQLite database** for persistent storage
+- **Automatic data cleanup** of expired clips
+- **Access logging** for analytics and security
+- **User management** ready for future features
+- **Premium subscription** support structure
+- **Database migration** tools
+
 ## 🛠 Technology Stack
 
 - **Frontend**: Vanilla JavaScript, HTML5, CSS3
 - **Backend**: Node.js with Express
-- **Database**: In-memory storage (Map)
+- **Database**: SQLite3 with persistent storage
 - **Security**: Helmet, CORS, Rate limiting, Input validation, Spam filtering
 - **Additional**: QR code generation, Compression, UUID, Express-validator
+- **Deployment**: Docker with volume persistence
 
 ## 📦 Installation & Setup
 
@@ -61,7 +72,12 @@ A modern, secure, and privacy-focused web application for temporary text sharing
    npm install
    ```
 
-3. **Start the server**
+3. **Initialize database**
+   ```bash
+   npm run db:init
+   ```
+
+4. **Start the server**
    ```bash
    npm start
    ```
@@ -71,10 +87,28 @@ A modern, secure, and privacy-focused web application for temporary text sharing
    npm run dev
    ```
 
-4. **Access the application**
+5. **Access the application**
    - Main App: `http://localhost:3000`
    - Admin Dashboard: `http://localhost:3000/api/admin/dashboard`
    - Health Check: `http://localhost:3000/api/health`
+
+### Database Setup
+
+The application now uses SQLite for persistent storage. The database is automatically created in the `data/` directory.
+
+**Initialize database:**
+```bash
+npm run db:init
+```
+
+**Migrate existing data (if needed):**
+```bash
+npm run db:migrate
+```
+
+**Database location:**
+- Development: `./data/qopy.db`
+- Docker: `/app/data/qopy.db` (mounted volume)
 
 ### npm Version Management
 
@@ -100,7 +134,36 @@ nvm use node
 
 ## 🚀 Deployment
 
-### Railway (Recommended)
+### Docker (Recommended)
+
+**With Docker Compose (includes volume persistence):**
+```bash
+# Build and run with persistent storage
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+
+# Stop the application
+docker-compose down
+```
+
+**Manual Docker build:**
+```bash
+# Build image
+docker build -t qopy .
+
+# Run with volume for data persistence
+docker run -d \
+  --name qopy \
+  -p 3000:3000 \
+  -v qopy_data:/app/data \
+  -e NODE_ENV=production \
+  -e DB_PATH=/app/data/qopy.db \
+  qopy
+```
+
+### Railway (Cloud Deployment)
 
 **One-Click Deploy:**
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/deploy)
@@ -111,26 +174,30 @@ nvm use node
 3. Railway automatically detects Node.js and deploys
 4. Access your app at the provided Railway domain
 
-**Configuration:**
-- Railway automatically provides `PORT` and `NODE_ENV=production`
-- Health checks are configured at `/api/health`
-- Zero-downtime deployments included
+**Railway-Specific Configuration:**
+- **Database**: Uses `/tmp/qopy.db` for ephemeral filesystem compatibility
+- **Auto-setup**: Database automatically initializes on each deployment
+- **Health checks**: Configured at `/api/health` with 30s timeout
+- **Environment**: Automatically sets `NODE_ENV=production` and `RAILWAY_ENVIRONMENT=true`
+- **Zero-downtime**: Automatic deployments with health check validation
 
-### Docker
+**⚠️ Railway Limitations:**
+- **Ephemeral filesystem**: Database is recreated on each deployment
+- **No persistent storage**: Clips are lost on redeploy (temporary clips only)
+- **Memory limits**: Optimized for Railway's memory constraints
 
-```bash
-# Build and run with Docker Compose
-docker-compose up -d --build
-
-# Or build manually
-docker build -t qopy .
-docker run -p 3000:3000 qopy
-```
+**For persistent storage on Railway, consider:**
+- Using Railway's PostgreSQL plugin for production
+- Implementing external database (MongoDB Atlas, PlanetScale, etc.)
+- Using Railway's persistent volume feature (if available)
 
 ### Environment Variables
 
 Required configuration:
 - `ADMIN_TOKEN` - Admin dashboard access token (REQUIRED for security - no default)
+
+Database configuration:
+- `DB_PATH` - SQLite database path (default: `./data/qopy.db`)
 
 CORS & Security configuration:
 - `DOMAIN` - Your custom domain (automatically added to CORS allowlist)
@@ -144,6 +211,51 @@ Optional configuration:
 - `RATE_LIMIT_MAX_REQUESTS` - Max requests per window (default: 20)
 - `MAX_CONTENT_LENGTH` - Maximum content length (default: 100000)
 - `SPAM_FILTER_ENABLED` - Enable spam filtering (default: true)
+
+## 🗄️ Database Schema
+
+The application uses SQLite with the following tables:
+
+### clips
+- `id` - Primary key
+- `clip_id` - 6-character unique identifier
+- `content` - The shared text content
+- `password_hash` - Optional password hash
+- `expiration_time` - Unix timestamp when clip expires
+- `created_at` - Creation timestamp
+- `accessed_at` - Last access timestamp
+- `access_count` - Number of times accessed
+- `one_time` - Boolean for one-time access
+- `is_expired` - Boolean for expired status
+- `created_by_ip` - IP address of creator
+- `user_agent` - User agent of creator
+
+### users (for future features)
+- `id` - Primary key
+- `username` - Unique username
+- `email` - Unique email address
+- `password_hash` - Hashed password
+- `created_at` - Account creation timestamp
+- `last_login` - Last login timestamp
+- `is_active` - Account status
+- `is_admin` - Admin privileges
+- `subscription_type` - Premium subscription type
+- `subscription_expires` - Subscription expiration
+
+### user_clips (for linking clips to users)
+- `id` - Primary key
+- `user_id` - Foreign key to users table
+- `clip_id` - Foreign key to clips table
+- `created_at` - Link creation timestamp
+
+### access_logs (for analytics and security)
+- `id` - Primary key
+- `clip_id` - Foreign key to clips table
+- `ip_address` - IP address of accessor
+- `user_agent` - User agent of accessor
+- `accessed_at` - Access timestamp
+- `success` - Boolean for successful access
+- `error_message` - Error message if access failed
 
 ## 🖥 Usage
 
@@ -203,27 +315,17 @@ Content-Type: application/json
 
 ### Retrieve Clip
 ```http
-GET /api/clip/:id
-```
-
-For password-protected clips:
-```http
-POST /api/clip/:id
-Content-Type: application/json
-
-{
-  "password": "clip-password"
-}
+GET /api/clip/X8K2M9
 ```
 
 **Response:**
 ```json
 {
   "success": true,
-  "content": "Your retrieved content",
-  "createdAt": 1640993400000,
+  "content": "Your shared content",
   "expiresAt": 1640995200000,
-  "oneTime": false
+  "oneTime": false,
+  "hasPassword": true
 }
 ```
 
@@ -236,173 +338,66 @@ GET /api/health
 ```json
 {
   "status": "OK",
-  "uptime": 3600.123,
-  "activeClips": 42,
-  "timestamp": "2023-12-31T23:59:59.000Z",
-  "version": "fixed-1.0.2",
-  "ipBlacklist": {
-    "totalBlockedIPs": 68200,
-    "sources": ["spamhaus", "emerging-threats"]
-  },
-  "spamFilter": {
-    "enabled": true,
-    "stats": {
-      "totalAnalyzed": 1250,
-      "blocked": 89,
-      "suspicious": 156
-    }
-  }
+  "uptime": 1234.567,
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "port": 3000,
+  "environment": "production",
+  "railway": true,
+  "version": "database-1.0.0",
+  "memory": {...},
+  "pid": 12345,
+  "database": "SQLite",
+  "totalClips": 150,
+  "activeClips": 45
 }
 ```
 
-## 🛡️ Admin Dashboard
+## 🔮 Future Features
 
-Access the admin dashboard at `/admin` with the admin token.
+The database structure is designed to support upcoming features:
 
-**Security**: You MUST set the `ADMIN_TOKEN` environment variable. No default token is provided for security reasons.
+### User Management
+- User registration and authentication
+- Personal clip history
+- User preferences and settings
+- Account management
 
-**Features:**
-- 📊 **System Statistics** - Active clips, blocked IPs, spam statistics
-- 🚫 **IP Management** - View and manage blocked IPs
-- 📋 **System Logs** - Real-time application logs
-- 📈 **Spam Statistics** - Detailed spam filtering metrics
-- ⚙️ **System Information** - Server status and debug information
+### Premium Subscriptions
+- Extended expiration times
+- Higher content limits
+- Advanced analytics
+- Priority support
+- Custom domains
 
-## 🔒 Security Features
+### Enhanced Analytics
+- Detailed access logs
+- User behavior tracking
+- Performance metrics
+- Security monitoring
 
-### Spam Protection
-- **68,000+ blocked IPs** from Spamhaus and Emerging Threats
-- **50+ content categories** filtered (phishing, malware, illegal content)
-- **Pattern detection** for credit cards, SSNs, suspicious URLs
-- **Heuristic analysis** for spam patterns
-- **Auto-IP blacklisting** for high spam scores
+## 🛡️ Security Features
 
-### Rate Limiting
-- **20 requests per 15 minutes** for clip creation
-- **100 requests per 15 minutes** for clip retrieval
-- **IP-based tracking** with automatic blocking
+- **Rate limiting** to prevent abuse
+- **Spam filtering** with IP blacklisting
+- **Content analysis** for suspicious patterns
+- **Password protection** for sensitive clips
+- **One-time access** for secure sharing
+- **Automatic cleanup** of expired content
+- **Access logging** for security monitoring
 
-### Content Security Policy
-- **Strict CSP headers** preventing XSS attacks
-- **Secure inline script handling** for admin dashboard
-- **HTTPS enforcement** in production
+## 📊 Monitoring
 
-### Input Validation
-- **Express-validator** integration
-- **Content sanitization** and length limits
-- **Password strength validation**
-- **Malicious content detection**
+### Admin Dashboard
+Access the admin dashboard at `/api/admin/dashboard` with your admin token to view:
+- Total clips and active clips
+- Database statistics
+- Recent activity
+- System health metrics
 
-## 🚦 Monitoring & Maintenance
-
-### Health Monitoring
-- **Automatic health checks** every 10 seconds
-- **Memory monitoring** with warnings at 100MB heap
-- **Uptime tracking** and restart policies
-- **Graceful shutdown** handling
-
-### Logging System
-- **Structured logging** with timestamps and metadata
-- **In-memory log storage** (1000 entries)
-- **Log level filtering** (error, warn, info, debug)
-- **Admin dashboard integration**
-
-### Automatic Cleanup
-- **Expired clips removal** every 5 minutes
-- **Memory optimization** with V8 heap monitoring
-- **Spam IP list updates** every 24 hours
-
-## 🛠 Development
-
-### Available Scripts
-```bash
-npm start          # Start production server
-npm run dev        # Start development server with auto-reload
-npm run check-npm  # Verify npm version requirements
-npm test           # Run tests (placeholder)
-npm run health-check      # Manual health check
-npm run update-spam-ips   # Update spam IP lists
-npm run setup-admin       # Setup admin configuration
-```
-
-### Project Structure
-```
-qopy/
-├── server-fixed.js       # Main server file
-├── package.json          # Dependencies and scripts
-├── railway.toml          # Railway deployment config
-├── Dockerfile           # Docker configuration
-├── public/              # Frontend files
-│   ├── index.html       # Main application
-│   ├── admin.html       # Admin dashboard
-│   ├── script.js        # Frontend JavaScript
-│   └── styles.css       # Styling
-├── scripts/             # Utility scripts
-│   ├── health-check.js  # Health check script
-│   ├── spam-ip-updater.js # Spam IP list updater
-│   └── setup-admin.js   # Admin setup utility
-└── data/
-    └── spam-ips.json    # Spam IP database
-```
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-**Build Failures:**
-- Ensure npm >= 11.4.2: `npm run check-npm`
-- Clear cache: `npm cache clean --force`
-- Reinstall: `rm -rf node_modules && npm install`
-
-**Port Issues:**
-- App automatically uses `process.env.PORT` or defaults to 3000
-- Ensure no other services are using the port
-
-**Admin Dashboard Not Loading:**
-- Check CSP errors in browser console
-- Set admin token via `ADMIN_TOKEN` environment variable (required)
-- Clear browser cache and cookies
-
-**Memory Issues:**
-- App includes automatic memory monitoring
-- Check `/api/health` for memory statistics
-- Restart if heap usage exceeds limits
-
-**Spam Filter False Positives:**
-- Use admin dashboard to manage IP blacklist
-- Adjust spam score thresholds via environment variables
-- Check logs for detailed spam analysis
-
-## 📈 Performance
-
-- **Memory-efficient**: ~9MB RAM usage in production
-- **Fast response times**: <100ms for most operations
-- **Scalable**: Handles thousands of concurrent clips
-- **CDN-ready**: Static files optimized for CDN delivery
-- **Compression**: Gzip compression for all responses
-
-## 🔄 Updates & Maintenance
-
-### Automatic Updates
-- **Spam IP lists**: Updated every 24 hours
-- **Security patches**: Apply via npm update
-- **Railway deployments**: Automatic on git push
-
-### Manual Maintenance
-```bash
-# Update spam IP lists
-npm run update-spam-ips
-
-# Check system health
-npm run health-check
-
-# View admin dashboard
-# https://your-domain.com/api/admin/dashboard
-```
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
+### Health Checks
+The application provides health check endpoints:
+- `/api/health` - Detailed system status
+- `/api/ping` - Simple uptime check
 
 ## 🤝 Contributing
 
@@ -412,13 +407,17 @@ MIT License - see LICENSE file for details.
 4. Test thoroughly
 5. Submit a pull request
 
-## 📞 Support
+## 📄 License
 
-- **Health Check**: `/api/health`
-- **Admin Dashboard**: `/api/admin/dashboard`
-- **Railway Support**: [Railway Discord](https://discord.gg/railway)
-- **Documentation**: This README and inline code comments
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🆘 Support
+
+For support and questions:
+- Create an issue on GitHub
+- Check the documentation
+- Review the admin dashboard for system status
 
 ---
 
-**Qopy** - Secure, fast, and privacy-focused text sharing. 🚀 
+**Qopy** - Secure, fast, and reliable text sharing for everyone. 

@@ -14,7 +14,7 @@ class ClipboardApp {
 
     // Typing Animation
     setupTypingAnimation() {
-        const text = 'QOPY.APP';
+        const text = 'qopy.app';
         const typingElement = document.getElementById('typing-text');
         let currentIndex = 0;
         

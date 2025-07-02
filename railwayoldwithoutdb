@@ -3,7 +3,7 @@ builder = "nixpacks"
 buildCommand = "node scripts/check-npm-version.js && npm ci"
 
 [deploy]
-startCommand = "node scripts/init-postgres.js && node server-postgres.js"
+startCommand = "node scripts/railway-setup.js && node server-database.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30
 healthcheckInterval = 10
@@ -14,7 +14,4 @@ terminationGracePeriodSeconds = 30
 [env]
 NODE_ENV = "production"
 DEBUG = "false"
-SHUTDOWN_TIMEOUT = "45000"
-
-# PostgreSQL configuration (add PostgreSQL plugin in Railway dashboard)
-# DATABASE_URL will be automatically provided by Railway PostgreSQL plugin 
+SHUTDOWN_TIMEOUT = "45000" 

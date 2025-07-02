@@ -2,10 +2,10 @@
   "name": "qopy",
   "version": "1.0.0",
   "description": "Qopy - Secure temporary text sharing web application",
-  "main": "server-fixed.js",
+  "main": "server-postgres.js",
   "scripts": {
-    "start": "node --max-old-space-size=512 server-fixed.js",
-    "dev": "nodemon server-fixed.js",
+    "start": "node --max-old-space-size=512 server-postgres.js",
+    "dev": "nodemon server-postgres.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "health-check": "node scripts/health-check.js",
     "build": "npm ci && echo '🎉 Build completed successfully'",
@@ -13,7 +13,13 @@
     "update-spam-ips": "node scripts/spam-ip-updater.js",
     "setup-admin": "node scripts/setup-admin.js",
     "railway-deploy": "sh scripts/railway-deploy.sh",
-    "postinstall": "echo '📦 Installation completed with npm' && npm --version"
+    "postinstall": "echo '📦 Installation completed with npm' && npm --version",
+    "db:init": "node scripts/init-database.js",
+    "db:migrate": "node scripts/migrate-data.js",
+    "setup": "node scripts/setup-database.js",
+    "db:init-postgres": "node scripts/init-postgres.js",
+    "start:postgres": "node server-postgres.js",
+    "railway-check": "node scripts/railway-check.js"
   },
   "keywords": ["clipboard", "sharing", "anonymous", "temporary", "qopy"],
   "author": "Qopy App",
@@ -26,7 +32,9 @@
     "uuid": "^9.0.1",
     "qrcode": "^1.5.3",
     "compression": "^1.7.4",
-    "express-validator": "^7.0.1"
+    "express-validator": "^7.0.1",
+    "sqlite3": "^5.1.6",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
