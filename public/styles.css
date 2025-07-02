@@ -136,18 +136,89 @@ header::before {
   align-items: center;
 }
 
-.main-logo {
-  max-height: 120px;
-  height: auto;
-  width: auto;
-  max-width: 100%;
-  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.3));
-  transition: all 0.3s ease;
+/* Typing Logo Animation */
+.typing-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', monospace;
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 
+    0 0 20px rgba(255, 255, 255, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.3);
+  letter-spacing: 2px;
+  min-height: 80px;
 }
 
-.main-logo:hover {
-  transform: scale(1.05);
-  filter: drop-shadow(0 6px 25px rgba(0, 0, 0, 0.4));
+#typing-text {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  border-right: none;
+}
+
+.cursor {
+  display: inline-block;
+  width: 3px;
+  height: 2.5rem;
+  background: #ffffff;
+  margin-left: 4px;
+  animation: blink 1s infinite;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Typing animation for each character */
+.typing-logo .char {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: typeChar 0.1s ease forwards;
+}
+
+@keyframes typeChar {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hover effect */
+.typing-logo:hover {
+  transform: scale(1.02);
+  transition: transform 0.3s ease;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .typing-logo {
+    font-size: 2rem;
+    letter-spacing: 1px;
+    min-height: 60px;
+  }
+  
+  .cursor {
+    height: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .typing-logo {
+    font-size: 1.5rem;
+    letter-spacing: 0.5px;
+    min-height: 50px;
+  }
+  
+  .cursor {
+    height: 1.5rem;
+    width: 2px;
+  }
 }
 
 

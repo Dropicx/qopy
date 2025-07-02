@@ -6,9 +6,35 @@ class ClipboardApp {
     }
 
     init() {
+        this.setupTypingAnimation();
         this.setupEventListeners();
         this.setupRouting();
         this.setupKeyboardShortcuts();
+    }
+
+    // Typing Animation
+    setupTypingAnimation() {
+        const text = 'QOPY.APP';
+        const typingElement = document.getElementById('typing-text');
+        let currentIndex = 0;
+        
+        const typeNextChar = () => {
+            if (currentIndex < text.length) {
+                const char = text[currentIndex];
+                const charSpan = document.createElement('span');
+                charSpan.textContent = char;
+                charSpan.className = 'char';
+                charSpan.style.animationDelay = `${currentIndex * 0.15}s`;
+                typingElement.appendChild(charSpan);
+                currentIndex++;
+                
+                // Add slight delay between characters
+                setTimeout(typeNextChar, 150);
+            }
+        };
+        
+        // Start typing animation after a short delay
+        setTimeout(typeNextChar, 500);
     }
 
     // Event Listeners

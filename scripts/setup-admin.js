@@ -48,6 +48,12 @@ function generateEnvTemplate() {
 # REQUIRED: Admin token for dashboard access (no default for security)
 ADMIN_TOKEN=${adminToken}
 
+# CORS & Security Configuration (for production security)
+# DOMAIN=qopy.app
+# ALLOWED_ORIGINS=https://your-domain.com,https://sub.your-domain.com
+# Note: Railway domains (RAILWAY_STATIC_URL, RAILWAY_PUBLIC_DOMAIN) are auto-detected
+# Note: qopy.app is automatically included in CORS allowlist for production
+
 # Optional: Spam filter configuration
 SPAM_FILTER_ENABLED=true
 SPAM_SCORE_THRESHOLD=50

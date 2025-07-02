@@ -132,12 +132,18 @@ docker run -p 3000:3000 qopy
 Required configuration:
 - `ADMIN_TOKEN` - Admin dashboard access token (REQUIRED for security - no default)
 
+CORS & Security configuration:
+- `DOMAIN` - Your custom domain (automatically added to CORS allowlist)
+- `ALLOWED_ORIGINS` - Additional allowed origins (comma-separated, e.g., "https://app1.com,https://app2.com")
+- `RAILWAY_STATIC_URL` - Railway auto-generated domain (automatically detected)
+- `RAILWAY_PUBLIC_DOMAIN` - Railway custom domain (automatically detected)
+- **Production**: `qopy.app` is automatically included in CORS allowlist
+
 Optional configuration:
 - `RATE_LIMIT_WINDOW_MS` - Rate limiting window (default: 900000ms)
 - `RATE_LIMIT_MAX_REQUESTS` - Max requests per window (default: 20)
 - `MAX_CONTENT_LENGTH` - Maximum content length (default: 100000)
 - `SPAM_FILTER_ENABLED` - Enable spam filtering (default: true)
-- `DOMAIN` - Custom domain for QR codes and URLs
 
 ## 🖥 Usage
 

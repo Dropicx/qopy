@@ -28,6 +28,18 @@ if (!process.env.ADMIN_TOKEN) {
   console.log('✅ Admin token configured');
 }
 
+// Domain Configuration Check
+if (process.env.NODE_ENV === 'production') {
+  if (process.env.DOMAIN) {
+    console.log(`🌐 Production domain: ${process.env.DOMAIN}`);
+  } else {
+    console.log('🌐 Production domain: qopy.app (hardcoded)');
+  }
+  console.log('🔒 CORS: qopy.app automatically allowed');
+} else {
+  console.log('🌐 Development mode: localhost origins allowed');
+}
+
 // Trust proxy for Railway deployment
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
@@ -132,7 +144,94 @@ app.use(helmet({
   },
 }));
 
-app.use(cors());
+// Secure CORS Configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [];
+    
+    // Development origins
+    if (process.env.NODE_ENV !== 'production') {
+      allowedOrigins.push(
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:8080',
+        'http://127.0.0.1:8080'
+      );
+    }
+    
+    // Production origins
+    if (process.env.NODE_ENV === 'production') {
+      // Railway auto-generated domains
+      if (process.env.RAILWAY_STATIC_URL) {
+        allowedOrigins.push(`https://${process.env.RAILWAY_STATIC_URL}`);
+      }
+      if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        allowedOrigins.push(`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+      }
+      
+      // Custom domain from environment
+      if (process.env.DOMAIN) {
+        allowedOrigins.push(`https://${process.env.DOMAIN}`);
+        allowedOrigins.push(`http://${process.env.DOMAIN}`); // Fallback for dev
+      }
+      
+      // Qopy.app production domain (hardcoded for security)
+      allowedOrigins.push('https://qopy.app');
+      allowedOrigins.push('http://qopy.app'); // Fallback for dev
+      
+      // Additional allowed origins from environment (comma-separated)
+      if (process.env.ALLOWED_ORIGINS) {
+        const additionalOrigins = process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+        allowedOrigins.push(...additionalOrigins);
+      }
+      
+      // Fallback: if no origins configured in production, allow current host
+      if (allowedOrigins.length === 0) {
+        console.warn('⚠️ No CORS origins configured for production. Using permissive fallback.');
+        return callback(null, true);
+      }
+    }
+    
+    // Log CORS attempt for security monitoring
+    if (typeof logMessage === 'function') {
+      logMessage('debug', `CORS check for origin: ${origin}`, {
+        origin: origin,
+        allowed: allowedOrigins.includes(origin),
+        environment: process.env.NODE_ENV,
+        allowedOrigins: allowedOrigins
+      });
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      if (typeof logMessage === 'function') {
+        logMessage('warn', `CORS blocked origin: ${origin}`, {
+          origin: origin,
+          allowedOrigins: allowedOrigins
+        });
+      }
+      callback(new Error('CORS policy violation: Origin not allowed'));
+    }
+  },
+  credentials: true, // Allow cookies and auth headers  
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With', 
+    'Content-Type', 
+    'Accept',
+    'Authorization',
+    'Cache-Control'
+  ],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+  maxAge: 86400 // 24 hours preflight cache
+};
+
+app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -143,6 +242,14 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 console.log('✅ Enhanced middleware initialized');
+
+// Helper function for consistent base URL generation
+function getBaseUrl(req) {
+  if (process.env.NODE_ENV === 'production' && process.env.DOMAIN) {
+    return `https://${process.env.DOMAIN}`;
+  }
+  return `${req.protocol}://${req.get('host')}`;
+}
 
 // Configuration from environment
 const SPAM_FILTER_ENABLED = process.env.SPAM_FILTER_ENABLED !== 'false';
@@ -263,14 +370,7 @@ function checkBlacklist(req, res, next) {
 
 console.log('✅ IP management functions ready');
 
-// Middleware (duplicate removed - using configuration above)
-
-app.use(cors());
-app.use(compression());
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-
-console.log('✅ Basic middleware loaded');
+console.log('✅ Secure CORS and middleware configured');
 
 // Rate limiting
 const createLimiter = rateLimit({
@@ -614,7 +714,7 @@ app.post('/api/clip', validateClipCreation, (req, res) => {
      });
     
     // Generate QR code and send complete response
-    const shareUrl = `${req.protocol}://${req.get('host')}/${id}`;
+    const shareUrl = `${getBaseUrl(req)}/${id}`;
     
     QRCode.toDataURL(shareUrl, {
       errorCorrectionLevel: 'M',
@@ -821,7 +921,7 @@ app.get('/api/qr/:id', (req, res) => {
       return res.status(410).json({ error: 'Clip has expired' });
     }
     
-    const url = `${req.protocol}://${req.get('host')}/${id}`;
+    const url = `${getBaseUrl(req)}/${id}`;
     
     QRCode.toDataURL(url, {
       errorCorrectionLevel: 'M',
@@ -1023,6 +1123,22 @@ app.get('/api/admin/info', (req, res) => {
   });
 });
 
+// CORS test endpoint (no auth required - for testing CORS configuration)
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS test successful',
+    origin: req.get('Origin') || 'No origin header',
+    corsAllowed: true,
+    timestamp: new Date().toISOString(),
+    requestHeaders: {
+      'user-agent': req.get('User-Agent'),
+      'origin': req.get('Origin'),
+      'referer': req.get('Referer')
+    }
+  });
+});
+
 // Admin endpoints
 app.get('/api/admin/stats', requireAdminAuth, (req, res) => {
   logMessage('info', `[ADMIN] Stats accessed by IP ${req.ip}`, { 
@@ -1134,6 +1250,65 @@ app.get('/api/admin/logs', requireAdminAuth, (req, res) => {
     logs: logs,
     total: systemLogs.length,
     filtered: logs.length
+  });
+});
+
+app.get('/api/admin/cors-config', requireAdminAuth, (req, res) => {
+  logMessage('info', `[ADMIN] CORS configuration accessed by IP ${req.ip}`, { 
+    endpoint: '/api/admin/cors-config',
+    method: 'GET' 
+  });
+  
+  const allowedOrigins = [];
+  
+  // Development origins
+  if (process.env.NODE_ENV !== 'production') {
+    allowedOrigins.push(
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:8080',
+      'http://127.0.0.1:8080'
+    );
+  }
+  
+  // Production origins
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.RAILWAY_STATIC_URL) {
+      allowedOrigins.push(`https://${process.env.RAILWAY_STATIC_URL}`);
+    }
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      allowedOrigins.push(`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+    }
+    if (process.env.DOMAIN) {
+      allowedOrigins.push(`https://${process.env.DOMAIN}`);
+      allowedOrigins.push(`http://${process.env.DOMAIN}`);
+    }
+    
+    // Qopy.app production domain (hardcoded for security)
+    allowedOrigins.push('https://qopy.app');
+    allowedOrigins.push('http://qopy.app'); // Fallback for dev
+    
+    if (process.env.ALLOWED_ORIGINS) {
+      const additionalOrigins = process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+      allowedOrigins.push(...additionalOrigins);
+    }
+  }
+  
+  res.json({
+    success: true,
+    corsConfig: {
+      environment: process.env.NODE_ENV || 'development',
+      allowedOrigins: allowedOrigins,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      maxAge: 86400
+    },
+    environmentVariables: {
+      DOMAIN: process.env.DOMAIN || 'not set',
+      ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || 'not set',
+      RAILWAY_STATIC_URL: process.env.RAILWAY_STATIC_URL || 'not set',
+      RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN || 'not set'
+    }
   });
 });
 
