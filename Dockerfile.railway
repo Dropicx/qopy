@@ -1,7 +1,7 @@
-# Use the official Node.js runtime as the base image
+# Railway-optimized Dockerfile for Qopy with PostgreSQL
 FROM node:20-alpine AS builder
 
-# Set the working directory in the container
+# Set the working directory
 WORKDIR /app
 
 # Install curl for downloading external resources
@@ -15,8 +15,10 @@ COPY package*.json ./
 COPY .npmrc ./
 COPY scripts/check-npm-version.js ./scripts/
 
-# Check npm version and install dependencies
-RUN node scripts/check-npm-version.js && npm install
+# Check npm version and install dependencies (without package-lock.json)
+RUN node scripts/check-npm-version.js && \
+    rm -f package-lock.json && \
+    npm install
 
 # Copy all scripts needed for setup
 COPY scripts/ ./scripts/
@@ -64,25 +66,27 @@ RUN chown -R qopy:nodejs /app && \
 # Switch to non-root user for setup
 USER qopy
 
-# Note: Admin setup and spam list downloads moved to runtime startup script
-# This avoids permission issues during build phase
-
-# Create a simplified startup script for better reliability
+# Create a Railway-optimized startup script
 RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo 'set -e' >> /app/startup.sh && \
-    echo 'echo "🚀 Starting Qopy..."' >> /app/startup.sh && \
+    echo 'echo "🚀 Starting Qopy with PostgreSQL..."' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
     echo '# Basic startup info' >> /app/startup.sh && \
     echo 'echo "User: $(whoami)"' >> /app/startup.sh && \
     echo 'echo "Working Directory: $(pwd)"' >> /app/startup.sh && \
     echo 'echo "Node Version: $(node --version)"' >> /app/startup.sh && \
+    echo 'echo "Railway Environment: $RAILWAY_ENVIRONMENT"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Quick file check' >> /app/startup.sh && \
+    echo '# Check for PostgreSQL server file' >> /app/startup.sh && \
     echo 'if [ ! -f "server-postgres.js" ]; then' >> /app/startup.sh && \
     echo '  echo "❌ ERROR: server-postgres.js not found!"' >> /app/startup.sh && \
     echo '  exit 1' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
-    echo 'echo "✅ Server file found"' >> /app/startup.sh && \
+    echo 'echo "✅ PostgreSQL server file found"' >> /app/startup.sh && \
+    echo '' >> /app/startup.sh && \
+    echo '# Initialize PostgreSQL database' >> /app/startup.sh && \
+    echo 'echo "🗄️ Initializing PostgreSQL database..."' >> /app/startup.sh && \
+    echo 'node scripts/init-postgres.js || echo "⚠️ Database init skipped"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
     echo '# Optional admin setup (non-blocking)' >> /app/startup.sh && \
     echo 'if [ ! -f "ADMIN-QUICKSTART.md" ]; then' >> /app/startup.sh && \
@@ -96,8 +100,8 @@ RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo '  npm run update-spam-ips || echo "⚠️ Spam lists skipped"' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Start server directly with node' >> /app/startup.sh && \
-    echo 'echo "🚀 Starting server..."' >> /app/startup.sh && \
+    echo '# Start PostgreSQL server' >> /app/startup.sh && \
+    echo 'echo "🚀 Starting PostgreSQL server..."' >> /app/startup.sh && \
     echo 'if [ "$DEBUG" = "true" ]; then' >> /app/startup.sh && \
     echo '  exec node --trace-warnings --expose-gc server-postgres.js' >> /app/startup.sh && \
     echo 'else' >> /app/startup.sh && \
@@ -113,10 +117,9 @@ USER qopy
 # Expose the port the app runs on
 EXPOSE 3000
 
-# Health check with more generous startup time
-HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=5 \
+# Health check with more generous startup time for PostgreSQL
+HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Start the application directly for Railway compatibility
-# Railway will override this with startCommand in railway.toml
+# Start the application with PostgreSQL
 CMD ["node", "server-postgres.js"] 
