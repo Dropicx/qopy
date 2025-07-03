@@ -88,18 +88,6 @@ RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo 'echo "🗄️ Initializing PostgreSQL database..."' >> /app/startup.sh && \
     echo 'node scripts/init-postgres.js || echo "⚠️ Database init skipped"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Optional admin setup (non-blocking)' >> /app/startup.sh && \
-    echo 'if [ ! -f "ADMIN-QUICKSTART.md" ]; then' >> /app/startup.sh && \
-    echo '  echo "🎛️ Setting up admin..."' >> /app/startup.sh && \
-    echo '  npm run setup-admin || echo "⚠️ Admin setup skipped"' >> /app/startup.sh && \
-    echo 'fi' >> /app/startup.sh && \
-    echo '' >> /app/startup.sh && \
-    echo '# Optional spam lists (non-blocking)' >> /app/startup.sh && \
-    echo 'if [ ! -f "data/spam-ips.json" ]; then' >> /app/startup.sh && \
-    echo '  echo "📥 Downloading spam lists..."' >> /app/startup.sh && \
-    echo '  npm run update-spam-ips || echo "⚠️ Spam lists skipped"' >> /app/startup.sh && \
-    echo 'fi' >> /app/startup.sh && \
-    echo '' >> /app/startup.sh && \
     echo '# Start PostgreSQL server' >> /app/startup.sh && \
     echo 'echo "🚀 Starting PostgreSQL server (simple mode)..."' >> /app/startup.sh && \
     echo 'if [ "$DEBUG" = "true" ]; then' >> /app/startup.sh && \
@@ -116,10 +104,6 @@ USER qopy
 
 # Expose the port the app runs on
 EXPOSE 3000
-
-# Health check with more generous startup time for PostgreSQL
-HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
 # Start the application with PostgreSQL (simple mode)
 CMD ["node", "server-postgres-simple.js"] 

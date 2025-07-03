@@ -3,9 +3,8 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile.railway"
 
 [deploy]
-startCommand = "node scripts/init-postgres.js && node server-postgres-simple.js"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
+startCommand = "node server-postgres-minimal.js"
+restartPolicyType = "always"
 terminationGracePeriodSeconds = 30
 
 [env]
