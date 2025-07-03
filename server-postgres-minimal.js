@@ -208,11 +208,23 @@ app.post('/api/share', [
     const expirationTime = Date.now() + expirationTimes[expiration];
     const clipId = generateClipId();
 
-    // Insert clip into database
-    await pool.query(`
-      INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at, ip_address, user_agent)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [clipId, content, expirationTime, password || null, oneTime || false, Date.now(), clientIP, userAgent]);
+    // Insert clip into database (with fallback for missing columns)
+    try {
+      await pool.query(`
+        INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at, ip_address, user_agent)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [clipId, content, expirationTime, password || null, oneTime || false, Date.now(), clientIP, userAgent]);
+    } catch (error) {
+      if (error.message.includes('ip_address')) {
+        // Fallback: insert without ip_address and user_agent columns
+        await pool.query(`
+          INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [clipId, content, expirationTime, password || null, oneTime || false, Date.now()]);
+      } else {
+        throw error;
+      }
+    }
 
     console.log(`📋 Created clip: ${clipId}`);
 
