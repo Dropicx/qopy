@@ -484,10 +484,38 @@ class ClipboardApp {
 
     // Show Retrieve Result
     showRetrieveResult(data) {
+        console.log('📋 Retrieve result data:', data);
+        
         document.getElementById('retrieved-content').textContent = data.content;
+        
         // Use current time as created time since API doesn't provide it
         document.getElementById('created-time').textContent = new Date().toLocaleString();
-        document.getElementById('expires-time').textContent = new Date(data.expiresAt).toLocaleString();
+        
+        // Format expiration time with better error handling
+        try {
+            const expiresAt = data.expiresAt;
+            console.log('⏰ Raw expiresAt:', expiresAt);
+            
+            if (expiresAt) {
+                const expiryDate = new Date(expiresAt);
+                console.log('📅 Parsed expiry date:', expiryDate);
+                
+                if (!isNaN(expiryDate.getTime())) {
+                    const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
+                    const formattedDate = expiryDate.toLocaleString();
+                    document.getElementById('expires-time').textContent = `${formattedDate} (${timeRemaining} remaining)`;
+                } else {
+                    console.error('❌ Invalid expiry date:', expiresAt);
+                    document.getElementById('expires-time').textContent = 'Invalid date';
+                }
+            } else {
+                console.error('❌ No expiresAt field in response');
+                document.getElementById('expires-time').textContent = 'Not available';
+            }
+        } catch (error) {
+            console.error('❌ Error formatting expiry date:', error);
+            document.getElementById('expires-time').textContent = 'Error formatting date';
+        }
         
         const oneTimeNotice = document.getElementById('one-time-notice');
         if (data.oneTime) {

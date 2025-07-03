@@ -191,6 +191,36 @@ app.get('/clip/admin.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+// Font routes to prevent conflicts with /clip/ routes
+app.get('/clip/fonts/Inter-Regular.woff2', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'fonts', 'Inter-Regular.woff2'));
+});
+
+app.get('/clip/fonts/Inter-Medium.woff2', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'fonts', 'Inter-Medium.woff2'));
+});
+
+app.get('/clip/fonts/Inter-SemiBold.woff2', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'fonts', 'Inter-SemiBold.woff2'));
+});
+
+app.get('/clip/fonts/Inter-Bold.woff2', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'fonts', 'Inter-Bold.woff2'));
+});
+
+app.get('/clip/fonts/Inter-ExtraBold.woff2', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'fonts', 'Inter-ExtraBold.woff2'));
+});
+
+// Logo routes to prevent conflicts with /clip/ routes
+app.get('/clip/logos/Favicon.png', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'logos', 'Favicon.png'));
+});
+
+app.get('/clip/logos/Main Qopy logo.png', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'logos', 'Main Qopy logo.png'));
+});
+
 // Explicit favicon routes for better browser compatibility
 app.get('/favicon.ico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'logos', 'Favicon.png'));
