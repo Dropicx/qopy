@@ -139,41 +139,56 @@ class ClipboardApp {
     // URL Routing
     setupRouting() {
         const path = window.location.pathname;
+        console.log('🔗 Current path:', path);
+        
         // Match both /JIPSKY and /clip/JIPSKY patterns
         const clipIdMatch = path.match(/^\/(?:clip\/)?([A-Z0-9]{6})$/);
         
         if (clipIdMatch) {
             const clipId = clipIdMatch[1];
+            console.log('🔗 Direct clip URL detected:', clipId);
             this.switchTab('retrieve');
             document.getElementById('clip-id-input').value = clipId;
             // Auto-retrieve if it's a direct clip URL
             setTimeout(() => this.autoRetrieveClip(clipId), 100);
+        } else if (path === '/retrieve') {
+            // Handle /retrieve URL by redirecting to home and switching to retrieve tab
+            console.log('🔄 Redirecting /retrieve to home with retrieve tab');
+            history.replaceState(null, '', '/');
+            this.switchTab('retrieve');
         }
     }
 
     // Auto-retrieve clip with password handling
     async autoRetrieveClip(clipId) {
         try {
+            console.log('🔍 Checking clip info for:', clipId);
             // First check if clip needs password
             const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+            console.log('📋 Info response status:', infoResponse.status);
+            
             if (infoResponse.ok) {
                 const info = await infoResponse.json();
+                console.log('📋 Clip info:', info);
                 
                 if (info.hasPassword) {
                     // Show password field and focus on it
+                    console.log('🔐 Password required, showing password field');
                     document.getElementById('password-section').classList.remove('hidden');
                     document.getElementById('retrieve-password-input').focus();
                     this.showToast('This clip is password protected', 'info');
                 } else {
                     // No password needed, retrieve immediately
+                    console.log('✅ No password required, retrieving content');
                     this.retrieveContent();
                 }
             } else {
                 // Clip not found or other error
+                console.log('❌ Clip not found or error:', infoResponse.status);
                 this.showToast('Clip not found or has expired', 'error');
             }
         } catch (error) {
-            console.error('Auto-retrieve error:', error);
+            console.error('❌ Auto-retrieve error:', error);
             this.showToast('Failed to check clip status', 'error');
         }
     }
@@ -188,9 +203,10 @@ class ClipboardApp {
         document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
         document.getElementById(`${tab}-section`).classList.add('active');
 
-        // Update URL without reloading
-        const newUrl = tab === 'share' ? '/' : `/${tab}`;
-        history.replaceState(null, '', newUrl);
+        // Update URL without reloading (only for share tab)
+        if (tab === 'share') {
+            history.replaceState(null, '', '/');
+        }
 
         // Focus appropriate input
         if (tab === 'share') {
