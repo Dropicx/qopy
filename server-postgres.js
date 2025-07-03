@@ -290,6 +290,7 @@ function getBaseUrl(req) {
 // Load external spam lists
 async function loadExternalSpamLists() {
   try {
+    console.log('📋 Loading spam IP lists...');
     const spamListPath = path.join(__dirname, 'data', 'spam-ips.json');
     if (fs.existsSync(spamListPath)) {
       const data = fs.readFileSync(spamListPath, 'utf8');
@@ -301,9 +302,12 @@ async function loadExternalSpamLists() {
         ipBlockStats.sources.push('local-file');
         ipBlockStats.lastUpdated = Date.now();
       }
+    } else {
+      console.log('📋 No spam-ips.json file found, starting with empty blacklist');
     }
   } catch (error) {
     console.error('❌ Error loading spam lists:', error.message);
+    console.log('🔄 Continuing without spam list...');
   }
 }
 
@@ -777,13 +781,20 @@ function gracefulShutdown() {
 // Initialize and start server
 async function startServer() {
   try {
-    await loadExternalSpamLists();
-    
     const server = app.listen(PORT, () => {
       console.log(`🚀 Qopy server running on port ${PORT}`);
       console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🗄️ Database: PostgreSQL (Railway)`);
       console.log(`📊 Database connection pool initialized`);
+      
+      // Load spam lists asynchronously after server starts
+      setTimeout(async () => {
+        try {
+          await loadExternalSpamLists();
+        } catch (error) {
+          console.error('❌ Error loading spam lists in background:', error.message);
+        }
+      }, 2000); // Wait 2 seconds after server starts
     });
 
     server.on('error', (error) => {

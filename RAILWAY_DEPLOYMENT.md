@@ -1,3 +1,99 @@
+# Railway Deployment Guide for Qopy
+
+## 🚀 Quick Setup
+
+### 1. Add PostgreSQL Database
+1. Go to [Railway Dashboard](https://railway.app/dashboard)
+2. Select your Qopy project
+3. Click **"New"** → **"Database"** → **"PostgreSQL"**
+4. Wait for database provisioning (2-3 minutes)
+
+### 2. Railway automatically provides:
+- `DATABASE_URL` environment variable
+- Database connection to your app
+- SSL configuration for production
+
+### 3. Redeploy your application
+- Railway will automatically redeploy when you add the database
+- Or manually trigger a new deployment
+
+## 🔧 Troubleshooting
+
+### Error: "DATABASE_URL environment variable is required"
+
+**Solution:** Add PostgreSQL database to your Railway project (see step 1 above)
+
+### Check Database Connection
+```bash
+# Run this locally to test database connection
+npm run db:check
+```
+
+### Manual Database Check on Railway
+1. Go to Railway dashboard
+2. Select your project
+3. Go to "Variables" tab
+4. Verify `DATABASE_URL` exists and has a value
+
+## 📊 Database Structure
+
+The application creates these tables automatically:
+- `clips` - Main clips storage
+- `users` - User management (future feature)
+- `user_clips` - User-clip relationships
+- `access_logs` - Access tracking and analytics
+
+## 🔒 Security Features
+
+- SSL connections in production
+- Connection pooling
+- Rate limiting
+- Input validation
+- SQL injection protection
+
+## 📈 Monitoring
+
+- Health checks every 10 seconds
+- Database connection monitoring
+- Error logging
+- Access analytics
+
+## 🛠️ Development vs Production
+
+| Environment | Database | Storage | SSL |
+|-------------|----------|---------|-----|
+| Development | SQLite | Local file | No |
+| Production | PostgreSQL | Railway managed | Yes |
+
+## 📝 Environment Variables
+
+Railway automatically provides:
+- `DATABASE_URL` - PostgreSQL connection string
+- `RAILWAY_ENVIRONMENT` - Environment identifier
+- `NODE_ENV` - Set to "production"
+
+## 🚨 Important Notes
+
+1. **Never commit DATABASE_URL** - Railway handles this automatically
+2. **Database is persistent** - Clips survive redeployments
+3. **Automatic backups** - Railway provides database backups
+4. **SSL required** - Production connections use SSL
+
+## 🔄 Migration from SQLite
+
+If you were using SQLite locally:
+1. Your local data stays intact
+2. Railway uses fresh PostgreSQL database
+3. No data migration needed for new deployment
+
+## 📞 Support
+
+If you encounter issues:
+1. Check Railway logs in dashboard
+2. Verify DATABASE_URL exists
+3. Ensure PostgreSQL plugin is added
+4. Check database connection with `npm run db:check`
+
 # Railway Deployment Guide
 
 This guide explains how to deploy Qopy on Railway.app with different database options.

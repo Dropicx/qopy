@@ -19,7 +19,10 @@
     "setup": "node scripts/setup-database.js",
     "db:init-postgres": "node scripts/init-postgres.js",
     "start:postgres": "node server-postgres.js",
-    "railway-check": "node scripts/railway-check.js"
+    "start:postgres-simple": "node server-postgres-simple.js",
+    "start:simple": "node scripts/start-simple.js",
+    "railway-check": "node scripts/railway-check.js",
+    "db:check": "node scripts/check-database.js"
   },
   "keywords": ["clipboard", "sharing", "anonymous", "temporary", "qopy"],
   "author": "Qopy App",
