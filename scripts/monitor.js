@@ -24,7 +24,11 @@ async function checkHealth() {
   const timestamp = new Date().toISOString();
   
   try {
-    const response = await makeRequest('/health');
+    // Try /api/health first, then fallback to /health
+    let response = await makeRequest('/api/health');
+    if (response.status !== 200) {
+      response = await makeRequest('/health');
+    }
     
     if (response.status === 200) {
       const uptime = response.data.uptime;

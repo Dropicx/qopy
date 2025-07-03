@@ -291,17 +291,25 @@ class ClipboardApp {
         retrieveButton.disabled = true;
 
         try {
-            const requestBody = password ? { password } : {};
-            const response = await fetch(`/api/clip/${clipId}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                ...(password && {
+            let response;
+            if (password) {
+                // Use POST for password-protected clips
+                response = await fetch(`/api/clip/${clipId}`, {
                     method: 'POST',
-                    body: JSON.stringify(requestBody)
-                })
-            });
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ password })
+                });
+            } else {
+                // Use GET for non-password-protected clips
+                response = await fetch(`/api/clip/${clipId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+            }
 
             const data = await response.json();
 

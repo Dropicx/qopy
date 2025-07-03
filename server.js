@@ -59,6 +59,16 @@ app.get('/health', (req, res) => {
   });
 });
 
+// API health check (for compatibility)
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    version: 'minimal-1.0.0'
+  });
+});
+
 // Simple ping endpoint
 app.get('/ping', (req, res) => {
   res.json({ 
@@ -291,10 +301,9 @@ app.get('/api/clip/:clipId/info', [
   }
 });
 
-// Get clip
+// Get clip (without password)
 app.get('/api/clip/:clipId', [
-  param('clipId').isLength({ min: 6, max: 6 }).withMessage('Clip ID must be 6 characters'),
-  body('password').optional().isLength({ min: 1, max: 100 }).withMessage('Password must be between 1 and 100 characters')
+  param('clipId').isLength({ min: 6, max: 6 }).withMessage('Clip ID must be 6 characters')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -306,9 +315,6 @@ app.get('/api/clip/:clipId', [
     }
 
     const { clipId } = req.params;
-    const { password } = req.body;
-    const clientIP = req.ip || req.connection.remoteAddress;
-    const userAgent = req.headers['user-agent'] || 'Unknown';
 
     // Get clip from database
     const result = await pool.query(
@@ -325,8 +331,8 @@ app.get('/api/clip/:clipId', [
 
     const clip = result.rows[0];
 
-    // Check password if required
-    if (clip.password_hash && clip.password_hash !== password) {
+    // Check if password is required
+    if (clip.password_hash) {
       return res.status(401).json({
         error: 'Password required',
         message: 'This clip is password protected'
@@ -356,7 +362,82 @@ app.get('/api/clip/:clipId', [
       content: clip.content,
       expiresAt: clip.expiration_time,
       oneTime: clip.one_time,
-      hasPassword: !!clip.password_hash
+      hasPassword: false
+    });
+
+  } catch (error) {
+    console.error('❌ Error retrieving clip:', error.message);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to retrieve clip'
+    });
+  }
+});
+
+// Get clip with password
+app.post('/api/clip/:clipId', [
+  param('clipId').isLength({ min: 6, max: 6 }).withMessage('Clip ID must be 6 characters'),
+  body('password').isLength({ min: 1, max: 100 }).withMessage('Password must be between 1 and 100 characters')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { clipId } = req.params;
+    const { password } = req.body;
+
+    // Get clip from database
+    const result = await pool.query(
+      'SELECT * FROM clips WHERE clip_id = $1 AND is_expired = false',
+      [clipId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Clip not found',
+        message: 'The requested clip does not exist or has expired'
+      });
+    }
+
+    const clip = result.rows[0];
+
+    // Check password
+    if (clip.password_hash !== password) {
+      return res.status(401).json({
+        error: 'Invalid password',
+        message: 'The provided password is incorrect'
+      });
+    }
+
+    // Update access count and timestamp
+    await pool.query(`
+      UPDATE clips 
+      SET access_count = access_count + 1, accessed_at = $1 
+      WHERE clip_id = $2
+    `, [Date.now(), clipId]);
+
+    // Handle one-time access
+    if (clip.one_time) {
+      await pool.query(
+        'UPDATE clips SET is_expired = true WHERE clip_id = $1',
+        [clipId]
+      );
+      console.log(`🗑️ One-time clip accessed and deleted: ${clipId}`);
+    }
+
+    console.log(`📋 Retrieved password-protected clip: ${clipId}`);
+
+    res.json({
+      success: true,
+      content: clip.content,
+      expiresAt: clip.expiration_time,
+      oneTime: clip.one_time,
+      hasPassword: true
     });
 
   } catch (error) {

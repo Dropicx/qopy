@@ -14,9 +14,19 @@ console.log('');
 async function testHealthCheck() {
   console.log('1️⃣ Testing Health Check...');
   try {
-    const response = await makeRequest('/health');
+    // Try /api/health first, then fallback to /health
+    let response = await makeRequest('/api/health');
     if (response.status === 200) {
-      console.log('✅ Health check passed');
+      console.log('✅ Health check passed (/api/health)');
+      console.log(`   Uptime: ${response.data.uptime}s`);
+      console.log(`   Version: ${response.data.version}`);
+      return true;
+    }
+    
+    // Fallback to /health
+    response = await makeRequest('/health');
+    if (response.status === 200) {
+      console.log('✅ Health check passed (/health)');
       console.log(`   Uptime: ${response.data.uptime}s`);
       console.log(`   Version: ${response.data.version}`);
       return true;
@@ -118,7 +128,7 @@ async function testRetrieveClip(clipId) {
 
   console.log('6️⃣ Testing Clip Retrieval...');
   try {
-    const response = await makeRequest(`/api/clip/${clipId}`, 'POST', {});
+    const response = await makeRequest(`/api/clip/${clipId}`, 'GET');
     if (response.status === 200 && response.data.success) {
       console.log('✅ Clip retrieval successful');
       console.log(`   Content: ${response.data.content.substring(0, 50)}...`);
