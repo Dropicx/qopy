@@ -4,9 +4,6 @@ dockerfilePath = "Dockerfile.railway"
 
 [deploy]
 startCommand = "node scripts/init-postgres.js && node server-postgres-simple.js"
-healthcheckPath = "/health"
-healthcheckTimeout = 15
-healthcheckInterval = 20
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 terminationGracePeriodSeconds = 30

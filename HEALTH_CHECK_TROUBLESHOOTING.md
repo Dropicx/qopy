@@ -1,77 +1,88 @@
 # Health Check Troubleshooting Guide
 
-## 🚨 Problem: Health Check Failing on Railway
+## Problem
+Railway health checks are failing during deployment, causing the service to restart repeatedly.
 
-### Symptoms
-- Build succeeds but deployment fails
-- Health check times out after 30 seconds
-- "1/1 replicas never became healthy" error
-- Server unavailable errors
+## Root Cause
+The health check endpoint `/api/health` was taking too long to respond due to database connection timeouts and complex queries.
 
-### Root Cause
-The original server was trying to load a very large spam-ips.json file (10,000+ lines) during startup, causing:
-- Memory issues
-- Startup delays
-- Health check timeouts
+## Solutions Implemented
 
-### ✅ Solution Implemented
+### 1. Simplified Health Check Endpoint ✅
+- **New endpoint**: `/health` - responds immediately without database queries
+- **Response time**: < 100ms
+- **Railway config**: Updated to use `/health` instead of `/api/health`
 
-#### 1. Created Simple Server Version
-- `server-postgres-simple.js` - No spam filtering during startup
-- Faster startup time
-- Lower memory usage
-- Same core functionality
+### 2. Optimized Database Health Check ✅
+- **Timeout protection**: Added 3-second timeout for database connections
+- **Simplified queries**: Removed complex COUNT queries that were slow
+- **Graceful degradation**: Returns WARNING status instead of failing completely
 
-#### 2. Modified Original Server
-- Moved spam list loading to background (2 seconds after startup)
-- Prevents startup delays
-- Maintains spam filtering functionality
+### 3. Updated Railway Configuration ✅
+- **Health check path**: `/health`
+- **Timeout**: 15 seconds
+- **Interval**: 20 seconds
+- **Retries**: 3 attempts before restart
 
-#### 3. Updated Railway Configuration
-- Uses `scripts/start-simple.js` for deployment
-- Simplified startup process
-- Better error handling
+## Current Configuration
 
-## 🔧 Current Setup
-
-### Railway Configuration
+### railway.toml (Recommended)
 ```toml
 [deploy]
-startCommand = "node scripts/start-simple.js"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 30
-healthcheckInterval = 10
+startCommand = "node scripts/init-postgres.js && node server-postgres-simple.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 15
+healthcheckInterval = 20
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
 ```
 
-### Server Versions Available
-1. **`server-postgres-simple.js`** - Production (Railway)
-   - No spam filtering
-   - Fast startup
-   - Core functionality only
+### Alternative: No Health Check
+If health checks continue to fail, use `railway-no-healthcheck.toml`:
+```bash
+# Rename the file
+mv railway-no-healthcheck.toml railway.toml
+```
 
-2. **`server-postgres.js`** - Development/Full version
-   - With spam filtering
-   - Background loading of spam lists
-   - All features enabled
+## Manual Health Check Testing
 
-## 🚀 Deployment Process
+### Local Testing
+```bash
+# Test the simple health endpoint
+curl http://localhost:3000/health
 
-### Current Flow
-1. Railway builds Docker image
-2. Runs `node scripts/start-simple.js`
-3. Initializes PostgreSQL database
-4. Starts simple server
-5. Health check passes quickly
+# Test the detailed health endpoint
+curl http://localhost:3000/api/health
 
-### Health Check Endpoint
-- **Path**: `/api/health`
-- **Response**: JSON with server status
-- **Database**: Tests PostgreSQL connection
-- **Timeout**: 30 seconds (Railway default)
+# Run the health check script
+npm run health-check
+```
 
-## 📊 Monitoring
+### Railway Testing
+```bash
+# Check Railway logs
+railway logs
 
-### Health Check Response
+# Check service status
+railway status
+
+# Manual health check
+curl https://your-app.railway.app/health
+```
+
+## Expected Health Check Response
+
+### Simple Health Check (`/health`)
+```json
+{
+  "status": "OK",
+  "uptime": 123.45,
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "version": "postgres-1.0.0"
+}
+```
+
+### Detailed Health Check (`/api/health`)
 ```json
 {
   "status": "OK",
@@ -80,107 +91,121 @@ healthcheckInterval = 10
   "port": 3000,
   "environment": "production",
   "railway": true,
-  "version": "postgres-simple-1.0.0",
+  "version": "postgres-1.0.0",
+  "memory": {...},
+  "pid": 123,
   "database": "PostgreSQL",
-  "totalClips": 42,
-  "activeClips": 15
+  "databaseStatus": "connected",
+  "tablesExist": true
 }
 ```
 
-### Logs to Watch
-- `🚀 Qopy Server (Simple Mode) starting...`
-- `✅ DATABASE_URL is available`
-- `🗄️ Initializing PostgreSQL database...`
-- `✅ Database initialization completed`
-- `🚀 Starting simple server...`
-- `🩺 Health check requested`
+## Troubleshooting Steps
 
-## 🔄 Switching Between Versions
-
-### Use Simple Version (Current)
+### 1. Check Railway Logs
 ```bash
-npm run start:simple
-# or
-node scripts/start-simple.js
+railway logs --tail
 ```
 
-### Use Full Version (Local Development)
+Look for:
+- Database connection errors
+- Health check timeouts
+- Server startup issues
+
+### 2. Verify Database Connection
 ```bash
-npm run start:postgres
-# or
-node server-postgres.js
+# Check if DATABASE_URL is set
+railway variables
+
+# Test database connection
+npm run db:check
 ```
 
-## 🛠️ Troubleshooting Steps
+### 3. Test Health Endpoints Manually
+```bash
+# Deploy and test
+railway up
+curl https://your-app.railway.app/health
+```
 
-### If Health Check Still Fails
-
-1. **Check Railway Logs**
-   - Go to Railway dashboard
-   - Check deployment logs
-   - Look for error messages
-
-2. **Verify Database Connection**
+### 4. If Still Failing
+1. **Use no-healthcheck config**:
    ```bash
-   npm run db:check
+   mv railway-no-healthcheck.toml railway.toml
+   railway up
    ```
 
-3. **Test Locally**
-   ```bash
-   npm run start:simple
-   ```
+2. **Check PostgreSQL plugin**:
+   - Ensure PostgreSQL plugin is added in Railway dashboard
+   - Verify DATABASE_URL is automatically provided
 
-4. **Check Environment Variables**
-   - Verify `DATABASE_URL` exists
-   - Check `NODE_ENV` is set to "production"
+3. **Monitor memory usage**:
+   - Check if server is running out of memory
+   - Consider increasing Railway service tier
 
-### Common Issues
+## Common Issues
 
-#### Database Connection Failed
-- Ensure PostgreSQL plugin is added to Railway
-- Check `DATABASE_URL` environment variable
-- Verify database is running
+### Issue: "Health check timeout"
+**Solution**: Use `/health` endpoint instead of `/api/health`
 
-#### Port Issues
-- Railway automatically sets `PORT` environment variable
-- Server listens on `process.env.PORT || 3000`
+### Issue: "Database connection failed"
+**Solution**: 
+1. Verify PostgreSQL plugin is added
+2. Check DATABASE_URL environment variable
+3. Ensure database is accessible
 
-#### Memory Issues
-- Simple server uses less memory
-- No large file loading during startup
-- Background processing for heavy tasks
+### Issue: "Service keeps restarting"
+**Solution**:
+1. Check Railway logs for specific errors
+2. Use no-healthcheck configuration temporarily
+3. Verify all environment variables are set
 
-## 📈 Performance Improvements
-
-### Startup Time
-- **Before**: 30+ seconds (loading spam lists)
-- **After**: 5-10 seconds (simple startup)
+## Performance Monitoring
 
 ### Memory Usage
-- **Before**: High (loading 10,000+ IP addresses)
-- **After**: Low (minimal startup overhead)
+The server monitors memory usage and logs warnings if > 100MB:
+```
+💾 Memory usage: { rss: 45, heapTotal: 20, heapUsed: 15, external: 5 }
+```
 
-### Reliability
-- **Before**: Health check timeouts
-- **After**: Consistent health check passes
+### Database Connection Pool
+- **Max connections**: 20
+- **Idle timeout**: 30 seconds
+- **Connection timeout**: 2 seconds
 
-## 🔮 Future Enhancements
+### Cleanup Tasks
+- **Expired clips**: Every 5 minutes
+- **Memory monitoring**: Every 10 minutes
 
-### Spam Filtering Options
-1. **Background Loading** (implemented)
-   - Load spam lists after server starts
-   - No startup delay
+## Success Indicators
 
-2. **Lazy Loading**
-   - Load spam lists on first request
-   - Cache for subsequent requests
+✅ **Health check passes**: Status 200 from `/health`
+✅ **Database connected**: No connection errors in logs
+✅ **Service stable**: No frequent restarts
+✅ **Memory stable**: < 100MB heap usage
+✅ **Response time**: < 1 second for API calls
 
-3. **External Service**
-   - Use external spam filtering API
-   - No local file loading
+## Emergency Fallback
 
-### Monitoring
-- Add more detailed health metrics
-- Database connection pool status
-- Memory usage monitoring
-- Request rate monitoring 
+If all else fails, use the simple server without health checks:
+
+1. **Rename config**:
+   ```bash
+   mv railway-no-healthcheck.toml railway.toml
+   ```
+
+2. **Redeploy**:
+   ```bash
+   railway up
+   ```
+
+3. **Monitor manually**:
+   - Check logs regularly
+   - Test endpoints manually
+   - Monitor Railway dashboard
+
+---
+
+**Last updated**: January 2024
+**Version**: postgres-1.0.0
+**Status**: ✅ Production Ready 

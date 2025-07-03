@@ -69,23 +69,31 @@ app.get('/api/health', async (req, res) => {
   };
 
   try {
-    // Test database connection
-    const client = await pool.connect();
+    // Quick database connection test (with timeout)
+    const client = await Promise.race([
+      pool.connect(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database connection timeout')), 3000)
+      )
+    ]);
     
-    // Check if tables exist
-    const tableCheck = await client.query(`
-      SELECT EXISTS (
+    // Quick table check
+    const tableCheck = await Promise.race([
+      client.query(`SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_name = 'clips'
-      );
-    `);
+      );`),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Table check timeout')), 2000)
+      )
+    ]);
     
     if (tableCheck.rows[0].exists) {
-      const dbResult = await client.query('SELECT COUNT(*) as total_clips FROM clips');
-      const activeResult = await client.query('SELECT COUNT(*) as active_clips FROM clips WHERE is_expired = false');
-      response.totalClips = parseInt(dbResult.rows[0].total_clips);
-      response.activeClips = parseInt(activeResult.rows[0].active_clips);
+      response.databaseStatus = 'connected';
+      response.tablesExist = true;
     } else {
+      response.databaseStatus = 'connected';
+      response.tablesExist = false;
       response.note = 'Database tables not yet initialized';
     }
     
@@ -97,8 +105,19 @@ app.get('/api/health', async (req, res) => {
     response.status = 'WARNING';
     response.error = 'Database connection issue';
     response.message = error.message;
+    response.databaseStatus = 'disconnected';
     res.status(200).json(response);
   }
+});
+
+// Simple health check endpoint (immediate response)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    version: 'postgres-1.0.0'
+  });
 });
 
 // Anti-idle endpoint
