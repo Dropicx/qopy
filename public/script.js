@@ -138,28 +138,45 @@ class ClipboardApp {
 
     // URL Routing
     setupRouting() {
-        const path = window.location.pathname;
-        console.log('🔗 Current path:', path);
-        
-        // Match both /JIPSKY and /clip/JIPSKY patterns
-        const clipIdMatch = path.match(/^\/(?:clip\/)?([A-Z0-9]{6})$/);
-        
-        if (clipIdMatch) {
-            const clipId = clipIdMatch[1];
-            console.log('🔗 Direct clip URL detected:', clipId);
-            this.switchTab('retrieve');
-            document.getElementById('clip-id-input').value = clipId;
-            // Auto-retrieve if it's a direct clip URL
-            setTimeout(() => this.autoRetrieveClip(clipId), 100);
-        } else if (path === '/retrieve') {
-            // Handle /retrieve URL by redirecting to home and switching to retrieve tab
-            console.log('🔄 Redirecting /retrieve to home with retrieve tab');
-            history.replaceState(null, '', '/');
-            this.switchTab('retrieve');
-        } else {
-            // Default to share tab for root path
-            console.log('🏠 Defaulting to share tab');
-            this.switchTab('share');
+        try {
+            const path = window.location.pathname;
+            console.log('🔗 Current path:', path);
+            
+            // Match both /JIPSKY and /clip/JIPSKY patterns
+            const clipIdMatch = path.match(/^\/(?:clip\/)?([A-Z0-9]{6})$/);
+            
+            if (clipIdMatch) {
+                const clipId = clipIdMatch[1];
+                console.log('🔗 Direct clip URL detected:', clipId);
+                
+                // Force switch to retrieve tab immediately
+                this.switchTab('retrieve');
+                
+                // Set clip ID in input field
+                const clipIdInput = document.getElementById('clip-id-input');
+                if (clipIdInput) {
+                    clipIdInput.value = clipId;
+                    console.log('✅ Clip ID set in input field');
+                }
+                
+                // Auto-retrieve after a short delay to ensure DOM is ready
+                setTimeout(() => {
+                    console.log('🔄 Auto-retrieving clip:', clipId);
+                    this.autoRetrieveClip(clipId);
+                }, 200);
+                
+            } else if (path === '/retrieve') {
+                // Handle /retrieve URL by redirecting to home and switching to retrieve tab
+                console.log('🔄 Redirecting /retrieve to home with retrieve tab');
+                history.replaceState(null, '', '/');
+                this.switchTab('retrieve');
+            } else {
+                // Default to share tab for root path
+                console.log('🏠 Defaulting to share tab');
+                this.switchTab('share');
+            }
+        } catch (error) {
+            console.error('❌ Error in setupRouting:', error);
         }
     }
 
@@ -167,6 +184,7 @@ class ClipboardApp {
     async autoRetrieveClip(clipId) {
         try {
             console.log('🔍 Checking clip info for:', clipId);
+            
             // First check if clip needs password
             const infoResponse = await fetch(`/api/clip/${clipId}/info`);
             console.log('📋 Info response status:', infoResponse.status);
@@ -178,8 +196,16 @@ class ClipboardApp {
                 if (info.hasPassword) {
                     // Show password field and focus on it
                     console.log('🔐 Password required, showing password field');
-                    document.getElementById('password-section').classList.remove('hidden');
-                    document.getElementById('retrieve-password-input').focus();
+                    const passwordSection = document.getElementById('password-section');
+                    if (passwordSection) {
+                        passwordSection.classList.remove('hidden');
+                    }
+                    
+                    const passwordInput = document.getElementById('retrieve-password-input');
+                    if (passwordInput) {
+                        passwordInput.focus();
+                    }
+                    
                     this.showToast('This clip is password protected', 'info');
                 } else {
                     // No password needed, retrieve immediately
@@ -199,29 +225,49 @@ class ClipboardApp {
 
     // Tab Management
     switchTab(tab) {
-        console.log('🔄 Switching to tab:', tab);
-        
-        // Update tab buttons
-        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-        document.getElementById(`${tab}-tab`).classList.add('active');
+        try {
+            console.log('🔄 Switching to tab:', tab);
+            
+            // Update tab buttons
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            
+            const targetTabButton = document.getElementById(`${tab}-tab`);
+            if (targetTabButton) {
+                targetTabButton.classList.add('active');
+                console.log('✅ Tab button updated');
+            }
+            
+            // Update sections
+            const sections = document.querySelectorAll('.section');
+            sections.forEach(section => section.classList.remove('active'));
+            
+            const targetSection = document.getElementById(`${tab}-section`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+                console.log('✅ Section updated');
+            }
 
-        // Update sections
-        document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
-        document.getElementById(`${tab}-section`).classList.add('active');
+            // Update URL without reloading (only for share tab)
+            if (tab === 'share') {
+                history.replaceState(null, '', '/');
+            }
 
-        // Update URL without reloading (only for share tab)
-        if (tab === 'share') {
-            history.replaceState(null, '', '/');
+            // Focus appropriate input after a short delay
+            setTimeout(() => {
+                if (tab === 'share') {
+                    const contentInput = document.getElementById('content-input');
+                    if (contentInput) contentInput.focus();
+                } else if (tab === 'retrieve') {
+                    const clipIdInput = document.getElementById('clip-id-input');
+                    if (clipIdInput) clipIdInput.focus();
+                }
+            }, 100);
+            
+            console.log('✅ Tab switched successfully');
+        } catch (error) {
+            console.error('❌ Error in switchTab:', error);
         }
-
-        // Focus appropriate input
-        if (tab === 'share') {
-            document.getElementById('content-input').focus();
-        } else if (tab === 'retrieve') {
-            document.getElementById('clip-id-input').focus();
-        }
-        
-        console.log('✅ Tab switched successfully');
     }
 
     // Character Counter
