@@ -12,7 +12,7 @@ const { Pool } = require('pg');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-console.log('🚀 Qopy Server (PostgreSQL Simple) starting...');
+console.log('🚀 Qopy Server (PostgreSQL) starting...');
 console.log(`📋 Port: ${PORT}`);
 console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`📋 Railway: ${process.env.RAILWAY_ENVIRONMENT || 'local'}`);
@@ -62,7 +62,7 @@ app.get('/api/health', async (req, res) => {
     port: PORT,
     environment: process.env.NODE_ENV || 'development',
     railway: !!process.env.RAILWAY_ENVIRONMENT,
-    version: 'postgres-simple-1.0.0',
+    version: 'postgres-1.0.0',
     memory: process.memoryUsage(),
     pid: process.pid,
     database: 'PostgreSQL'
@@ -185,6 +185,15 @@ app.use('/api/', limiter);
 
 // Serve static files (before API routes)
 app.use(express.static('public'));
+
+// Explicit favicon routes for better browser compatibility
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'logos', 'Favicon.png'));
+});
+
+app.get('/apple-touch-icon.png', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'logos', 'Favicon.png'));
+});
 
 // Production ready - no debug routes
 
@@ -541,11 +550,11 @@ function gracefulShutdown() {
 async function startServer() {
   try {
     const server = app.listen(PORT, () => {
-      console.log(`🚀 Qopy server (simple) running on port ${PORT}`);
+      console.log(`🚀 Qopy server running on port ${PORT}`);
       console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🗄️ Database: PostgreSQL (Railway)`);
       console.log(`📊 Database connection pool initialized`);
-      console.log(`🚫 Spam filtering: DISABLED (simple mode)`);
+      console.log(`🚫 Spam filtering: DISABLED (production mode)`);
     });
 
     server.on('error', (error) => {

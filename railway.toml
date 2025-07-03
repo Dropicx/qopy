@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile.railway"
 
 [deploy]
-startCommand = "node scripts/init-postgres.js && node server-postgres.js"
+startCommand = "node scripts/init-postgres.js && node server-postgres-simple.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30
 healthcheckInterval = 10

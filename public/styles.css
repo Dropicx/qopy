@@ -168,11 +168,13 @@ header::before {
   animation: blink 1s infinite;
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
   transition: opacity 0.3s ease;
+  border-radius: 1px;
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* Typing animation for each character */
