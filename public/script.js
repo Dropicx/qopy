@@ -240,7 +240,7 @@ class ClipboardApp {
         shareButton.disabled = true;
 
         try {
-            const response = await fetch('/api/clip', {
+            const response = await fetch('/api/share', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -322,7 +322,7 @@ class ClipboardApp {
 
     // Show Share Result Modal
     showShareResult(data) {
-        document.getElementById('share-url').value = data.shareUrl;
+        document.getElementById('share-url').value = data.url;
         document.getElementById('clip-id').value = data.clipId;
         
         // Handle QR code
@@ -349,7 +349,7 @@ class ClipboardApp {
     // Show Retrieve Result
     showRetrieveResult(data) {
         document.getElementById('retrieved-content').textContent = data.content;
-        document.getElementById('created-time').textContent = new Date(data.createdAt).toLocaleString();
+        document.getElementById('created-time').textContent = new Date(data.createdAt || data.created_at).toLocaleString();
         document.getElementById('expires-time').textContent = new Date(data.expiresAt).toLocaleString();
         
         const oneTimeNotice = document.getElementById('one-time-notice');
