@@ -167,6 +167,12 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`📡 ${req.method} ${req.url} - ${req.headers['user-agent']?.substring(0, 50) || 'Unknown'}`);
+  next();
+});
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -180,6 +186,29 @@ const limiter = rateLimit({
 });
 
 app.use('/api/', limiter);
+
+// Serve static files (before API routes)
+app.use(express.static('public', {
+  setHeaders: (res, path) => {
+    console.log(`📁 Serving static file: ${path}`);
+    if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (path.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+    }
+  }
+}));
+
+// Debug route to test static file serving
+app.get('/test-static', (req, res) => {
+  res.json({
+    message: 'Static file middleware is working',
+    publicPath: path.join(__dirname, 'public'),
+    files: ['styles.css', 'script.js', 'index.html']
+  });
+});
 
 // Clip ID generation
 function generateClipId() {
