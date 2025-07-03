@@ -118,6 +118,12 @@ const corsOptions = {
       );
     }
     
+    // Allow Chrome extensions (for browser extensions that want to use Qopy API)
+    if (origin.startsWith('chrome-extension://')) {
+      console.log(`🔌 Allowing Chrome extension: ${origin}`);
+      return callback(null, true);
+    }
+    
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
