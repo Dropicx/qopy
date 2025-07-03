@@ -156,6 +156,10 @@ class ClipboardApp {
             console.log('🔄 Redirecting /retrieve to home with retrieve tab');
             history.replaceState(null, '', '/');
             this.switchTab('retrieve');
+        } else {
+            // Default to share tab for root path
+            console.log('🏠 Defaulting to share tab');
+            this.switchTab('share');
         }
     }
 
@@ -195,6 +199,8 @@ class ClipboardApp {
 
     // Tab Management
     switchTab(tab) {
+        console.log('🔄 Switching to tab:', tab);
+        
         // Update tab buttons
         document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
         document.getElementById(`${tab}-tab`).classList.add('active');
@@ -214,6 +220,8 @@ class ClipboardApp {
         } else if (tab === 'retrieve') {
             document.getElementById('clip-id-input').focus();
         }
+        
+        console.log('✅ Tab switched successfully');
     }
 
     // Character Counter
@@ -377,15 +385,11 @@ class ClipboardApp {
         document.getElementById('share-url').value = data.url;
         document.getElementById('clip-id').value = data.clipId;
         
-        // Handle QR code
+        // Generate QR code using external service
         const qrCodeImg = document.getElementById('qr-code');
-        if (data.qrCode) {
-            qrCodeImg.src = data.qrCode;
-            qrCodeImg.style.display = 'block';
-        } else {
-            qrCodeImg.style.display = 'none';
-            console.warn('QR code not available');
-        }
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.url)}`;
+        qrCodeImg.src = qrCodeUrl;
+        qrCodeImg.style.display = 'block';
         
         document.getElementById('expiry-time').textContent = new Date(data.expiresAt).toLocaleString();
         
@@ -401,7 +405,8 @@ class ClipboardApp {
     // Show Retrieve Result
     showRetrieveResult(data) {
         document.getElementById('retrieved-content').textContent = data.content;
-        document.getElementById('created-time').textContent = new Date(data.createdAt || data.created_at).toLocaleString();
+        // Use current time as created time since API doesn't provide it
+        document.getElementById('created-time').textContent = new Date().toLocaleString();
         document.getElementById('expires-time').textContent = new Date(data.expiresAt).toLocaleString();
         
         const oneTimeNotice = document.getElementById('one-time-notice');
@@ -463,11 +468,8 @@ class ClipboardApp {
         if (type === 'error') {
             toastId = 'error-toast';
             messageId = 'error-message';
-        } else if (type === 'success') {
-            toastId = 'success-toast';
-            messageId = 'success-message';
-        } else if (type === 'info') {
-            // Use success toast for info messages (blue styling)
+        } else if (type === 'success' || type === 'info') {
+            // Use success toast for both success and info messages
             toastId = 'success-toast';
             messageId = 'success-message';
         }
