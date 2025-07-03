@@ -22,7 +22,9 @@
     "start:postgres-simple": "node server-postgres-simple.js",
     "start:simple": "node scripts/start-simple.js",
     "railway-check": "node scripts/railway-check.js",
-    "db:check": "node scripts/check-database.js"
+    "db:check": "node scripts/check-database.js",
+    "test-deployment": "node scripts/test-deployment.js",
+    "monitor": "node scripts/monitor-production.js"
   },
   "keywords": ["clipboard", "sharing", "anonymous", "temporary", "qopy"],
   "author": "Qopy App",
