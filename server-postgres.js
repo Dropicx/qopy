@@ -752,8 +752,8 @@ function monitorMemory() {
 }
 
 // Set up periodic tasks
-setInterval(cleanupExpiredClips, 5 * 60 * 1000); // Every 5 minutes
-setInterval(monitorMemory, 10 * 60 * 1000); // Every 10 minutes
+const cleanupInterval = setInterval(cleanupExpiredClips, 5 * 60 * 1000); // Every 5 minutes
+const memoryInterval = setInterval(monitorMemory, 10 * 60 * 1000); // Every 10 minutes
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -767,6 +767,18 @@ process.on('SIGINT', () => {
 });
 
 function gracefulShutdown() {
+  console.log('🛑 Starting graceful shutdown sequence');
+  
+  // Clear intervals
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    console.log('🧹 Cleanup interval cleared');
+  }
+  if (memoryInterval) {
+    clearInterval(memoryInterval);
+    console.log('💾 Memory monitoring interval cleared');
+  }
+  
   console.log('🔄 Closing database connection pool...');
   pool.end((err) => {
     if (err) {
@@ -774,6 +786,7 @@ function gracefulShutdown() {
     } else {
       console.log('✅ Database connection pool closed');
     }
+    console.log('🔌 Server closed');
     process.exit(0);
   });
 }

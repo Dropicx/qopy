@@ -290,6 +290,74 @@ app.post('/api/clip', [
   }
 });
 
+// Admin authentication middleware
+function requireAdminAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  
+  if (!process.env.ADMIN_TOKEN) {
+    return res.status(503).json({
+      error: 'Admin dashboard disabled',
+      message: 'Admin token not configured'
+    });
+  }
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: 'Authentication required',
+      message: 'Bearer token required'
+    });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  if (token !== process.env.ADMIN_TOKEN) {
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Invalid admin token'
+    });
+  }
+  
+  next();
+}
+
+// Admin dashboard
+app.get('/api/admin/dashboard', requireAdminAuth, async (req, res) => {
+  try {
+    // Get database statistics
+    const statsResult = await pool.query('SELECT COUNT(*) as total_clips FROM clips');
+    const activeResult = await pool.query('SELECT COUNT(*) as active_clips FROM clips WHERE is_expired = false');
+    const expiredResult = await pool.query('SELECT COUNT(*) as expired_clips FROM clips WHERE is_expired = true');
+    const recentResult = await pool.query(`
+      SELECT clip_id, created_at, access_count, one_time, is_expired
+      FROM clips 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `);
+
+    res.json({
+      success: true,
+      stats: {
+        totalClips: parseInt(statsResult.rows[0].total_clips),
+        activeClips: parseInt(activeResult.rows[0].active_clips),
+        expiredClips: parseInt(expiredResult.rows[0].expired_clips),
+        blockedIPs: 0, // Simple mode - no spam filtering
+        spamStats: { totalAnalyzed: 0, blocked: 0, suspicious: 0 }
+      },
+      recentClips: recentResult.rows.map(clip => ({
+        ...clip,
+        created_at: new Date(clip.created_at).toISOString()
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting admin dashboard:', error.message);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get admin dashboard'
+    });
+  }
+});
+
 // Get clip
 app.get('/api/clip/:clipId', [
   param('clipId').isLength({ min: 6, max: 6 }).withMessage('Clip ID must be 6 characters'),
@@ -378,6 +446,11 @@ app.get('/clip/:clipId', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Admin route
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
 // Serve static files
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -418,8 +491,8 @@ function monitorMemory() {
 }
 
 // Set up periodic tasks
-setInterval(cleanupExpiredClips, 5 * 60 * 1000); // Every 5 minutes
-setInterval(monitorMemory, 10 * 60 * 1000); // Every 10 minutes
+const cleanupInterval = setInterval(cleanupExpiredClips, 5 * 60 * 1000); // Every 5 minutes
+const memoryInterval = setInterval(monitorMemory, 10 * 60 * 1000); // Every 10 minutes
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -433,6 +506,18 @@ process.on('SIGINT', () => {
 });
 
 function gracefulShutdown() {
+  console.log('🛑 Starting graceful shutdown sequence');
+  
+  // Clear intervals
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    console.log('🧹 Cleanup interval cleared');
+  }
+  if (memoryInterval) {
+    clearInterval(memoryInterval);
+    console.log('💾 Memory monitoring interval cleared');
+  }
+  
   console.log('🔄 Closing database connection pool...');
   pool.end((err) => {
     if (err) {
@@ -440,6 +525,7 @@ function gracefulShutdown() {
     } else {
       console.log('✅ Database connection pool closed');
     }
+    console.log('🔌 Server closed');
     process.exit(0);
   });
 }

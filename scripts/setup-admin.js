@@ -20,7 +20,7 @@ function generateSecureToken(length = 32) {
 function checkRequiredFiles() {
   const requiredFiles = [
     'public/admin.html',
-    'server-fixed.js',
+    'server-postgres-simple.js',
     'package.json'
   ];
   
@@ -176,13 +176,12 @@ function testAdminEndpoints() {
   
   // Test if admin endpoints are properly defined
   try {
-    const serverContent = fs.readFileSync(path.join(__dirname, '..', 'server-fixed.js'), 'utf8');
+    const serverContent = fs.readFileSync(path.join(__dirname, '..', 'server-postgres-simple.js'), 'utf8');
     
     const requiredEndpoints = [
       'requireAdminAuth',
-      '/api/admin/blacklist',
-      '/api/admin/logs',
-      'logMessage'
+      '/api/admin/dashboard',
+      '/admin'
     ];
     
     const missingEndpoints = requiredEndpoints.filter(endpoint => 
