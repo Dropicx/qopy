@@ -139,14 +139,42 @@ class ClipboardApp {
     // URL Routing
     setupRouting() {
         const path = window.location.pathname;
-        const clipIdMatch = path.match(/^\/([A-Z0-9]{6})$/);
+        // Match both /JIPSKY and /clip/JIPSKY patterns
+        const clipIdMatch = path.match(/^\/(?:clip\/)?([A-Z0-9]{6})$/);
         
         if (clipIdMatch) {
             const clipId = clipIdMatch[1];
             this.switchTab('retrieve');
             document.getElementById('clip-id-input').value = clipId;
             // Auto-retrieve if it's a direct clip URL
-            setTimeout(() => this.checkClipId(), 100);
+            setTimeout(() => this.autoRetrieveClip(clipId), 100);
+        }
+    }
+
+    // Auto-retrieve clip with password handling
+    async autoRetrieveClip(clipId) {
+        try {
+            // First check if clip needs password
+            const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+            if (infoResponse.ok) {
+                const info = await infoResponse.json();
+                
+                if (info.hasPassword) {
+                    // Show password field and focus on it
+                    document.getElementById('password-section').classList.remove('hidden');
+                    document.getElementById('retrieve-password-input').focus();
+                    this.showToast('This clip is password protected', 'info');
+                } else {
+                    // No password needed, retrieve immediately
+                    this.retrieveContent();
+                }
+            } else {
+                // Clip not found or other error
+                this.showToast('Clip not found or has expired', 'error');
+            }
+        } catch (error) {
+            console.error('Auto-retrieve error:', error);
+            this.showToast('Failed to check clip status', 'error');
         }
     }
 
@@ -414,8 +442,19 @@ class ClipboardApp {
 
     // Toast Notifications
     showToast(message, type = 'error') {
-        const toastId = type === 'error' ? 'error-toast' : 'success-toast';
-        const messageId = type === 'error' ? 'error-message' : 'success-message';
+        let toastId, messageId;
+        
+        if (type === 'error') {
+            toastId = 'error-toast';
+            messageId = 'error-message';
+        } else if (type === 'success') {
+            toastId = 'success-toast';
+            messageId = 'success-message';
+        } else if (type === 'info') {
+            // Use success toast for info messages (blue styling)
+            toastId = 'success-toast';
+            messageId = 'success-message';
+        }
         
         // Hide any existing toasts
         document.querySelectorAll('.toast').forEach(toast => {

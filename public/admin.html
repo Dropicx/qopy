@@ -131,7 +131,7 @@
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -142,6 +142,11 @@
             border-radius: 15px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
             text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
         }
 
         .stat-number {
@@ -154,6 +159,12 @@
         .stat-label {
             color: #666;
             font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .stat-description {
+            color: #999;
+            font-size: 14px;
         }
 
         .section {
@@ -171,135 +182,6 @@
             padding-bottom: 10px;
         }
 
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #e1e5e9;
-        }
-
-        .tab {
-            padding: 12px 24px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: #666;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-
-        .tab.active {
-            color: #667eea;
-            border-bottom: 2px solid #667eea;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .ip-form {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .ip-form input {
-            flex: 1;
-            min-width: 200px;
-            padding: 10px;
-            border: 2px solid #e1e5e9;
-            border-radius: 8px;
-        }
-
-        .ip-form button {
-            background: #2ed573;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-
-        .ip-list {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 2px solid #e1e5e9;
-            border-radius: 8px;
-        }
-
-        .ip-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            border-bottom: 1px solid #e1e5e9;
-        }
-
-        .ip-item:last-child {
-            border-bottom: none;
-        }
-
-        .ip-item .ip-info {
-            flex: 1;
-        }
-
-        .ip-item .ip-address {
-            font-weight: bold;
-            color: #333;
-        }
-
-        .ip-item .ip-reason {
-            color: #666;
-            font-size: 14px;
-        }
-
-        .remove-btn {
-            background: #ff4757;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .logs {
-            background: #1e1e1e;
-            color: #00ff00;
-            padding: 20px;
-            border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            height: 400px;
-            overflow-y: auto;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-
-        .log-entry {
-            margin-bottom: 5px;
-            padding: 2px 0;
-        }
-
-        .log-timestamp {
-            color: #888;
-        }
-
-        .log-level-error {
-            color: #ff6b6b;
-        }
-
-        .log-level-warn {
-            color: #ffd93d;
-        }
-
-        .log-level-info {
-            color: #74c0fc;
-        }
-
         .refresh-btn {
             background: #667eea;
             color: white;
@@ -307,635 +189,342 @@
             padding: 8px 16px;
             border-radius: 6px;
             cursor: pointer;
-            margin-bottom: 10px;
+            font-size: 14px;
+            margin-bottom: 20px;
         }
 
-        .alert {
+        .refresh-btn:hover {
+            background: #5a6fd8;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 15px;
-            font-weight: 500;
+            margin-bottom: 20px;
         }
 
-        .alert.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+        .success {
+            background: #e6ffe6;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
         }
 
-        .alert.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+        .clip-list {
+            max-height: 400px;
+            overflow-y: auto;
         }
 
-        .hidden {
-            display: none !important;
+        .clip-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
         }
 
-        /* Loading Spinner */
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+        .clip-id {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .clip-content {
+            color: #666;
+            margin: 5px 0;
+            word-break: break-all;
+        }
+
+        .clip-meta {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
+            margin-right: 8px;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .status-active {
+            background: #00b894;
         }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
+        .status-expired {
+            background: #d63031;
+        }
 
-            .header {
-                flex-direction: column;
-                gap: 15px;
-                text-align: center;
-            }
-
-            .tabs {
-                flex-wrap: wrap;
-            }
-
-            .ip-form {
-                flex-direction: column;
-            }
-
-            .ip-form input {
-                min-width: auto;
-            }
+        .timestamp {
+            color: #999;
+            font-size: 12px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
     <!-- Login Form -->
-    <div id="login-container" class="login-container">
-        <form id="login-form" class="login-form">
-            <h2>🔐 Qopy Admin Login</h2>
-            <div class="form-group">
-                <label for="admin-token">Admin Token:</label>
-                <input type="password" id="admin-token" placeholder="Enter admin token" required>
-            </div>
-            <button type="submit" class="btn">Login</button>
-            <div id="login-error" class="alert error hidden">
-                Invalid admin token. Please try again.
-            </div>
-        </form>
+    <div class="login-container" id="loginContainer">
+        <div class="login-form">
+            <h2>🔐 Admin Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="password">Admin Password:</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="btn">Login</button>
+            </form>
+        </div>
     </div>
 
     <!-- Dashboard -->
-    <div id="dashboard" class="dashboard">
+    <div class="dashboard" id="dashboard">
         <div class="container">
             <div class="header">
-                <h1>🎛️ Qopy Admin Dashboard</h1>
-                <button id="logout-btn" class="logout-btn">Logout</button>
+                <h1>📊 Qopy Admin Dashboard</h1>
+                <button class="logout-btn" onclick="logout()">Logout</button>
             </div>
 
-            <!-- Statistics -->
+            <button class="refresh-btn" onclick="loadDashboard()">🔄 Refresh Data</button>
+
+            <!-- Statistics Cards -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div id="active-clips" class="stat-number">-</div>
+                    <div class="stat-number" id="totalClips">-</div>
+                    <div class="stat-label">Total Clips</div>
+                    <div class="stat-description">All time created</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="activeClips">-</div>
                     <div class="stat-label">Active Clips</div>
+                    <div class="stat-description">Not expired</div>
                 </div>
                 <div class="stat-card">
-                    <div id="blocked-ips" class="stat-number">-</div>
-                    <div class="stat-label">Blocked IPs</div>
+                    <div class="stat-number" id="expiredClips">-</div>
+                    <div class="stat-label">Expired Clips</div>
+                    <div class="stat-description">Auto-deleted</div>
                 </div>
                 <div class="stat-card">
-                    <div id="spam-blocked" class="stat-number">-</div>
-                    <div class="stat-label">Spam Blocked</div>
+                    <div class="stat-number" id="totalAccesses">-</div>
+                    <div class="stat-label">Total Accesses</div>
+                    <div class="stat-description">All time views</div>
                 </div>
                 <div class="stat-card">
-                    <div id="uptime" class="stat-number">-</div>
-                    <div class="stat-label">Server Uptime</div>
+                    <div class="stat-number" id="passwordClips">-</div>
+                    <div class="stat-label">Password Protected</div>
+                    <div class="stat-description">Secure clips</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="oneTimeClips">-</div>
+                    <div class="stat-label">One-Time Clips</div>
+                    <div class="stat-description">Self-destructing</div>
                 </div>
             </div>
 
-            <!-- Tabs -->
+            <!-- Recent Clips -->
             <div class="section">
-                <div class="tabs">
-                    <button class="tab active" data-tab="ip-management">🚫 IP Management</button>
-                    <button class="tab" data-tab="logs">📋 Logs</button>
-                    <button class="tab" data-tab="spam-stats">📊 Spam Statistics</button>
-                    <button class="tab" data-tab="system">⚙️ System</button>
+                <h2>📋 Recent Clips</h2>
+                <div id="recentClips" class="clip-list">
+                    <div class="loading">Loading recent clips...</div>
                 </div>
+            </div>
 
-                <!-- IP Management Tab -->
-                <div id="ip-management" class="tab-content active">
-                    <h2>🚫 IP Blacklist Management</h2>
-                    
-                    <div class="ip-form">
-                        <input type="text" id="new-ip" placeholder="IP Address (e.g., 192.168.1.100)" 
-                               pattern="^(\d{1,3}\.){3}\d{1,3}$">
-                        <input type="text" id="block-reason" placeholder="Reason (optional)">
-                        <button id="add-ip-btn">Block IP</button>
-                        <button id="refresh-ips-btn" class="refresh-btn">🔄 Refresh</button>
-                    </div>
-
-                    <div id="ip-alert" class="alert hidden"></div>
-
-                    <div id="ip-list" class="ip-list">
-                        <div class="spinner"></div>
-                    </div>
+            <!-- System Info -->
+            <div class="section">
+                <h2>⚙️ System Information</h2>
+                <div id="systemInfo">
+                    <div class="loading">Loading system info...</div>
                 </div>
+            </div>
 
-                <!-- Logs Tab -->
-                <div id="logs" class="tab-content">
-                    <h2>📋 System Logs</h2>
-                    <button id="refresh-logs-btn" class="refresh-btn">🔄 Refresh Logs</button>
-                    <div id="logs-container" class="logs">
-                        <div class="spinner"></div>
-                    </div>
-                </div>
-
-                <!-- Spam Statistics Tab -->
-                <div id="spam-stats" class="tab-content">
-                    <h2>📊 Spam Detection Statistics</h2>
-                    <button id="refresh-spam-stats-btn" class="refresh-btn">🔄 Refresh</button>
-                    <div id="spam-stats-content">
-                        <div class="spinner"></div>
-                    </div>
-                </div>
-
-                <!-- System Tab -->
-                <div id="system" class="tab-content">
-                    <h2>⚙️ System Information</h2>
-                    <button id="refresh-system-info-btn" class="refresh-btn">🔄 Refresh</button>
-                    <div id="system-info">
-                        <div class="spinner"></div>
-                    </div>
-                </div>
+            <div class="timestamp" id="lastUpdated">
+                Last updated: Never
             </div>
         </div>
     </div>
 
     <script>
-        // Global variables
-        let adminToken = '';
-        let refreshInterval = null;
+        const ADMIN_PASSWORD = 'qopy2024'; // Simple password for demo
+        let isAuthenticated = false;
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check if already logged in
-            const savedToken = localStorage.getItem('qopy-admin-token');
-            if (savedToken) {
-                adminToken = savedToken;
-                showDashboard();
+        // Login functionality
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            
+            if (password === ADMIN_PASSWORD) {
+                isAuthenticated = true;
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('dashboard').classList.add('active');
+                loadDashboard();
+            } else {
+                alert('❌ Invalid password!');
             }
-
-            // Login form handler
-            document.getElementById('login-form').addEventListener('submit', function(e) {
-                e.preventDefault();
-                login();
-            });
-
-            // Logout button handler
-            document.getElementById('logout-btn').addEventListener('click', logout);
-            
-            // Tab navigation event listeners
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const tabName = this.getAttribute('data-tab');
-                    showTab(tabName, this);
-                });
-            });
-            
-            // Button event listeners
-            document.getElementById('add-ip-btn').addEventListener('click', addIP);
-            document.getElementById('refresh-ips-btn').addEventListener('click', refreshIPs);
-            document.getElementById('refresh-logs-btn').addEventListener('click', refreshLogs);
-            document.getElementById('refresh-spam-stats-btn').addEventListener('click', refreshSpamStats);
-            document.getElementById('refresh-system-info-btn').addEventListener('click', refreshSystemInfo);
         });
 
-        // Authentication
-        function login() {
-            const token = document.getElementById('admin-token').value;
-            
-            if (!token) {
-                showLoginError('Please enter admin token');
-                return;
-            }
-
-            // Test token with API call
-            fetch('/api/admin/blacklist', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => {
-                console.log('🔧 Login response status:', response.status);
-                if (response.ok) {
-                    console.log('✅ Login successful, setting token');
-                    adminToken = token;
-                    localStorage.setItem('qopy-admin-token', token);
-                    console.log('🔧 About to call showDashboard()');
-                    showDashboard();
-                } else {
-                    console.log('❌ Login failed with status:', response.status);
-                    showLoginError('Invalid admin token');
-                }
-            })
-            .catch(error => {
-                showLoginError('Connection error. Please try again.');
-            });
-        }
-
+        // Logout functionality
         function logout() {
-            adminToken = '';
-            localStorage.removeItem('qopy-admin-token');
-            showLogin();
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
+            isAuthenticated = false;
+            document.getElementById('dashboard').classList.remove('active');
+            document.getElementById('loginContainer').style.display = 'flex';
+            document.getElementById('password').value = '';
+        }
+
+        // Load dashboard data
+        async function loadDashboard() {
+            if (!isAuthenticated) return;
+
+            try {
+                // Load statistics
+                await loadStatistics();
+                
+                // Load recent clips
+                await loadRecentClips();
+                
+                // Load system info
+                await loadSystemInfo();
+                
+                // Update timestamp
+                document.getElementById('lastUpdated').textContent = 
+                    `Last updated: ${new Date().toLocaleString()}`;
+                    
+            } catch (error) {
+                console.error('Dashboard load error:', error);
+                showError('Failed to load dashboard data');
             }
         }
 
-        function showLogin() {
-            document.getElementById('login-container').style.display = 'flex';
-            document.getElementById('dashboard').classList.remove('active');
-        }
-
-        function showDashboard() {
-            console.log('🔧 showDashboard called');
-            
+        // Load statistics
+        async function loadStatistics() {
             try {
-                const loginContainer = document.getElementById('login-container');
-                const dashboard = document.getElementById('dashboard');
+                const response = await fetch('/api/admin/stats');
+                if (!response.ok) throw new Error('Stats API failed');
                 
-                console.log('🔧 Login container:', loginContainer);
-                console.log('🔧 Dashboard element:', dashboard);
+                const stats = await response.json();
                 
-                if (loginContainer) {
-                    loginContainer.style.display = 'none';
-                    console.log('✅ Login container hidden');
-                } else {
-                    console.error('❌ Login container not found');
-                }
-                
-                if (dashboard) {
-                    dashboard.classList.add('active');
-                    console.log('✅ Dashboard activated');
-                } else {
-                    console.error('❌ Dashboard element not found');
-                }
-                
-                loadDashboardData();
-                
-                // Auto-refresh every 30 seconds
-                refreshInterval = setInterval(loadDashboardData, 30000);
-                console.log('✅ Dashboard setup complete');
+                document.getElementById('totalClips').textContent = stats.totalClips || 0;
+                document.getElementById('activeClips').textContent = stats.activeClips || 0;
+                document.getElementById('expiredClips').textContent = stats.expiredClips || 0;
+                document.getElementById('totalAccesses').textContent = stats.totalAccesses || 0;
+                document.getElementById('passwordClips').textContent = stats.passwordClips || 0;
+                document.getElementById('oneTimeClips').textContent = stats.oneTimeClips || 0;
                 
             } catch (error) {
-                console.error('❌ Error in showDashboard:', error);
-                alert('Error showing dashboard: ' + error.message);
+                console.error('Statistics error:', error);
+                // Set fallback values
+                document.getElementById('totalClips').textContent = '?';
+                document.getElementById('activeClips').textContent = '?';
+                document.getElementById('expiredClips').textContent = '?';
+                document.getElementById('totalAccesses').textContent = '?';
+                document.getElementById('passwordClips').textContent = '?';
+                document.getElementById('oneTimeClips').textContent = '?';
             }
         }
 
-        function showLoginError(message) {
-            const errorDiv = document.getElementById('login-error');
-            errorDiv.textContent = message;
-            errorDiv.classList.remove('hidden');
-            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
-        }
-
-        // Dashboard functions
-        function loadDashboardData() {
-            loadStats();
-            refreshIPs();
-        }
-
-        function loadStats() {
-            fetch('/api/health', {
-                headers: {
-                    'Authorization': `Bearer ${adminToken}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('active-clips').textContent = data.activeClips || 0;
-                document.getElementById('blocked-ips').textContent = data.ipBlacklist?.totalBlockedIPs || 0;
-                document.getElementById('spam-blocked').textContent = data.spamFilter?.stats?.blocked || 0;
+        // Load recent clips
+        async function loadRecentClips() {
+            try {
+                const response = await fetch('/api/admin/clips');
+                if (!response.ok) throw new Error('Clips API failed');
                 
-                // Format uptime
-                const uptimeSeconds = data.uptime || 0;
-                const hours = Math.floor(uptimeSeconds / 3600);
-                const minutes = Math.floor((uptimeSeconds % 3600) / 60);
-                document.getElementById('uptime').textContent = `${hours}h ${minutes}m`;
-            })
-            .catch(error => {
-                console.error('Error loading stats:', error);
-            });
-        }
-
-        function showTab(tabName, clickedTab) {
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            if (clickedTab) {
-                clickedTab.classList.add('active');
-            }
-
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            document.getElementById(tabName).classList.add('active');
-
-            // Load tab-specific data
-            switch(tabName) {
-                case 'logs':
-                    refreshLogs();
-                    break;
-                case 'spam-stats':
-                    refreshSpamStats();
-                    break;
-                case 'system':
-                    refreshSystemInfo();
-                    break;
-            }
-        }
-
-        // IP Management
-        function refreshIPs() {
-            const ipList = document.getElementById('ip-list');
-            ipList.innerHTML = '<div class="spinner"></div>';
-
-            fetch('/api/admin/blacklist', {
-                headers: {
-                    'Authorization': `Bearer ${adminToken}`
+                const clips = await response.json();
+                const container = document.getElementById('recentClips');
+                
+                if (clips.length === 0) {
+                    container.innerHTML = '<div class="loading">No clips found</div>';
+                    return;
                 }
-            })
-            .then(response => response.json())
-            .then(data => {
-                displayIPs(data.blockedIPs || []);
-            })
-            .catch(error => {
-                ipList.innerHTML = '<p>Error loading IP list</p>';
-            });
-        }
-
-        function displayIPs(ips) {
-            const ipList = document.getElementById('ip-list');
-            
-            if (ips.length === 0) {
-                ipList.innerHTML = '<div class="ip-item"><div class="ip-info">No blocked IPs</div></div>';
-                return;
-            }
-
-            ipList.innerHTML = ips.map(ip => `
-                <div class="ip-item">
-                    <div class="ip-info">
-                        <div class="ip-address">${ip}</div>
-                        <div class="ip-reason">Auto-blocked</div>
+                
+                container.innerHTML = clips.map(clip => `
+                    <div class="clip-item">
+                        <div class="clip-id">${clip.clip_id}</div>
+                        <div class="clip-content">${clip.content.substring(0, 100)}${clip.content.length > 100 ? '...' : ''}</div>
+                        <div class="clip-meta">
+                            <span class="status-indicator ${clip.is_expired ? 'status-expired' : 'status-active'}"></span>
+                            ${clip.is_expired ? 'Expired' : 'Active'} • 
+                            Created: ${new Date(clip.created_at).toLocaleString()} • 
+                            Accesses: ${clip.access_count || 0}
+                            ${clip.password_hash ? ' • 🔐 Protected' : ''}
+                            ${clip.one_time ? ' • ⚡ One-time' : ''}
+                        </div>
                     </div>
-                    <button class="remove-btn" data-ip="${ip}">Remove</button>
-                </div>
-            `).join('');
-            
-            // Add event listeners to remove buttons
-            document.querySelectorAll('.remove-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const ip = this.getAttribute('data-ip');
-                    removeIP(ip);
-                });
-            });
-        }
-
-        function addIP() {
-            const ipInput = document.getElementById('new-ip');
-            const reasonInput = document.getElementById('block-reason');
-            const ip = ipInput.value.trim();
-            const reason = reasonInput.value.trim() || 'Manual admin action';
-
-            if (!ip) {
-                showAlert('ip-alert', 'Please enter an IP address', 'error');
-                return;
+                `).join('');
+                
+            } catch (error) {
+                console.error('Recent clips error:', error);
+                document.getElementById('recentClips').innerHTML = 
+                    '<div class="error">Failed to load recent clips</div>';
             }
-
-            if (!validateIP(ip)) {
-                showAlert('ip-alert', 'Please enter a valid IP address', 'error');
-                return;
-            }
-
-            fetch('/api/admin/blacklist', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${adminToken}`
-                },
-                body: JSON.stringify({ ip, reason })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showAlert('ip-alert', `IP ${ip} blocked successfully`, 'success');
-                    ipInput.value = '';
-                    reasonInput.value = '';
-                    refreshIPs();
-                } else {
-                    showAlert('ip-alert', data.message || 'Error blocking IP', 'error');
-                }
-            })
-            .catch(error => {
-                showAlert('ip-alert', 'Network error', 'error');
-            });
         }
 
-        function removeIP(ip) {
-            if (!confirm(`Remove IP ${ip} from blacklist?`)) {
-                return;
-            }
-
-            fetch(`/api/admin/blacklist/${ip}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${adminToken}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showAlert('ip-alert', `IP ${ip} removed successfully`, 'success');
-                    refreshIPs();
-                } else {
-                    showAlert('ip-alert', data.message || 'Error removing IP', 'error');
-                }
-            })
-            .catch(error => {
-                showAlert('ip-alert', 'Network error', 'error');
-            });
-        }
-
-        function validateIP(ip) {
-            const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-            return ipRegex.test(ip);
-        }
-
-        // Logs
-        function refreshLogs() {
-            const logsContainer = document.getElementById('logs-container');
-            logsContainer.innerHTML = '<div class="spinner"></div>';
-
-            fetch('/api/admin/logs', {
-                headers: {
-                    'Authorization': `Bearer ${adminToken}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                displayLogs(data.logs || []);
-            })
-            .catch(error => {
-                logsContainer.innerHTML = '<div class="log-entry">Error loading logs</div>';
-            });
-        }
-
-        function displayLogs(logs) {
-            const logsContainer = document.getElementById('logs-container');
-            
-            if (logs.length === 0) {
-                logsContainer.innerHTML = '<div class="log-entry">No logs available</div>';
-                return;
-            }
-
-            logsContainer.innerHTML = logs.map(log => {
-                const timestamp = new Date(log.timestamp).toLocaleString();
-                const levelClass = `log-level-${log.level}`;
-                return `
-                    <div class="log-entry">
-                        <span class="log-timestamp">[${timestamp}]</span>
-                        <span class="${levelClass}">[${log.level.toUpperCase()}]</span>
-                        ${log.message}
+        // Load system info
+        async function loadSystemInfo() {
+            try {
+                const response = await fetch('/api/admin/system');
+                if (!response.ok) throw new Error('System API failed');
+                
+                const system = await response.json();
+                const container = document.getElementById('systemInfo');
+                
+                container.innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div>
+                            <strong>Server Status:</strong> 
+                            <span style="color: #00b894;">🟢 Online</span>
+                        </div>
+                        <div>
+                            <strong>Uptime:</strong> ${system.uptime || 'Unknown'}
+                        </div>
+                        <div>
+                            <strong>Version:</strong> ${system.version || '1.0.0'}
+                        </div>
+                        <div>
+                            <strong>Environment:</strong> ${system.environment || 'Production'}
+                        </div>
+                        <div>
+                            <strong>Database:</strong> 
+                            <span style="color: #00b894;">🟢 Connected</span>
+                        </div>
+                        <div>
+                            <strong>Last Cleanup:</strong> ${system.lastCleanup || 'Unknown'}
+                        </div>
                     </div>
                 `;
-            }).join('');
-
-            // Scroll to bottom
-            logsContainer.scrollTop = logsContainer.scrollHeight;
-        }
-
-        // Spam Statistics
-        function refreshSpamStats() {
-            const statsContainer = document.getElementById('spam-stats-content');
-            statsContainer.innerHTML = '<div class="spinner"></div>';
-
-            fetch('/api/health', {
-                headers: {
-                    'Authorization': `Bearer ${adminToken}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                displaySpamStats(data.spamFilter || {});
-            })
-            .catch(error => {
-                statsContainer.innerHTML = '<p>Error loading spam statistics</p>';
-            });
-        }
-
-        function displaySpamStats(spamFilter) {
-            const statsContainer = document.getElementById('spam-stats-content');
-            const stats = spamFilter.stats || {};
-
-            statsContainer.innerHTML = `
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-number">${stats.totalAnalyzed || 0}</div>
-                        <div class="stat-label">Total Analyzed</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${stats.suspicious || 0}</div>
-                        <div class="stat-label">Suspicious Content</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${stats.blocked || 0}</div>
-                        <div class="stat-label">Blocked Content</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${stats.blockRate || '0%'}</div>
-                        <div class="stat-label">Block Rate</div>
-                    </div>
-                </div>
-                <div style="margin-top: 20px;">
-                    <h3>Configuration</h3>
-                    <p><strong>Spam Filter:</strong> ${spamFilter.enabled ? '✅ Enabled' : '❌ Disabled'}</p>
-                    <p><strong>Threshold:</strong> ${spamFilter.threshold || 'N/A'}</p>
-                </div>
-            `;
-        }
-
-        // System Information
-        function refreshSystemInfo() {
-            const systemContainer = document.getElementById('system-info');
-            systemContainer.innerHTML = '<div class="spinner"></div>';
-
-            fetch('/api/health', {
-                headers: {
-                    'Authorization': `Bearer ${adminToken}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                displaySystemInfo(data);
-            })
-            .catch(error => {
-                systemContainer.innerHTML = '<p>Error loading system information</p>';
-            });
-        }
-
-        function displaySystemInfo(data) {
-            const systemContainer = document.getElementById('system-info');
-            const uptime = Math.floor(data.uptime || 0);
-            const uptimeFormatted = formatUptime(uptime);
-
-            systemContainer.innerHTML = `
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-number">${data.activeClips || 0}</div>
-                        <div class="stat-label">Active Clips</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${uptimeFormatted}</div>
-                        <div class="stat-label">Uptime</div>
-                    </div>
-                </div>
-                <div style="margin-top: 20px;">
-                    <h3>Server Status</h3>
-                    <p><strong>Status:</strong> ${data.status || 'Unknown'}</p>
-                    <p><strong>Timestamp:</strong> ${data.timestamp || 'N/A'}</p>
-                    <p><strong>IP Blacklist Sources:</strong> ${data.ipBlacklist?.sources?.length || 0}</p>
-                    <p><strong>Last Update:</strong> ${data.ipBlacklist?.lastUpdated || 'Never'}</p>
-                </div>
-            `;
-        }
-
-        // Utility functions
-        function showAlert(elementId, message, type) {
-            const alertDiv = document.getElementById(elementId);
-            alertDiv.textContent = message;
-            alertDiv.className = `alert ${type}`;
-            alertDiv.classList.remove('hidden');
-            setTimeout(() => alertDiv.classList.add('hidden'), 5000);
-        }
-
-        function formatUptime(seconds) {
-            const days = Math.floor(seconds / 86400);
-            const hours = Math.floor((seconds % 86400) / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-
-            if (days > 0) {
-                return `${days}d ${hours}h`;
-            } else if (hours > 0) {
-                return `${hours}h ${minutes}m`;
-            } else {
-                return `${minutes}m`;
+                
+            } catch (error) {
+                console.error('System info error:', error);
+                document.getElementById('systemInfo').innerHTML = 
+                    '<div class="error">Failed to load system information</div>';
             }
         }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.stats-grid'));
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            if (isAuthenticated) {
+                loadDashboard();
+            }
+        }, 30000);
     </script>
 </body>
 </html> 

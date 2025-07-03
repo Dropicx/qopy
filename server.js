@@ -449,6 +449,100 @@ app.post('/api/clip/:clipId', [
   }
 });
 
+// Admin routes
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Admin statistics
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    // Get total clips
+    const totalResult = await pool.query('SELECT COUNT(*) as count FROM clips');
+    const totalClips = parseInt(totalResult.rows[0].count);
+
+    // Get active clips
+    const activeResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE is_expired = false');
+    const activeClips = parseInt(activeResult.rows[0].count);
+
+    // Get expired clips
+    const expiredResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE is_expired = true');
+    const expiredClips = parseInt(expiredResult.rows[0].count);
+
+    // Get total accesses
+    const accessResult = await pool.query('SELECT COALESCE(SUM(access_count), 0) as total FROM clips');
+    const totalAccesses = parseInt(accessResult.rows[0].total);
+
+    // Get password protected clips
+    const passwordResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE password_hash IS NOT NULL');
+    const passwordClips = parseInt(passwordResult.rows[0].count);
+
+    // Get one-time clips
+    const oneTimeResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE one_time = true');
+    const oneTimeClips = parseInt(oneTimeResult.rows[0].count);
+
+    res.json({
+      totalClips,
+      activeClips,
+      expiredClips,
+      totalAccesses,
+      passwordClips,
+      oneTimeClips
+    });
+  } catch (error) {
+    console.error('❌ Error getting admin stats:', error.message);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get statistics'
+    });
+  }
+});
+
+// Admin recent clips
+app.get('/api/admin/clips', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT clip_id, content, created_at, expiration_time, is_expired, 
+             access_count, password_hash IS NOT NULL as has_password, one_time
+      FROM clips 
+      ORDER BY created_at DESC 
+      LIMIT 20
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ Error getting admin clips:', error.message);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get clips'
+    });
+  }
+});
+
+// Admin system info
+app.get('/api/admin/system', async (req, res) => {
+  try {
+    // Test database connection
+    const dbTest = await pool.query('SELECT NOW() as current_time');
+    
+    res.json({
+      status: 'OK',
+      uptime: `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m`,
+      version: 'minimal-1.0.0',
+      environment: process.env.NODE_ENV || 'production',
+      database: 'Connected',
+      lastCleanup: new Date().toLocaleString(),
+      currentTime: dbTest.rows[0].current_time
+    });
+  } catch (error) {
+    console.error('❌ Error getting system info:', error.message);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get system information'
+    });
+  }
+});
+
 // Route for direct clip access
 app.get('/clip/:clipId', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
