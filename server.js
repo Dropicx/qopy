@@ -157,6 +157,23 @@ app.use('/api/', limiter);
 // Serve static files (before API routes)
 app.use(express.static('public'));
 
+// Explicit static file routes to prevent conflicts with /clip/ routes
+app.get('/script.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'script.js'));
+});
+
+app.get('/styles.css', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'styles.css'));
+});
+
+app.get('/index.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
 // Explicit favicon routes for better browser compatibility
 app.get('/favicon.ico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'logos', 'Favicon.png'));
@@ -550,18 +567,9 @@ app.get('/api/admin/system', async (req, res) => {
 });
 
 // Route for direct clip access (must come after static files)
-app.get('/clip/:clipId', (req, res) => {
-  // Only handle 6-character alphanumeric clip IDs
-  const clipId = req.params.clipId;
-  if (/^[A-Z0-9]{6}$/.test(clipId)) {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  } else {
-    // If not a valid clip ID, let it fall through to 404
-    res.status(404).json({
-      error: 'Not found',
-      message: 'The requested resource was not found'
-    });
-  }
+app.get('/clip/:clipId([A-Z0-9]{6})', (req, res) => {
+  // This route only matches 6-character alphanumeric clip IDs
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Serve main page
