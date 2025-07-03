@@ -174,6 +174,23 @@ app.get('/admin.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+// Explicit routes for static files under /clip/ to prevent conflicts
+app.get('/clip/script.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'script.js'));
+});
+
+app.get('/clip/styles.css', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'styles.css'));
+});
+
+app.get('/clip/index.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/clip/admin.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
 // Explicit favicon routes for better browser compatibility
 app.get('/favicon.ico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'logos', 'Favicon.png'));
@@ -567,8 +584,8 @@ app.get('/api/admin/system', async (req, res) => {
 });
 
 // Route for direct clip access (must come after static files)
-app.get('/clip/:clipId([A-Z0-9]{6})', (req, res) => {
-  // This route only matches 6-character alphanumeric clip IDs
+app.get('/clip/:clipId([A-Z0-9]{6})$', (req, res) => {
+  // This route only matches exact 6-character alphanumeric clip IDs (with $ anchor)
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
