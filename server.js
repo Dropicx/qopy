@@ -549,12 +549,22 @@ app.get('/api/admin/system', async (req, res) => {
   }
 });
 
-// Route for direct clip access
+// Route for direct clip access (must come after static files)
 app.get('/clip/:clipId', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  // Only handle 6-character alphanumeric clip IDs
+  const clipId = req.params.clipId;
+  if (/^[A-Z0-9]{6}$/.test(clipId)) {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  } else {
+    // If not a valid clip ID, let it fall through to 404
+    res.status(404).json({
+      error: 'Not found',
+      message: 'The requested resource was not found'
+    });
+  }
 });
 
-// Serve static files
+// Serve main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
