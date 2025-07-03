@@ -494,18 +494,24 @@ class ClipboardApp {
         // Format expiration time with better error handling
         try {
             const expiresAt = data.expiresAt;
-            console.log('⏰ Raw expiresAt:', expiresAt);
+            console.log('⏰ Raw expiresAt:', expiresAt, 'Type:', typeof expiresAt);
             
             if (expiresAt) {
-                const expiryDate = new Date(expiresAt);
+                // Convert to number if it's a string
+                const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
+                console.log('🔢 Converted expiresAt:', expiresAtNumber);
+                
+                const expiryDate = new Date(expiresAtNumber);
                 console.log('📅 Parsed expiry date:', expiryDate);
+                console.log('📅 Date.getTime():', expiryDate.getTime());
+                console.log('📅 Is valid:', !isNaN(expiryDate.getTime()));
                 
                 if (!isNaN(expiryDate.getTime())) {
                     const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
                     const formattedDate = expiryDate.toLocaleString();
                     document.getElementById('expires-time').textContent = `${formattedDate} (${timeRemaining} remaining)`;
                 } else {
-                    console.error('❌ Invalid expiry date:', expiresAt);
+                    console.error('❌ Invalid expiry date:', expiresAt, 'Converted:', expiresAtNumber);
                     document.getElementById('expires-time').textContent = 'Invalid date';
                 }
             } else {
