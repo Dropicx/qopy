@@ -1,9 +1,9 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile.railway"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "node server-postgres-minimal.js"
+startCommand = "node server.js"
 restartPolicyType = "always"
 
 [env]

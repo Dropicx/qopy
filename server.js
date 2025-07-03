@@ -440,12 +440,8 @@ async function startServer() {
       console.log(`📊 Database connection pool initialized`);
       console.log(`✅ Health check available at /health`);
       
-      // Start background database initialization
-      console.log('🔄 Starting background database initialization...');
-      require('child_process').spawn('node', ['scripts/init-db-background.js'], {
-        stdio: 'inherit',
-        detached: true
-      }).unref();
+      // Database initialization is handled by db-init.js script
+      console.log('✅ Database ready for connections');
     });
 
     server.on('error', (error) => {

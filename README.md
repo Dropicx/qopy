@@ -58,14 +58,14 @@ qopy/
 │   ├── styles.css         # Styling
 │   └── logos/             # Images and favicon
 ├── scripts/               # Utility scripts
-│   ├── init-postgres.js   # Database initialization
-│   ├── test-deployment.js # Deployment testing
-│   ├── monitor-production.js # Production monitoring
-│   ├── health-check.js    # Health check utility
-│   └── check-database.js  # Database connection test
-├── server-postgres-minimal.js # Main server (production)
+│   ├── db-init.js         # Database initialization
+│   ├── test.js            # Deployment testing
+│   ├── monitor.js         # Production monitoring
+│   ├── health.js          # Health check utility
+│   └── db-check.js        # Database connection test
+├── server.js              # Main server (production)
 ├── railway.toml           # Railway configuration
-├── Dockerfile.railway     # Railway Dockerfile
+├── Dockerfile             # Railway Dockerfile
 └── package.json           # Dependencies and scripts
 ```
 
@@ -106,16 +106,16 @@ The app is configured for Railway deployment with:
 ```bash
 npm start                    # Start production server
 npm run dev                  # Start development server
-npm run test-deployment      # Test deployment functionality
+npm run test                 # Test deployment functionality
 npm run monitor              # Monitor production health
 npm run db:check             # Check database connection
-npm run db:init-postgres     # Initialize PostgreSQL database
+npm run db:init              # Initialize PostgreSQL database
 ```
 
 ### Testing
 ```bash
 # Test deployment
-npm run test-deployment
+npm run test
 
 # Monitor production
 npm run monitor

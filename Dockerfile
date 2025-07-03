@@ -13,10 +13,10 @@ RUN npm install -g npm@latest
 # Copy package files first to leverage Docker layer caching
 COPY package*.json ./
 COPY .npmrc ./
-COPY scripts/check-npm-version.js ./scripts/
+COPY scripts/npm-check.js ./scripts/
 
 # Check npm version and install dependencies (without package-lock.json)
-RUN node scripts/check-npm-version.js && \
+RUN node scripts/npm-check.js && \
     rm -f package-lock.json && \
     npm install
 
@@ -77,23 +77,23 @@ RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo 'echo "Node Version: $(node --version)"' >> /app/startup.sh && \
     echo 'echo "Railway Environment: $RAILWAY_ENVIRONMENT"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Check for PostgreSQL server file' >> /app/startup.sh && \
-    echo 'if [ ! -f "server-postgres-simple.js" ]; then' >> /app/startup.sh && \
-    echo '  echo "❌ ERROR: server-postgres-simple.js not found!"' >> /app/startup.sh && \
+    echo '# Check for server file' >> /app/startup.sh && \
+    echo 'if [ ! -f "server.js" ]; then' >> /app/startup.sh && \
+    echo '  echo "❌ ERROR: server.js not found!"' >> /app/startup.sh && \
     echo '  exit 1' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
-    echo 'echo "✅ PostgreSQL simple server file found"' >> /app/startup.sh && \
+    echo 'echo "✅ Server file found"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
     echo '# Initialize PostgreSQL database' >> /app/startup.sh && \
     echo 'echo "🗄️ Initializing PostgreSQL database..."' >> /app/startup.sh && \
-    echo 'node scripts/init-postgres.js || echo "⚠️ Database init skipped"' >> /app/startup.sh && \
+    echo 'node scripts/db-init.js || echo "⚠️ Database init skipped"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
-    echo '# Start PostgreSQL server' >> /app/startup.sh && \
-    echo 'echo "🚀 Starting PostgreSQL server (simple mode)..."' >> /app/startup.sh && \
+    echo '# Start server' >> /app/startup.sh && \
+    echo 'echo "🚀 Starting Qopy server..."' >> /app/startup.sh && \
     echo 'if [ "$DEBUG" = "true" ]; then' >> /app/startup.sh && \
-    echo '  exec node --trace-warnings --expose-gc server-postgres-simple.js' >> /app/startup.sh && \
+    echo '  exec node --trace-warnings --expose-gc server.js' >> /app/startup.sh && \
     echo 'else' >> /app/startup.sh && \
-    echo '  exec node server-postgres-simple.js' >> /app/startup.sh && \
+    echo '  exec node server.js' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
     chmod +x /app/startup.sh
 
@@ -105,5 +105,5 @@ USER qopy
 # Expose the port the app runs on
 EXPOSE 3000
 
-# Start the application with PostgreSQL (simple mode)
-CMD ["node", "server-postgres-simple.js"] 
+# Start the application
+CMD ["node", "server.js"] 
