@@ -26,46 +26,21 @@ function compareVersions(version1, version2) {
 
 function getCurrentNpmVersion() {
   try {
-    const version = execSync('npm --version', { encoding: 'utf8' }).trim();
-    return version;
+    return execSync('npm --version', { encoding: 'utf8' }).trim();
   } catch (error) {
-    console.error('❌ Error: Could not determine npm version');
+    console.error('Error: Could not determine npm version');
     process.exit(1);
   }
 }
 
 function main() {
-  console.log('🔍 Checking npm version...');
-  
   const currentVersion = getCurrentNpmVersion();
-  console.log(`📋 Current npm version: ${currentVersion}`);
-  console.log(`📋 Required npm version: >=${REQUIRED_NPM_VERSION}`);
-  
   const comparison = compareVersions(currentVersion, REQUIRED_NPM_VERSION);
   
   if (comparison >= 0) {
-    console.log('✅ npm version check passed!');
-    console.log(`🚀 Using npm ${currentVersion} for build process`);
-    
-    // Additional npm info for debugging
-    try {
-      const npmConfig = execSync('npm config get registry', { encoding: 'utf8' }).trim();
-      console.log(`📦 npm registry: ${npmConfig}`);
-    } catch (error) {
-      // Registry check is optional
-    }
-    
     process.exit(0);
   } else {
-    console.error(`❌ Error: npm version ${currentVersion} is too old!`);
-    console.error(`⚠️  Please upgrade to npm ${REQUIRED_NPM_VERSION} or higher`);
-    console.error('');
-    console.error('💡 To upgrade npm, run:');
-    console.error('   npm install -g npm@latest');
-    console.error('');
-    console.error('🔧 Or use a Node.js version manager like nvm:');
-    console.error('   nvm install node  # installs latest Node.js with latest npm');
-    
+    console.error(`npm version ${currentVersion} is too old. Required: ${REQUIRED_NPM_VERSION}+`);
     process.exit(1);
   }
 }

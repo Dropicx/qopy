@@ -15,7 +15,7 @@ COPY package*.json ./
 COPY .npmrc ./
 COPY scripts/npm-check.js ./scripts/
 
-# Check npm version and install dependencies (without package-lock.json)
+# Install dependencies (without package-lock.json)
 RUN node scripts/npm-check.js && \
     rm -f package-lock.json && \
     npm install
@@ -66,35 +66,11 @@ RUN chown -R qopy:nodejs /app && \
 # Switch to non-root user for setup
 USER qopy
 
-# Create a Railway-optimized startup script
+# Create startup script
 RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo 'set -e' >> /app/startup.sh && \
-    echo 'echo "🚀 Starting Qopy with PostgreSQL..."' >> /app/startup.sh && \
-    echo '' >> /app/startup.sh && \
-    echo '# Basic startup info' >> /app/startup.sh && \
-    echo 'echo "User: $(whoami)"' >> /app/startup.sh && \
-    echo 'echo "Working Directory: $(pwd)"' >> /app/startup.sh && \
-    echo 'echo "Node Version: $(node --version)"' >> /app/startup.sh && \
-    echo 'echo "Railway Environment: $RAILWAY_ENVIRONMENT"' >> /app/startup.sh && \
-    echo '' >> /app/startup.sh && \
-    echo '# Check for server file' >> /app/startup.sh && \
-    echo 'if [ ! -f "server.js" ]; then' >> /app/startup.sh && \
-    echo '  echo "❌ ERROR: server.js not found!"' >> /app/startup.sh && \
-    echo '  exit 1' >> /app/startup.sh && \
-    echo 'fi' >> /app/startup.sh && \
-    echo 'echo "✅ Server file found"' >> /app/startup.sh && \
-    echo '' >> /app/startup.sh && \
-    echo '# Initialize PostgreSQL database' >> /app/startup.sh && \
-    echo 'echo "🗄️ Initializing PostgreSQL database..."' >> /app/startup.sh && \
-    echo 'node scripts/db-init.js || echo "⚠️ Database init skipped"' >> /app/startup.sh && \
-    echo '' >> /app/startup.sh && \
-    echo '# Start server' >> /app/startup.sh && \
-    echo 'echo "🚀 Starting Qopy server..."' >> /app/startup.sh && \
-    echo 'if [ "$DEBUG" = "true" ]; then' >> /app/startup.sh && \
-    echo '  exec node --trace-warnings --expose-gc server.js' >> /app/startup.sh && \
-    echo 'else' >> /app/startup.sh && \
-    echo '  exec node server.js' >> /app/startup.sh && \
-    echo 'fi' >> /app/startup.sh && \
+    echo 'node scripts/db-init.js || true' >> /app/startup.sh && \
+    echo 'exec node server.js' >> /app/startup.sh && \
     chmod +x /app/startup.sh
 
 # Switch back to root to set final permissions
