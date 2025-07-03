@@ -78,11 +78,11 @@ RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo 'echo "Railway Environment: $RAILWAY_ENVIRONMENT"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
     echo '# Check for PostgreSQL server file' >> /app/startup.sh && \
-    echo 'if [ ! -f "server-postgres-simple.js" ]; then' >> /app/startup.sh && \
-    echo '  echo "❌ ERROR: server-postgres-simple.js not found!"' >> /app/startup.sh && \
+    echo 'if [ ! -f "server-postgres.js" ]; then' >> /app/startup.sh && \
+    echo '  echo "❌ ERROR: server-postgres.js not found!"' >> /app/startup.sh && \
     echo '  exit 1' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
-    echo 'echo "✅ PostgreSQL simple server file found"' >> /app/startup.sh && \
+    echo 'echo "✅ PostgreSQL server file found"' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
     echo '# Initialize PostgreSQL database' >> /app/startup.sh && \
     echo 'echo "🗄️ Initializing PostgreSQL database..."' >> /app/startup.sh && \
@@ -101,11 +101,11 @@ RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
     echo '' >> /app/startup.sh && \
     echo '# Start PostgreSQL server' >> /app/startup.sh && \
-    echo 'echo "🚀 Starting PostgreSQL server (simple mode)..."' >> /app/startup.sh && \
+    echo 'echo "🚀 Starting PostgreSQL server..."' >> /app/startup.sh && \
     echo 'if [ "$DEBUG" = "true" ]; then' >> /app/startup.sh && \
-    echo '  exec node --trace-warnings --expose-gc server-postgres-simple.js' >> /app/startup.sh && \
+    echo '  exec node --trace-warnings --expose-gc server-postgres.js' >> /app/startup.sh && \
     echo 'else' >> /app/startup.sh && \
-    echo '  exec node server-postgres-simple.js' >> /app/startup.sh && \
+    echo '  exec node server-postgres.js' >> /app/startup.sh && \
     echo 'fi' >> /app/startup.sh && \
     chmod +x /app/startup.sh
 
@@ -121,5 +121,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Start the application with PostgreSQL (simple mode)
-CMD ["node", "server-postgres-simple.js"] 
+# Start the application with PostgreSQL
+CMD ["node", "server-postgres.js"] 

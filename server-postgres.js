@@ -147,25 +147,8 @@ function simpleLog(level, message, metadata = {}) {
 
 console.log('✅ Early functions initialized');
 
-// IP Blacklist Management
-const blockedIPs = new Set([
-  // Will be populated from external sources
-]);
-
-// IP-Blockierung Statistiken
-let ipBlockStats = {
-  totalBlocked: 0,
-  lastUpdated: Date.now(),
-  sources: []
-};
-
-// Spam filter statistics
-let spamStats = {
-  totalAnalyzed: 0,
-  blocked: 0,
-  suspicious: 0,
-  lastReset: Date.now()
-};
+// Spam filtering disabled for production stability
+console.log('🚫 Spam filtering: DISABLED (production mode)');
 
 console.log('✅ Storage initialized');
 
@@ -287,62 +270,8 @@ function getBaseUrl(req) {
   return `${protocol}://${host}`;
 }
 
-// Load external spam lists
-async function loadExternalSpamLists() {
-  try {
-    console.log('📋 Loading spam IP lists...');
-    const spamListPath = path.join(__dirname, 'data', 'spam-ips.json');
-    if (fs.existsSync(spamListPath)) {
-      const data = fs.readFileSync(spamListPath, 'utf8');
-      const spamList = JSON.parse(data);
-      
-      if (spamList.ips && Array.isArray(spamList.ips)) {
-        spamList.ips.forEach(ip => blockedIPs.add(ip));
-        console.log(`✅ Loaded ${spamList.ips.length} spam IPs from local file`);
-        ipBlockStats.sources.push('local-file');
-        ipBlockStats.lastUpdated = Date.now();
-      }
-    } else {
-      console.log('📋 No spam-ips.json file found, starting with empty blacklist');
-    }
-  } catch (error) {
-    console.error('❌ Error loading spam lists:', error.message);
-    console.log('🔄 Continuing without spam list...');
-  }
-}
-
-// Blacklist management functions
-function addToBlacklist(ip, reason = 'Manual') {
-  blockedIPs.add(ip);
-  ipBlockStats.totalBlocked++;
-  console.log(`🚫 Added IP to blacklist: ${ip} (${reason})`);
-}
-
-function removeFromBlacklist(ip) {
-  const wasBlocked = blockedIPs.has(ip);
-  blockedIPs.delete(ip);
-  if (wasBlocked) {
-    console.log(`✅ Removed IP from blacklist: ${ip}`);
-  }
-  return wasBlocked;
-}
-
-function checkBlacklist(req, res, next) {
-  const clientIP = req.ip || req.connection.remoteAddress;
-  
-  if (blockedIPs.has(clientIP)) {
-    console.warn(`🚫 Blocked request from blacklisted IP: ${clientIP}`);
-    ipBlockStats.totalBlocked++;
-    return res.status(403).json({
-      error: 'Access denied',
-      message: 'Your IP address has been blocked due to suspicious activity.'
-    });
-  }
-  
-  next();
-}
-
-app.use(checkBlacklist);
+// Spam filtering functions removed for production stability
+console.log('🚫 IP blacklist and spam filtering: DISABLED');
 
 // Clip ID generation
 function generateClipId() {
@@ -371,62 +300,9 @@ async function cleanupExpiredClips() {
   }
 }
 
-// Content analysis for spam detection
+// Content analysis disabled for production stability
 function analyzeContent(content) {
-  const analysis = {
-    isSpam: false,
-    score: 0,
-    reasons: []
-  };
-  
-  // Check for excessive repetition
-  const words = content.toLowerCase().split(/\s+/);
-  const wordCount = {};
-  words.forEach(word => {
-    wordCount[word] = (wordCount[word] || 0) + 1;
-  });
-  
-  const repeatedWords = Object.entries(wordCount).filter(([word, count]) => count > 5);
-  if (repeatedWords.length > 0) {
-    analysis.score += 20;
-    analysis.reasons.push('excessive_word_repetition');
-  }
-  
-  // Check for suspicious patterns
-  const suspiciousPatterns = [
-    /buy\s+now/i,
-    /click\s+here/i,
-    /limited\s+time/i,
-    /act\s+now/i,
-    /free\s+offer/i,
-    /make\s+money/i,
-    /earn\s+cash/i,
-    /work\s+from\s+home/i
-  ];
-  
-  suspiciousPatterns.forEach(pattern => {
-    if (pattern.test(content)) {
-      analysis.score += 10;
-      analysis.reasons.push('suspicious_pattern');
-    }
-  });
-  
-  // Check for excessive links
-  const linkCount = (content.match(/https?:\/\/[^\s]+/g) || []).length;
-  if (linkCount > 3) {
-    analysis.score += 15;
-    analysis.reasons.push('excessive_links');
-  }
-  
-  // Check for excessive caps
-  const capsRatio = (content.match(/[A-Z]/g) || []).length / content.length;
-  if (capsRatio > 0.7) {
-    analysis.score += 10;
-    analysis.reasons.push('excessive_caps');
-  }
-  
-  analysis.isSpam = analysis.score >= 30;
-  return analysis;
+  return { isSpam: false, score: 0, reasons: [] };
 }
 
 // API Routes
@@ -451,22 +327,7 @@ app.post('/api/clip', [
     const clientIP = req.ip || req.connection.remoteAddress;
     const userAgent = req.headers['user-agent'] || 'Unknown';
 
-    // Content analysis
-    const analysis = analyzeContent(content);
-    spamStats.totalAnalyzed++;
-    
-    if (analysis.isSpam) {
-      spamStats.blocked++;
-      addToBlacklist(clientIP, 'spam_content');
-      return res.status(400).json({
-        error: 'Content blocked',
-        message: 'Your content appears to be spam and has been blocked.'
-      });
-    }
-    
-    if (analysis.score > 15) {
-      spamStats.suspicious++;
-    }
+    // Content analysis disabled for production stability
 
     // Calculate expiration time
     const expirationTimes = {
@@ -688,8 +549,8 @@ app.get('/api/admin/dashboard', requireAdminAuth, async (req, res) => {
         totalClips: parseInt(statsResult.rows[0].total_clips),
         activeClips: parseInt(activeResult.rows[0].active_clips),
         expiredClips: parseInt(expiredResult.rows[0].expired_clips),
-        blockedIPs: blockedIPs.size,
-        spamStats
+        blockedIPs: 0, // Disabled for production
+        spamStats: { totalAnalyzed: 0, blocked: 0, suspicious: 0 }
       },
       recentClips: recentResult.rows.map(clip => ({
         ...clip,
@@ -800,14 +661,7 @@ async function startServer() {
       console.log(`🗄️ Database: PostgreSQL (Railway)`);
       console.log(`📊 Database connection pool initialized`);
       
-      // Load spam lists asynchronously after server starts
-      setTimeout(async () => {
-        try {
-          await loadExternalSpamLists();
-        } catch (error) {
-          console.error('❌ Error loading spam lists in background:', error.message);
-        }
-      }, 2000); // Wait 2 seconds after server starts
+      // Spam filtering disabled for production stability
     });
 
     server.on('error', (error) => {
