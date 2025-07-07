@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "node server.js"
+startCommand = "/app/startup.sh"
 restartPolicyType = "always"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
