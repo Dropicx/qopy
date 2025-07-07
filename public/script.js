@@ -378,13 +378,14 @@ class ClipboardApp {
         shareButton.disabled = true;
 
         try {
+            const encryptedContent = await this.encryptContent(content, password);
             const response = await fetch('/api/share', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    content,
+                    content: encryptedContent,
                     expiration,
                     oneTime,
                     password: password || undefined
@@ -452,7 +453,14 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
-                this.showRetrieveResult(data);
+                // Decrypt the content before showing
+                try {
+                    const decryptedContent = await this.decryptContent(data.content, password);
+                    data.content = decryptedContent;
+                    this.showRetrieveResult(data);
+                } catch (decryptError) {
+                    throw new Error(decryptError.message);
+                }
             } else {
                 throw new Error(data.error || 'Failed to retrieve clip');
             }
@@ -686,6 +694,141 @@ class ClipboardApp {
         } catch (e) {
             // Fallback: always show
             document.getElementById('privacy-notice').classList.remove('hidden');
+        }
+    }
+
+    // Crypto utilities for client-side encryption
+    async generateKey(password = null) {
+        // Check if Web Crypto API is available
+        if (!window.crypto || !window.crypto.subtle) {
+            throw new Error('Web Crypto API not available. Please use HTTPS.');
+        }
+        if (password) {
+            // Derive key from password using PBKDF2
+            const encoder = new TextEncoder();
+            const salt = encoder.encode('qopy-salt-v1');
+            const keyMaterial = await crypto.subtle.importKey(
+                'raw',
+                encoder.encode(password),
+                { name: 'PBKDF2' },
+                false,
+                ['deriveBits', 'deriveKey']
+            );
+            return await crypto.subtle.deriveKey(
+                {
+                    name: 'PBKDF2',
+                    salt: salt,
+                    iterations: 100000,
+                    hash: 'SHA-256'
+                },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['encrypt', 'decrypt']
+            );
+        } else {
+            // Generate random key for non-password clips
+            return await crypto.subtle.generateKey(
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['encrypt', 'decrypt']
+            );
+        }
+    }
+
+    async encryptContent(content, password = null) {
+        try {
+            // Check if content is already encrypted
+            if (this.isEncrypted(content)) {
+                return content; // Already encrypted, return as-is
+            }
+            
+            const key = await this.generateKey(password);
+            const encoder = new TextEncoder();
+            const data = encoder.encode(content);
+            
+            // Generate random IV
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            
+            // Encrypt the content
+            const encryptedData = await crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                data
+            );
+            
+            // Export key if it was randomly generated (for non-password clips)
+            let keyData = null;
+            if (!password) {
+                keyData = await crypto.subtle.exportKey('raw', key);
+            }
+            
+            // Combine IV + encrypted data + key (if present)
+            const result = {
+                iv: Array.from(iv),
+                data: Array.from(new Uint8Array(encryptedData)),
+                key: keyData ? Array.from(keyData) : null
+            };
+            
+            // Convert to base64 for storage
+            return btoa(JSON.stringify(result));
+        } catch (error) {
+            console.error('Encryption error:', error);
+            throw new Error('Failed to encrypt content');
+        }
+    }
+
+    isEncrypted(content) {
+        try {
+            // Try to parse as encrypted content
+            const parsed = JSON.parse(atob(content));
+            return parsed && typeof parsed === 'object' && parsed.iv && parsed.data;
+        } catch {
+            // If parsing fails, it's not encrypted
+            return false;
+        }
+    }
+
+    async decryptContent(encryptedContent, password = null) {
+        try {
+            // Check if content is actually encrypted
+            if (!this.isEncrypted(encryptedContent)) {
+                // Return as-is if not encrypted (for backward compatibility)
+                return encryptedContent;
+            }
+            
+            // Parse the encrypted data
+            const encrypted = JSON.parse(atob(encryptedContent));
+            
+            let key;
+            if (password) {
+                // Derive key from password
+                key = await this.generateKey(password);
+            } else if (encrypted.key) {
+                // Import the stored key
+                key = await crypto.subtle.importKey(
+                    'raw',
+                    new Uint8Array(encrypted.key),
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['decrypt']
+                );
+            } else {
+                throw new Error('No key available for decryption');
+            }
+            
+            // Decrypt the content
+            const decryptedData = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: new Uint8Array(encrypted.iv) },
+                key,
+                new Uint8Array(encrypted.data)
+            );
+            
+            const decoder = new TextDecoder();
+            return decoder.decode(decryptedData);
+        } catch (error) {
+            console.error('Decryption error:', error);
+            throw new Error('Failed to decrypt content. The content may be corrupted or the password is incorrect.');
         }
     }
 }

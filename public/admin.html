@@ -561,7 +561,9 @@
                 container.innerHTML = clips.map(clip => `
                     <div class="clip-item">
                         <div class="clip-id">${sanitizeHtml(clip.clip_id)}</div>
-                        <div class="clip-content">${sanitizeHtml(clip.content.substring(0, 100))}${clip.content.length > 100 ? '...' : ''}</div>
+                        <div class="clip-content">
+                            ${clip.content.length > 50 ? '🔒 [Encrypted Content]' : sanitizeHtml(clip.content.substring(0, 100))}${clip.content.length > 100 ? '...' : ''}
+                        </div>
                         <div class="clip-meta">
                             <span class="status-indicator ${clip.is_expired ? 'status-expired' : 'status-active'}"></span>
                             ${clip.is_expired ? 'Expired' : 'Active'} • 
