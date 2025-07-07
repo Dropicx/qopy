@@ -140,16 +140,17 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting - Production optimized for 1000 users/hour with 3 clips each
+// Rate limiting - Global limit for all users combined
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 3000, // limit each IP to 3000 requests per windowMs (supports ~1000 users/hour)
+  max: 3000, // Global limit: 3000 requests total per windowMs (supports ~1000 users/hour)
   message: {
     error: 'Too many requests',
     message: 'Rate limit exceeded. Please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: () => 'global', // Use same key for all requests = global limit
 });
 
 app.use('/api/', limiter);

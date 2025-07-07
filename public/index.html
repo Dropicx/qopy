@@ -29,7 +29,6 @@
         <main id="share-section" class="section active">
             <div class="form-container">
                 <div class="input-group">
-                    <label for="content-input" class="label">Your content:</label>
                     <div class="textarea-container">
                         <textarea 
                             id="content-input" 
@@ -149,7 +148,7 @@
                     <div class="faq-answer" id="faq-spam-protection">
                         <p>We have balanced anti-spam measures that protect users while allowing legitimate content:</p>
                         <ul>
-                            <li>🚦 <strong>Rate limiting</strong> - Production-ready (3000 requests per IP every 15 minutes)</li>
+                            <li>🚦 <strong>Rate limiting</strong> - Global limit (3000 requests total every 15 minutes)</li>
                             <li>🛡️ <strong>Smart filtering</strong> - Detects obvious spam while allowing code and technical content</li>
                             <li>🔍 <strong>Pattern recognition</strong> - Focuses on clearly malicious patterns</li>
                             <li>⚠️ <strong>Keyword filtering</strong> - Blocks known scam and phishing terms</li>
@@ -189,7 +188,7 @@
                         <ul>
                             <li>📄 <strong>Content size</strong> - Maximum 100,000 characters per clip</li>
                             <li>⏰ <strong>Expiration time</strong> - Between 5 minutes and 24 hours</li>
-                            <li>🚦 <strong>Rate limits</strong> - 3000 requests per IP every 15 minutes (production-ready)</li>
+                            <li>🚦 <strong>Rate limits</strong> - Global limit of 3000 requests every 15 minutes</li>
                             <li>🔍 <strong>No IP tracking</strong> - Rate limiting works without storing IP addresses</li>
                             <li>🔐 <strong>Password length</strong> - Maximum 128 characters</li>
                             <li>🆔 <strong>Clip ID</strong> - 6 characters (auto-generated)</li>
@@ -307,7 +306,6 @@
                         </div>
 
                         <div class="result-section">
-                            <label class="label">Clip ID:</label>
                             <div class="copy-container">
                                 <input type="text" id="clip-id" readonly class="copy-input">
                                 <button id="copy-id-button" class="copy-button">Copy</button>

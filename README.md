@@ -192,7 +192,7 @@ curl -X POST https://qopy.app/api/share \
 - **No User Accounts**: Completely anonymous usage
 - **No Content Logging**: We never analyze or mine your text data
 - **Guaranteed Deletion**: Content automatically deleted after expiration
-- **Rate Limiting**: Production-optimized (3000 requests/15min per IP - supports 1000 users/hour)
+- **Rate Limiting**: Global limit (3000 requests/15min total - supports 1000 users/hour)
 - **Input Validation**: Secure input handling and sanitization
 - **CORS Protection**: Controlled cross-origin requests
 - **Password Hashing**: Secure password storage with plain text comparison
