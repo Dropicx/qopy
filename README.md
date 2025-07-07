@@ -2,6 +2,34 @@
 
 A modern, secure, and anonymous text sharing application that allows you to share content temporarily without registration. Your content is automatically deleted after a specified period, ensuring privacy and security.
 
+## 📄 Licensing
+
+This project is **dual-licensed**:
+
+### 🆓 Open Source (AGPL-3.0)
+Free for personal, educational, and open source projects.
+- [View AGPL-3.0 License](LICENSE-AGPL)
+- [Read Licensing Guide](LICENSING.md)
+
+### 💼 Commercial License  
+For proprietary and commercial use.
+- **No copyleft restrictions**
+- **Commercial support included**
+- **Contact:** qopy@lit.services
+
+## 🤔 Which license do I need?
+
+| Use Case | License Required |
+|----------|------------------|
+| Personal projects | AGPL-3.0 (Free) |
+| Open source projects | AGPL-3.0 (Free) |
+| Internal company tools | AGPL-3.0 (Free) |
+| SaaS/Web services | Commercial License |
+| Proprietary software | Commercial License |
+| Cannot share source code | Commercial License |
+
+**📧 Contact us:** qopy@lit.services for commercial licensing.
+
 ## 🌟 Features
 
 - **🔒 Client-Side Encryption**: Content is encrypted in your browser before being sent to our servers

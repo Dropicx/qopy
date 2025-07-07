@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Licensing - Qopy</title>
+    <link rel="icon" href="logos/Favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="logos/Favicon.png">
+    <meta name="description" content="Dual licensing information for Qopy - AGPL-3.0 and Commercial licenses">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .legal-page {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .legal-page h1 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+        .legal-page h2 {
+            color: var(--text-primary);
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+        .legal-page h3 {
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .legal-page p {
+            margin-bottom: 1rem;
+        }
+        .legal-page ul {
+            margin-bottom: 1rem;
+        }
+        .legal-page li {
+            margin-bottom: 0.5rem;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 2rem;
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .license-card {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .license-card.agpl {
+            border-left: 4px solid #3a86ff;
+        }
+        .license-card.commercial {
+            border-left: 4px solid #ff6b35;
+        }
+        .license-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .license-icon {
+            font-size: 2rem;
+            margin-right: 1rem;
+        }
+        .license-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 0;
+        }
+        .license-price {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+        }
+        .comparison-table th,
+        .comparison-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .comparison-table th {
+            background: var(--bg-secondary);
+            font-weight: bold;
+        }
+        .feature-yes {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .feature-no {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .contact-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            text-align: center;
+        }
+        .contact-email {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        footer {
+            background: var(--bg-secondary);
+            margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="legal-page">
+            <a href="/" class="back-link">← Back to Qopy</a>
+            
+            <h1>📄 Dual Licensing Policy</h1>
+            
+            <p>Qopy is available under two licensing options to accommodate different use cases and requirements. This dual licensing approach allows us to support both open source development and commercial applications.</p>
+
+            <div class="license-card agpl">
+                <div class="license-header">
+                    <div class="license-icon">🆓</div>
+                    <div>
+                        <h2 class="license-title">Open Source License (AGPL-3.0)</h2>
+                        <div class="license-price">FREE</div>
+                    </div>
+                </div>
+                <p><strong>Perfect for:</strong> Personal projects, educational use, open source development, and internal company tools that are not distributed.</p>
+                
+                <h3>Key Features:</h3>
+                <ul>
+                    <li>✅ <strong>Completely free</strong> - No cost for use</li>
+                    <li>✅ <strong>Full source code access</strong> - View and modify the code</li>
+                    <li>✅ <strong>Community-driven</strong> - Contribute to the project</li>
+                    <li>✅ <strong>Internal use</strong> - Use within your organization</li>
+                </ul>
+
+                <h3>Requirements:</h3>
+                <ul>
+                    <li>📋 <strong>Source code disclosure</strong> - Must share source code of derivative works</li>
+                    <li>🔗 <strong>AGPL-3.0 compliance</strong> - Combined works must use AGPL-3.0</li>
+                    <li>🌐 <strong>Web service disclosure</strong> - Must provide source code for web services using this software</li>
+                </ul>
+
+                <p><strong>License Text:</strong> <a href="/LICENSE-AGPL" target="_blank">View AGPL-3.0 License</a></p>
+            </div>
+
+            <div class="license-card commercial">
+                <div class="license-header">
+                    <div class="license-icon">💼</div>
+                    <div>
+                        <h2 class="license-title">Commercial License</h2>
+                        <div class="license-price">PAID</div>
+                    </div>
+                </div>
+                <p><strong>Perfect for:</strong> Proprietary software, SaaS applications, commercial products, and when you cannot comply with AGPL-3.0 requirements.</p>
+                
+                <h3>Key Benefits:</h3>
+                <ul>
+                    <li>✅ <strong>No copyleft restrictions</strong> - No source code disclosure requirements</li>
+                    <li>✅ <strong>Proprietary integration</strong> - Integrate into closed-source software</li>
+                    <li>✅ <strong>SaaS deployment</strong> - Offer as web service without source disclosure</li>
+                    <li>✅ <strong>Commercial support</strong> - Professional support and warranty included</li>
+                    <li>✅ <strong>Redistribution rights</strong> - Include in commercial products</li>
+                </ul>
+
+                <h3>Commercial Use Includes:</h3>
+                <ul>
+                    <li>🏢 <strong>Production business operations</strong></li>
+                    <li>🔧 <strong>Proprietary application integration</strong></li>
+                    <li>☁️ <strong>SaaS and web services</strong></li>
+                    <li>📦 <strong>Commercial product redistribution</strong></li>
+                    <li>🏭 <strong>Internal tools that are distributed</strong></li>
+                </ul>
+
+                <p><strong>License Text:</strong> <a href="/LICENSE-COMMERCIAL" target="_blank">View Commercial License</a></p>
+            </div>
+
+            <h2>🤔 Which License Do I Need?</h2>
+            
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Use Case</th>
+                        <th>License Required</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Personal projects</td>
+                        <td class="feature-yes">AGPL-3.0 (Free)</td>
+                        <td>Perfect for individual use</td>
+                    </tr>
+                    <tr>
+                        <td>Open source projects</td>
+                        <td class="feature-yes">AGPL-3.0 (Free)</td>
+                        <td>Must comply with copyleft terms</td>
+                    </tr>
+                    <tr>
+                        <td>Internal company tools (not distributed)</td>
+                        <td class="feature-yes">AGPL-3.0 (Free)</td>
+                        <td>Internal use only</td>
+                    </tr>
+                    <tr>
+                        <td>Education and research</td>
+                        <td class="feature-yes">AGPL-3.0 (Free)</td>
+                        <td>Academic use</td>
+                    </tr>
+                    <tr>
+                        <td>SaaS/Web services</td>
+                        <td class="feature-no">Commercial License</td>
+                        <td>Cannot comply with AGPL web disclosure</td>
+                    </tr>
+                    <tr>
+                        <td>Proprietary software</td>
+                        <td class="feature-no">Commercial License</td>
+                        <td>Closed-source integration</td>
+                    </tr>
+                    <tr>
+                        <td>Cannot share source code</td>
+                        <td class="feature-no">Commercial License</td>
+                        <td>Business requirements prevent disclosure</td>
+                    </tr>
+                    <tr>
+                        <td>Commercial redistribution</td>
+                        <td class="feature-no">Commercial License</td>
+                        <td>Including in commercial products</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>💰 Commercial License Pricing</h2>
+            
+            <div class="license-card">
+                <h3>Annual License Fees:</h3>
+                <ul>
+                    <li>🚀 <strong>Startup</strong> (<$1M revenue): <strong>$500/year</strong></li>
+                    <li>🏢 <strong>Small Business</strong> (<$10M revenue): <strong>$1,500/year</strong></li>
+                    <li>🏭 <strong>Enterprise</strong>: <strong>Contact for pricing</strong></li>
+                    <li>📦 <strong>OEM/Redistribution</strong>: <strong>Contact for pricing</strong></li>
+                </ul>
+                
+                <p><strong>Included with Commercial License:</strong></p>
+                <ul>
+                    <li>✅ <strong>Commercial support</strong> - Email and priority support</li>
+                    <li>✅ <strong>Warranty</strong> - Software warranty and liability protection</li>
+                    <li>✅ <strong>Updates</strong> - Access to all updates and new features</li>
+                    <li>✅ <strong>Documentation</strong> - Commercial documentation and guides</li>
+                </ul>
+            </div>
+
+            <div class="contact-section">
+                <h2>📧 Need Help Choosing?</h2>
+                <p>If you're unsure which license you need, please contact us with details about your intended use case.</p>
+                <p class="contact-email">qopy@lit.services</p>
+                <p>We'll help you determine the right license for your specific situation.</p>
+            </div>
+
+            <h2>📋 License Comparison</h2>
+            
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>AGPL-3.0</th>
+                        <th>Commercial</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Cost</td>
+                        <td class="feature-yes">Free</td>
+                        <td class="feature-no">Paid</td>
+                    </tr>
+                    <tr>
+                        <td>Source code disclosure</td>
+                        <td class="feature-no">Required</td>
+                        <td class="feature-yes">Not required</td>
+                    </tr>
+                    <tr>
+                        <td>SaaS restrictions</td>
+                        <td class="feature-no">Yes</td>
+                        <td class="feature-yes">No</td>
+                    </tr>
+                    <tr>
+                        <td>Commercial use</td>
+                        <td class="feature-no">Limited</td>
+                        <td class="feature-yes">Full</td>
+                    </tr>
+                    <tr>
+                        <td>Support</td>
+                        <td class="feature-no">Community</td>
+                        <td class="feature-yes">Commercial</td>
+                    </tr>
+                    <tr>
+                        <td>Warranty</td>
+                        <td class="feature-no">None</td>
+                        <td class="feature-yes">Included</td>
+                    </tr>
+                    <tr>
+                        <td>Proprietary integration</td>
+                        <td class="feature-no">Not allowed</td>
+                        <td class="feature-yes">Allowed</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>📄 Additional Resources</h2>
+            
+            <ul>
+                <li><a href="/LICENSING.md" target="_blank">📋 Detailed Licensing Guide</a> - Comprehensive licensing documentation</li>
+                <li><a href="/LICENSE-AGPL" target="_blank">📄 AGPL-3.0 License Text</a> - Full license terms</li>
+                <li><a href="/LICENSE-COMMERCIAL" target="_blank">📄 Commercial License Text</a> - Commercial license agreement</li>
+                <li><a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank">🌐 GNU AGPL-3.0 Information</a> - Official GNU documentation</li>
+            </ul>
+
+            <p><small>Last Updated: July 2025</small></p>
+        </div>
+    </div>
+
+    <footer>
+        <p>🔒 No logs, no tracking, auto-expires. Your privacy is protected.</p>
+        <div class="legal-links">
+            <a href="/legal.html">Legal</a>
+            <span class="separator">|</span>
+            <a href="/privacy.html">Privacy Policy</a>
+            <span class="separator">|</span>
+            <a href="/terms.html">Terms of Service</a>
+            <span class="separator">|</span>
+            <a href="/licensing.html">Licensing</a>
+        </div>
+    </footer>
+</body>
+</html> 

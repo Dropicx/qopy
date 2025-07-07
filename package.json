@@ -16,7 +16,17 @@
   },
   "keywords": ["clipboard", "sharing", "anonymous", "temporary", "qopy"],
   "author": "Qopy App",
-  "license": "MIT",
+  "license": "AGPL-3.0 OR Commercial",
+  "licenses": [
+    {
+      "type": "AGPL-3.0",
+      "url": "https://www.gnu.org/licenses/agpl-3.0.html"
+    },
+    {
+      "type": "Commercial",
+      "url": "mailto:qopy@lit.services"
+    }
+  ],
   "dependencies": {
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
