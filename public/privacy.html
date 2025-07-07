@@ -80,43 +80,46 @@
             <h1>Privacy Policy</h1>
             
             <div class="date-info">
-                <strong>Effective Date:</strong> January 2025<br>
-                <strong>Last Updated:</strong> January 2025
+                <strong>Effective Date:</strong> July 2025<br>
+                <strong>Last Updated:</strong> July 2025
             </div>
 
             <h2>1. Introduction</h2>
-            <p>This Privacy Policy describes how Qopy ("we," "our," or "us") collects, uses, and protects your personal information when you use our clipboard manager application (the "Application"). Qopy is an open-source clipboard manager designed for Windows, macOS, and Linux systems.</p>
+            <p>This Privacy Policy describes how Qopy ("we," "our," or "us") collects, uses, and protects your personal information when you use our secure text sharing service (the "Service"). Qopy is a web-based, open-source text sharing platform that prioritizes privacy and security through client-side encryption.</p>
 
             <h2>2. Information We Collect</h2>
             
-            <h3>2.1 Clipboard Data</h3>
+            <h3>2.1 Shared Content</h3>
             <ul>
-                <li><strong>What we collect:</strong> Qopy stores clipboard content that you copy, including text, images, files, and other data types supported by your operating system's clipboard functionality.</li>
-                <li><strong>How it's stored:</strong> All clipboard data is stored locally on your device in a SQLite database.</li>
-                <li><strong>Duration:</strong> Clipboard history is maintained according to your configured settings and may be cleared manually or automatically based on your preferences.</li>
+                <li><strong>What we collect:</strong> Qopy allows you to share text content temporarily through our web service.</li>
+                <li><strong>Client-side encryption:</strong> All content is encrypted in your browser using AES-256-GCM before being transmitted to our servers.</li>
+                <li><strong>Zero-knowledge architecture:</strong> We never see your plain text content - only encrypted data is stored in our database.</li>
+                <li><strong>Duration:</strong> Content is automatically deleted after your chosen expiration time (5 minutes to 24 hours).</li>
             </ul>
 
-            <h3>2.2 Application Usage Data</h3>
+            <h3>2.2 Service Usage Data</h3>
             <ul>
-                <li><strong>Local analytics:</strong> Qopy may collect anonymous usage statistics to improve the application's functionality and user experience.</li>
-                <li><strong>Error reporting:</strong> In the event of application crashes or errors, diagnostic information may be collected to help resolve issues.</li>
-                <li><strong>Feature usage:</strong> Information about which features are used most frequently to guide future development.</li>
+                <li><strong>Anonymous statistics:</strong> We collect basic, anonymous usage statistics (number of clips created, access patterns) to improve our service.</li>
+                <li><strong>No content analysis:</strong> We never analyze, read, or mine the content you share.</li>
+                <li><strong>No IP tracking:</strong> We do not store IP addresses or track individual users.</li>
+                <li><strong>Error reporting:</strong> In the event of service errors, anonymous diagnostic information may be collected to help resolve issues.</li>
             </ul>
 
-            <h3>2.3 System Information</h3>
+            <h3>2.3 Technical Information</h3>
             <ul>
-                <li><strong>Operating system:</strong> Information about your operating system version to ensure compatibility and provide appropriate support.</li>
-                <li><strong>Application version:</strong> The version of Qopy you are using to provide updates and support.</li>
-                <li><strong>Hardware information:</strong> Basic hardware specifications to optimize performance and troubleshoot issues.</li>
+                <li><strong>Browser information:</strong> Basic browser type and version to ensure compatibility and optimize performance.</li>
+                <li><strong>Service version:</strong> The version of Qopy service you are using to provide updates and support.</li>
+                <li><strong>Encryption support:</strong> Information about your browser's encryption capabilities to ensure secure content sharing.</li>
             </ul>
 
             <h2>3. How We Use Your Information</h2>
             
             <h3>3.1 Primary Functions</h3>
             <ul>
-                <li><strong>Clipboard management:</strong> To provide the core functionality of storing and retrieving your clipboard history.</li>
-                <li><strong>Search and organization:</strong> To enable you to search through your clipboard history and organize content effectively.</li>
-                <li><strong>Cross-device synchronization:</strong> If enabled, to sync your clipboard data across multiple devices.</li>
+                <li><strong>Secure text sharing:</strong> To provide the core functionality of sharing text content securely and temporarily.</li>
+                <li><strong>Client-side encryption:</strong> To encrypt your content in the browser before transmission to our servers.</li>
+                <li><strong>Automatic expiration:</strong> To automatically delete content after your chosen time period.</li>
+                <li><strong>Password protection:</strong> To provide optional password protection for sensitive content.</li>
             </ul>
 
             <h3>3.2 Service Improvement</h3>
@@ -135,25 +138,29 @@
 
             <h2>4. Data Storage and Security</h2>
             
-            <h3>4.1 Local Storage</h3>
+            <h3>4.1 Encrypted Storage</h3>
             <ul>
-                <li><strong>SQLite database:</strong> All clipboard data is stored locally on your device in an encrypted SQLite database.</li>
-                <li><strong>No cloud storage:</strong> By default, Qopy does not upload your clipboard data to any cloud services.</li>
-                <li><strong>User control:</strong> You have complete control over your data and can delete it at any time.</li>
+                <li><strong>Client-side encryption:</strong> All content is encrypted in your browser using AES-256-GCM before being stored in our database.</li>
+                <li><strong>Zero-knowledge architecture:</strong> We never see your plain text content - only encrypted data is stored on our servers.</li>
+                <li><strong>Automatic deletion:</strong> Encrypted content is automatically deleted after your chosen expiration time.</li>
+                <li><strong>No content access:</strong> Even if our servers were compromised, attackers could not read your content without the encryption keys.</li>
             </ul>
 
             <h3>4.2 Security Measures</h3>
             <ul>
-                <li><strong>Encryption:</strong> All stored data is encrypted using industry-standard encryption algorithms.</li>
-                <li><strong>Access controls:</strong> The application implements proper access controls to prevent unauthorized access to your data.</li>
-                <li><strong>Secure transmission:</strong> Any data transmitted over networks is encrypted using secure protocols.</li>
+                <li><strong>AES-256-GCM encryption:</strong> Military-grade encryption algorithm for all content.</li>
+                <li><strong>PBKDF2 key derivation:</strong> 100,000 iterations for password-protected content.</li>
+                <li><strong>HTTPS transmission:</strong> All data is transmitted over encrypted HTTPS connections.</li>
+                <li><strong>Rate limiting:</strong> Protection against abuse and spam attacks.</li>
+                <li><strong>No IP tracking:</strong> We do not store IP addresses or track individual users.</li>
             </ul>
 
             <h3>4.3 Data Retention</h3>
             <ul>
-                <li><strong>Configurable retention:</strong> You can configure how long clipboard data is retained before automatic deletion.</li>
-                <li><strong>Manual deletion:</strong> You can manually delete individual clipboard entries or clear all history at any time.</li>
-                <li><strong>Uninstall cleanup:</strong> When you uninstall Qopy, all associated data is automatically removed from your device.</li>
+                <li><strong>Automatic expiration:</strong> Content is automatically deleted after your chosen time (5 minutes to 24 hours).</li>
+                <li><strong>One-time access:</strong> Content can be set to self-destruct after first read.</li>
+                <li><strong>Database cleanup:</strong> Expired content is permanently removed from our database.</li>
+                <li><strong>No manual deletion:</strong> Once shared, content cannot be manually deleted before expiration.</li>
             </ul>
 
             <h2>5. Data Sharing and Disclosure</h2>
@@ -277,7 +284,7 @@
                 <p><strong>Note:</strong> This Privacy Policy applies to the Qopy clipboard manager application. For information about our website privacy practices, please refer to our website privacy policy.</p>
             </div>
 
-            <p><small>Last Updated: January 2025</small></p>
+            <p><small>Last Updated: July 2025</small></p>
         </div>
     </div>
 

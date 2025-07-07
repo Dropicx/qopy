@@ -110,14 +110,16 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-how-secure">
-                        <p><strong>Very secure!</strong> We implement multiple security measures:</p>
+                        <p><strong>Extremely secure!</strong> We implement enterprise-grade security measures:</p>
                         <ul>
-                            <li>🔒 <strong>Temporary storage</strong> - All content is stored temporarily in database and auto-deleted</li>
-                            <li>🚫 <strong>No logging</strong> - We don't track or log your content</li>
+                            <li>🔐 <strong>Client-side encryption</strong> - Content is encrypted in your browser with AES-256-GCM before being sent to our servers</li>
+                            <li>🛡️ <strong>Zero-knowledge architecture</strong> - We never see your plain text content, only encrypted data</li>
+                            <li>🔑 <strong>Advanced key management</strong> - PBKDF2-derived keys for password clips, random keys for others</li>
                             <li>⏰ <strong>Auto-expiration</strong> - Content automatically deletes after your chosen time</li>
-                            <li>🔐 <strong>Optional encryption</strong> - Add password protection for extra security</li>
+                            <li>🔐 <strong>Password protection</strong> - Optional password with 100,000 PBKDF2 iterations</li>
                             <li>🔥 <strong>One-time access</strong> - Content can self-destruct after first read</li>
                             <li>🛡️ <strong>Rate limiting</strong> - Protection against abuse and spam</li>
+                            <li>🚫 <strong>No IP tracking</strong> - True privacy-first approach</li>
                         </ul>
                     </div>
                 </div>
@@ -167,14 +169,16 @@
                     <div class="faq-answer" id="faq-data-privacy">
                         <p><strong>Privacy is our top priority:</strong></p>
                         <ul>
-                            <li>🔒 <strong>Temporary database storage</strong> - Content stored securely with guaranteed auto-deletion</li>
+                            <li>🔐 <strong>Client-side encryption</strong> - Your content is encrypted in your browser before we ever see it</li>
+                            <li>🛡️ <strong>Zero-knowledge</strong> - We literally cannot read your content, even if we wanted to</li>
+                            <li>🔒 <strong>Encrypted database storage</strong> - Only encrypted data is stored, never plain text</li>
                             <li>🚫 <strong>No user accounts</strong> - Completely anonymous usage</li>
                             <li>📝 <strong>No content logging</strong> - We never analyze or mine your text data</li>
-                            <li>⏰ <strong>Automatic deletion</strong> - Content disappears after expiration via database cleanup</li>
+                            <li>⏰ <strong>Automatic deletion</strong> - Encrypted content disappears after expiration</li>
                             <li>🌍 <strong>GDPR compliant</strong> - Follows European privacy standards</li>
-                            <li>🚫 <strong>Zero IP tracking</strong> - No IP addresses stored in database for true privacy</li>
+                            <li>🚫 <strong>Zero IP tracking</strong> - No IP addresses stored in database</li>
                         </ul>
-                        <p>Your content is as private as it gets - we literally can't access it after you share it!</p>
+                        <p>Your content is encrypted end-to-end - even if someone hacked our servers, they couldn't read your data!</p>
                     </div>
                 </div>
 
@@ -198,6 +202,37 @@
                 </div>
 
                 <div class="faq-item">
+                    <button class="faq-question" data-faq="encryption">
+                        <span>How does the encryption work?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer" id="faq-encryption">
+                        <p><strong>Qopy uses state-of-the-art client-side encryption:</strong></p>
+                        <ul>
+                            <li>🔐 <strong>AES-256-GCM</strong> - Military-grade encryption algorithm</li>
+                            <li>🌐 <strong>Client-side processing</strong> - Encryption happens in your browser, not on our servers</li>
+                            <li>🔑 <strong>Two key strategies</strong>:
+                                <ul>
+                                    <li><strong>Random keys</strong> - For clips without passwords, we generate a random key and store it with the encrypted content</li>
+                                    <li><strong>Password-derived keys</strong> - For password-protected clips, we derive the key from your password using PBKDF2 (100,000 iterations)</li>
+                                </ul>
+                            </li>
+                            <li>🛡️ <strong>Zero-knowledge</strong> - We never see your plain text content</li>
+                            <li>🔄 <strong>Backward compatible</strong> - Existing unencrypted clips continue to work</li>
+                            <li>⚡ <strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
+                        </ul>
+                        <p><strong>How it works:</strong></p>
+                        <ol>
+                            <li>You type your content in the browser</li>
+                            <li>Content is encrypted with AES-256-GCM before being sent to our servers</li>
+                            <li>Only encrypted data is stored in our database</li>
+                            <li>When someone retrieves the content, it's decrypted in their browser</li>
+                            <li>We never see the plain text at any point</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="faq-item">
                     <button class="faq-question" data-faq="vs-pastebin">
                         <span>How does Qopy compare to Pastebin?</span>
                         <span class="faq-icon">+</span>
@@ -214,8 +249,8 @@
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Privacy & Security</div>
-                                <div class="qopy-col">✅ Zero logs, zero IP tracking, temporary storage</div>
-                                <div class="pastebin-col">❌ Permanent storage, IP tracking, data mining</div>
+                                <div class="qopy-col">✅ Client-side encryption, zero-knowledge, zero IP tracking</div>
+                                <div class="pastebin-col">❌ No encryption, permanent storage, IP tracking</div>
                             </div>
                             
                             <div class="comparison-row">
@@ -244,8 +279,8 @@
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Modern Features</div>
-                                <div class="qopy-col">✅ One-time access, password protection</div>
-                                <div class="pastebin-col">⚠️ Limited security options</div>
+                                <div class="qopy-col">✅ Client-side encryption, one-time access, password protection</div>
+                                <div class="pastebin-col">⚠️ No encryption, limited security options</div>
                             </div>
                             
                             <div class="comparison-row">
@@ -264,7 +299,8 @@
                         <p><strong>Why choose Qopy?</strong></p>
                         <ul>
                             <li>🎯 <strong>Simplicity first</strong> - Share text in 3 clicks, no registration needed</li>
-                            <li>🔒 <strong>Privacy by design</strong> - Your data is automatically deleted from database after expiration</li>
+                            <li>🔐 <strong>Military-grade encryption</strong> - Client-side AES-256-GCM encryption for ultimate privacy</li>
+                            <li>🛡️ <strong>Zero-knowledge architecture</strong> - We literally cannot read your content</li>
                             <li>📱 <strong>Mobile-optimized</strong> - QR codes and responsive design for easy sharing</li>
                             <li>🚫 <strong>Zero distractions</strong> - No ads, no tracking, no bloat</li>
                             <li>⚡ <strong>Lightning fast</strong> - Instant sharing with 6-character IDs</li>

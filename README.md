@@ -4,9 +4,10 @@ A modern, secure, and anonymous text sharing service that allows you to share co
 
 ## 🌟 Features
 
-- **🔒 Secure & Anonymous**: No registration required, no permanent storage
+- **🔒 Client-Side Encryption**: Content is encrypted in your browser before being sent to our servers
+- **🛡️ Zero-Knowledge**: We never see your plain text content - only encrypted data
 - **⏰ Auto-Expiration**: Content automatically deletes after your chosen time (5min - 24hr)
-- **🔐 Password Protection**: Optional password protection for sensitive content
+- **🔐 Password Protection**: Optional password protection with PBKDF2 key derivation
 - **🔥 One-Time Access**: Content can self-destruct after first read
 - **📱 QR Code Generation**: Easy mobile sharing with generated QR codes
 - **🌐 Modern UI**: Beautiful, responsive interface with typing animations
@@ -188,14 +189,19 @@ curl -X POST https://qopy.app/api/share \
 
 ## 🔒 Security Features
 
-- **Temporary Database Storage**: Content stored in PostgreSQL with automatic cleanup
+- **🔐 Client-Side Encryption**: All content is encrypted with AES-256-GCM in your browser before transmission
+- **🛡️ Zero-Knowledge Architecture**: We never see your plain text content - only encrypted data
+- **🔑 Advanced Key Management**: 
+  - Random keys for non-password clips (stored with content)
+  - PBKDF2-derived keys for password-protected clips (100,000 iterations)
+- **Temporary Database Storage**: Encrypted content stored in PostgreSQL with automatic cleanup
 - **No User Accounts**: Completely anonymous usage
 - **No Content Logging**: We never analyze or mine your text data
 - **Guaranteed Deletion**: Content automatically deleted after expiration
 - **Rate Limiting**: Global limit (3000 requests/15min total - supports 1000 users/hour)
 - **Input Validation**: Secure input handling and sanitization
 - **CORS Protection**: Controlled cross-origin requests
-- **Password Hashing**: Secure password storage with plain text comparison
+- **Password Hashing**: Secure password storage with bcrypt
 - **Zero IP Tracking**: No IP addresses stored in database - true privacy-first approach
 
 ## 🔐 Admin Dashboard
@@ -374,14 +380,16 @@ npm run monitor
 - `DATABASE_URL` (automatically provided by PostgreSQL plugin)
 - `PORT` (automatically set by Railway)
 
-### Recent Updates (January 2024)
-- ✅ Fixed frontend routing for direct clip URLs
-- ✅ Added QR code generation using external service
-- ✅ Improved tab switching and navigation
-- ✅ Fixed createdAt field handling
-- ✅ Enhanced toast notifications
-- ✅ Added debug logging for better troubleshooting
-- ✅ Optimized startup time for production
+### Recent Updates (January 2025)
+- ✅ **Client-Side Encryption**: Implemented AES-256-GCM encryption for 100% data privacy
+- ✅ **Zero-Knowledge Architecture**: Server never sees plain text content
+- ✅ **Advanced Key Management**: PBKDF2 for password clips, random keys for others
+- ✅ **Backward Compatibility**: Existing unencrypted clips continue to work
+- ✅ **Performance Optimized**: Clean, production-ready encryption implementation
+- ✅ **Fixed frontend routing** for direct clip URLs
+- ✅ **Added QR code generation** using external service
+- ✅ **Improved tab switching** and navigation
+- ✅ **Enhanced toast notifications** and user experience
 
 ## 📝 License
 
@@ -406,7 +414,7 @@ MIT License - see LICENSE file for details
 
 **Qopy** - Secure, anonymous, temporary text sharing made simple.
 
-**Version**: minimal-1.0.0  
-**Status**: ✅ Production Ready  
-**Last Updated**: January 2024  
+**Version**: secure-1.1.0  
+**Status**: ✅ Production Ready with Client-Side Encryption  
+**Last Updated**: January 2025  
 **Live URL**: https://qopy.app
