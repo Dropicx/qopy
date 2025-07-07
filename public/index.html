@@ -13,7 +13,7 @@
     <div class="container">
         <header>
             <div class="header-content">
-                <div class="header-subtitle">Paste and share your content on/div>
+                <div class="header-subtitle">Paste and share your content on</div>
                 <br>
                 <div class="typing-logo">
                     <span id="typing-text"></span>
@@ -150,16 +150,18 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-spam-protection">
-                        <p>We have balanced anti-spam measures that protect users while allowing legitimate content:</p>
+                        <p>We implement a multi-layered rate limiting strategy to prevent abuse while ensuring fair usage for all users:</p>
                         <ul>
-                            <li>🚦 <strong>Rate limiting</strong> - Global limit (3000 requests total every 15 minutes)</li>
-                            <li>🛡️ <strong>Smart filtering</strong> - Detects obvious spam while allowing code and technical content</li>
-                            <li>🔍 <strong>Pattern recognition</strong> - Focuses on clearly malicious patterns</li>
-                            <li>⚠️ <strong>Keyword filtering</strong> - Blocks known scam and phishing terms</li>
-                            <li>🚫 <strong>Malware detection</strong> - Prevents sharing of dangerous executable files</li>
-                            <li>📊 <strong>Behavioral analysis</strong> - Detects extreme spam patterns</li>
+                            <li>🚦 <strong>Burst protection</strong> - Prevents rapid-fire attacks and sudden traffic spikes</li>
+                            <li>🛡️ <strong>General API protection</strong> - Overall usage limits to maintain service stability</li>
+                            <li>📝 <strong>Share API protection</strong> - Specific limits for content creation to prevent spam</li>
+                            <li>📖 <strong>Retrieval API protection</strong> - Balanced limits for content access</li>
+                            <li>🔍 <strong>IP-based enforcement</strong> - Rate limits are enforced based on your IP address</li>
+                            <li>⏰ <strong>Temporary processing</strong> - IP addresses are only processed in memory for rate limiting</li>
+                            <li>🚫 <strong>No permanent storage</strong> - IP addresses are not stored permanently or used for tracking</li>
                         </ul>
-                        <p>Our filters are designed to block obvious spam while allowing legitimate content like code, configs, and technical documentation.</p>
+                        <p><strong>Rate limit responses:</strong> When limits are exceeded, the service returns a 429 "Too Many Requests" status with information about limits and reset times.</p>
+                        <p><strong>Exempt endpoints:</strong> Health checks (/health, /api/health, /ping) and admin endpoints are exempt from rate limiting.</p>
                     </div>
                 </div>
 
@@ -178,7 +180,7 @@
                             <li>📝 <strong>No content logging</strong> - We never analyze or mine your text data</li>
                             <li>⏰ <strong>Automatic deletion</strong> - Encrypted content disappears after expiration</li>
                             <li>🌍 <strong>GDPR compliant</strong> - Follows European privacy standards</li>
-                            <li>🚫 <strong>Zero IP tracking</strong> - No IP addresses stored in database</li>
+                            <li>🚫 <strong>Temporary IP processing</strong> - IP addresses are only processed for rate limiting, not stored permanently</li>
                         </ul>
                         <p>Your content is encrypted end-to-end - even if someone hacked our servers, they couldn't read your data!</p>
                     </div>
@@ -194,12 +196,12 @@
                         <ul>
                             <li>📄 <strong>Content size</strong> - Maximum 100,000 characters per clip</li>
                             <li>⏰ <strong>Expiration time</strong> - Between 5 minutes and 24 hours</li>
-                            <li>🚦 <strong>Rate limits</strong> - Global limit of 3000 requests every 15 minutes</li>
-                            <li>🔍 <strong>No IP tracking</strong> - Rate limiting works without storing IP addresses</li>
+                            <li>🚦 <strong>Rate limiting</strong> - Multi-layered strategy with burst protection, API limits, and content-specific restrictions</li>
+                            <li>🔍 <strong>Temporary IP processing</strong> - IP addresses are only processed in memory for rate limiting, not stored permanently</li>
                             <li>🔐 <strong>Password length</strong> - Maximum 128 characters</li>
                             <li>🆔 <strong>Clip ID</strong> - 6 characters (auto-generated)</li>
                         </ul>
-                        <p>These limits help us maintain service quality and prevent abuse.</p>
+                        <p>These limits help us maintain service quality and prevent abuse while ensuring fair usage for all users.</p>
                     </div>
                 </div>
 
@@ -231,6 +233,65 @@
                             <li>When someone retrieves the content, it's decrypted in their browser</li>
                             <li>We never see the plain text at any point</li>
                         </ol>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" data-faq="api-usage">
+                        <span>Can I use Qopy via API?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer" id="faq-api-usage">
+                        <p><strong>Yes! Qopy provides a complete REST API for programmatic access:</strong></p>
+                        
+                        <h4>📝 Creating Clips (POST /api/share)</h4>
+                        <pre><code>curl -X POST https://qopy.app/api/share \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Your text content here",
+    "expiration": "1hr",
+    "password": "optional-password",
+    "oneTime": false
+  }'</code></pre>
+                        
+                        <h4>📖 Retrieving Clips (GET /api/clip/:clipId)</h4>
+                        <pre><code>curl https://qopy.app/api/clip/X8K2M9</code></pre>
+                        
+                        <h4>🔐 Retrieving Password-Protected Clips (POST /api/clip/:clipId)</h4>
+                        <pre><code>curl -X POST https://qopy.app/api/clip/X8K2M9 \
+  -H "Content-Type: application/json" \
+  -d '{"password": "your-password"}'</code></pre>
+                        
+                        <h4>ℹ️ Getting Clip Info (GET /api/clip/:clipId/info)</h4>
+                        <pre><code>curl https://qopy.app/api/clip/X8K2M9/info</code></pre>
+                        
+                        <h4>🔧 API Parameters:</h4>
+                        <ul>
+                            <li><strong>content</strong> - Text content (1-100,000 characters)</li>
+                            <li><strong>expiration</strong> - "5min", "15min", "30min", "1hr", "6hr", "24hr"</li>
+                            <li><strong>password</strong> - Optional password (1-128 characters)</li>
+                            <li><strong>oneTime</strong> - Boolean, deletes clip after first access</li>
+                        </ul>
+                        
+                        <h4>📋 Response Format:</h4>
+                        <pre><code>{
+  "success": true,
+  "clipId": "X8K2M9",
+  "url": "https://qopy.app/clip/X8K2M9",
+  "expiresAt": 1703123456789,
+  "oneTime": false
+}</code></pre>
+                        
+                        <h4>⚠️ Important Notes:</h4>
+                        <ul>
+                            <li>🔒 <strong>Rate limiting</strong> - API endpoints are subject to the same rate limiting as the web interface</li>
+                            <li>🔐 <strong>Encryption</strong> - Content is encrypted client-side before being sent to the API</li>
+                            <li>🛡️ <strong>Validation</strong> - All inputs are validated and sanitized</li>
+                            <li>📱 <strong>No authentication</strong> - No API keys required, but rate limits apply per IP</li>
+                            <li>⚡ <strong>JSON only</strong> - All requests and responses use JSON format</li>
+                        </ul>
+                        
+                        <p><strong>Perfect for:</strong> Automation scripts, integrations, mobile apps, and programmatic content sharing!</p>
                     </div>
                 </div>
 
