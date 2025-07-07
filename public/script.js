@@ -681,21 +681,11 @@ class ClipboardApp {
             if (dismissed === 'true') {
                 document.getElementById('privacy-notice').classList.add('hidden');
             } else {
-                // Show privacy notice with a slight delay for better UX
-                setTimeout(() => {
-                    const privacyNotice = document.getElementById('privacy-notice');
-                    privacyNotice.style.opacity = '1';
-                    privacyNotice.style.transform = 'translateY(0)';
-                }, 1000);
+                document.getElementById('privacy-notice').classList.remove('hidden');
             }
         } catch (e) {
-            // If localStorage is not available, show the notice
-            console.log('localStorage not available, showing privacy notice');
-            setTimeout(() => {
-                const privacyNotice = document.getElementById('privacy-notice');
-                privacyNotice.style.opacity = '1';
-                privacyNotice.style.transform = 'translateY(0)';
-            }, 1000);
+            // Fallback: always show
+            document.getElementById('privacy-notice').classList.remove('hidden');
         }
     }
 }

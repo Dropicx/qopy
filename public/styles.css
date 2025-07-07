@@ -1175,22 +1175,28 @@ footer p {
 .privacy-notice {
   background: var(--bg-secondary);
   border-top: 2px solid var(--accent-color);
-  padding: 1rem 0;
+  padding: 0.75rem 0;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 1000;
   backdrop-filter: blur(10px);
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 -4px 16px var(--shadow-medium);
-  transform: translateY(100%);
-  opacity: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.privacy-notice .container {
+  max-width: 700px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 1rem;
 }
 
 .privacy-notice.hidden {
-  transform: translateY(100%);
-  opacity: 0;
+  display: none;
 }
 
 .privacy-content {
@@ -1214,7 +1220,7 @@ footer p {
 
 .privacy-text {
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   line-height: 1.5;
 }
 
@@ -1260,6 +1266,21 @@ footer p {
 
 .privacy-dismiss:active {
   transform: scale(0.95);
+}
+
+@media (max-width: 700px) {
+  .privacy-notice .container {
+    max-width: 100vw;
+    padding: 0 0.5rem;
+  }
+  .privacy-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .privacy-dismiss {
+    align-self: flex-end;
+  }
 }
 
 /* Responsive Design */
@@ -1430,5 +1451,67 @@ footer p {
 
   .qr-image {
     max-width: 150px;
+  }
+}
+
+.railway-faq-ad {
+  margin-top: 2rem;
+  margin-bottom: 0;
+  background: var(--blur-bg);
+  border-radius: 18px;
+  box-shadow: 0 6px 24px var(--shadow-medium), inset 0 1px 0 rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 1.2rem 1.5rem;
+}
+.railway-faq-ad .railway-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+.railway-faq-ad .railway-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.railway-faq-ad .railway-icon {
+  font-size: 1.3rem;
+}
+.railway-faq-ad .railway-text {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.railway-faq-ad .railway-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--gradient-primary);
+  color: #fff;
+  padding: 0.7rem 1.3rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px var(--shadow-medium);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.railway-faq-ad .railway-button:hover {
+  background: var(--accent-hover);
+  color: #fff;
+  transform: translateY(-1px);
+}
+@media (max-width: 700px) {
+  .railway-faq-ad .railway-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.7rem;
+  }
+  .railway-faq-ad .railway-button {
+    width: 100%;
+    justify-content: center;
   }
 } 
