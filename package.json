@@ -9,6 +9,7 @@
     "build": "npm install",
     "db:init": "node scripts/db-init.js",
     "db:check": "node scripts/db-check.js",
+    "db:migrate-passwords": "node scripts/migrate-passwords.js",
     "test": "node scripts/test.js",
     "monitor": "node scripts/monitor.js",
     "health": "node scripts/health.js"
@@ -26,7 +27,8 @@
     "compression": "^1.7.4",
     "express-validator": "^7.0.1",
     "sqlite3": "^5.1.6",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "bcrypt": "^5.1.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

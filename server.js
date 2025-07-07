@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const path = require('path');
 const { Pool } = require('pg');
+const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -271,6 +272,36 @@ function generateClipId() {
   return result;
 }
 
+// Password hashing functions
+async function hashPassword(password) {
+  if (!password) return null;
+  const saltRounds = 12; // High security level
+  try {
+    return await bcrypt.hash(password, saltRounds);
+  } catch (error) {
+    console.error('❌ Error hashing password:', error.message);
+    throw new Error('Failed to hash password');
+  }
+}
+
+async function verifyPassword(password, hash) {
+  if (!password || !hash) return false;
+  
+  // Check if hash is already bcrypt format
+  if (hash.startsWith('$2b$')) {
+    try {
+      return await bcrypt.compare(password, hash);
+    } catch (error) {
+      console.error('❌ Error verifying bcrypt password:', error.message);
+      return false;
+    }
+  } else {
+    // Legacy plaintext comparison (for migration period)
+    console.warn('⚠️ Using legacy plaintext password comparison for migration');
+    return password === hash;
+  }
+}
+
 // Cleanup expired clips
 async function cleanupExpiredClips() {
   try {
@@ -317,11 +348,24 @@ app.post('/api/share', [
     const expirationTime = Date.now() + expirationTimes[expiration];
     const clipId = generateClipId();
 
+    // Hash password if provided
+    let passwordHash = null;
+    if (password) {
+      // Ensure password is not already hashed (security check)
+      if (password.startsWith('$2b$')) {
+        return res.status(400).json({
+          error: 'Invalid password format',
+          message: 'Password cannot be a hash'
+        });
+      }
+      passwordHash = await hashPassword(password);
+    }
+
     // Insert clip into database (privacy-first: no IP/user-agent tracking)
     await pool.query(`
       INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [clipId, content, expirationTime, password || null, oneTime || false, Date.now()]);
+    `, [clipId, content, expirationTime, passwordHash, oneTime || false, Date.now()]);
 
     console.log(`📋 Created clip: ${clipId}`);
 
@@ -493,8 +537,9 @@ app.post('/api/clip/:clipId', [
 
     const clip = result.rows[0];
 
-    // Check password
-    if (clip.password_hash !== password) {
+    // Verify password
+    const isPasswordValid = await verifyPassword(password, clip.password_hash);
+    if (!isPasswordValid) {
       return res.status(401).json({
         error: 'Invalid password',
         message: 'The provided password is incorrect'
