@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Qopy</title>
+    <link rel="icon" type="image/png" href="logos/Favicon.png">
+    <link rel="apple-touch-icon" href="logos/Favicon.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 50px;
+            line-height: 1.8;
+        }
+
+        .content h2 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e1e5e9;
+            font-weight: 600;
+        }
+
+        .content h3 {
+            color: #555;
+            font-size: 1.4rem;
+            margin: 30px 0 15px 0;
+            font-weight: 600;
+        }
+
+        .content h4 {
+            color: #666;
+            font-size: 1.2rem;
+            margin: 25px 0 12px 0;
+            font-weight: 600;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #444;
+            text-align: justify;
+        }
+
+        .content ul, .content ol {
+            margin: 15px 0 20px 30px;
+        }
+
+        .content li {
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        .highlight {
+            background: #f8f9ff;
+            border: 1px solid #e1e5e9;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .highlight h3 {
+            color: #667eea;
+            margin-top: 0;
+        }
+
+        .date-info {
+            background: #f1f3f4;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-style: italic;
+            color: #666;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 30px 0 20px 0;
+            transition: background 0.3s ease;
+            font-weight: 500;
+        }
+
+        .back-button:hover {
+            background: #5a6fd8;
+        }
+
+        .section-divider {
+            height: 2px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 40px 0;
+            border-radius: 1px;
+        }
+
+        strong {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .footer-note {
+            background: #f8f9ff;
+            border: 1px solid #e1e5e9;
+            padding: 25px;
+            margin: 40px 0 0 0;
+            border-radius: 8px;
+            font-style: italic;
+            color: #666;
+            line-height: 1.7;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: 30px 25px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔒 Privacy Policy</h1>
+            <p>Qopy - Secure Temporary Text Sharing</p>
+        </div>
+
+        <div class="content">
+            <a href="/" class="back-button">← Back to Qopy</a>
+            
+            <div class="date-info">
+                <strong>Effective Date:</strong> January 2025<br>
+                <strong>Last Updated:</strong> January 2025
+            </div>
+
+            <h2>1. Introduction</h2>
+            <p>This Privacy Policy describes how Qopy ("we," "our," or "us") collects, uses, and protects your personal information when you use our clipboard manager application (the "Application"). Qopy is an open-source clipboard manager designed for Windows, macOS, and Linux systems.</p>
+
+            <h2>2. Information We Collect</h2>
+            
+            <h3>2.1 Clipboard Data</h3>
+            <ul>
+                <li><strong>What we collect:</strong> Qopy stores clipboard content that you copy, including text, images, files, and other data types supported by your operating system's clipboard functionality.</li>
+                <li><strong>How it's stored:</strong> All clipboard data is stored locally on your device in a SQLite database.</li>
+                <li><strong>Duration:</strong> Clipboard history is maintained according to your configured settings and may be cleared manually or automatically based on your preferences.</li>
+            </ul>
+
+            <h3>2.2 Application Usage Data</h3>
+            <ul>
+                <li><strong>Local Configuration:</strong> Settings, preferences, and application configuration data</li>
+                <li><strong>Performance Data:</strong> Local application performance metrics for optimization purposes</li>
+                <li><strong>Error Logs:</strong> Local crash reports and error logs to improve application stability</li>
+            </ul>
+
+            <h3>2.3 System Information</h3>
+            <ul>
+                <li><strong>Operating System:</strong> Basic OS information for compatibility and feature support</li>
+                <li><strong>Hardware Information:</strong> Basic hardware specifications for performance optimization</li>
+                <li><strong>Application Version:</strong> Current version information for update management</li>
+                <li><strong>Technical Performance Metrics:</strong> System performance data, response times, and error rates (no content analysis)</li>
+            </ul>
+
+            <h3>2.4 Sensitive Data</h3>
+            <ul>
+                <li><strong>Special Categories:</strong> We may process special categories of personal data if you copy sensitive information (health data, biometric data, etc.) to your clipboard</li>
+                <li><strong>Legal Basis:</strong> Processing based on explicit consent or substantial public interest where applicable</li>
+                <li><strong>Additional Safeguards:</strong> Enhanced security measures apply to any sensitive data processed</li>
+            </ul>
+
+            <h2>3. Legal Basis for Data Processing (GDPR Article 6)</h2>
+            
+            <h3>3.1 Lawful Basis</h3>
+            <ul>
+                <li><strong>Legitimate Interest (Article 6(1)(f)):</strong> Processing clipboard data for the core functionality of the clipboard manager service</li>
+                <li><strong>Contract Performance (Article 6(1)(b)):</strong> Processing necessary to provide the clipboard management service you've requested</li>
+                <li><strong>Consent (Article 6(1)(a)):</strong> Where explicitly requested for optional features like analytics or marketing communications</li>
+            </ul>
+
+            <h3>3.2 Balancing Test</h3>
+            <p>We have conducted a legitimate interest assessment and determined that our processing is necessary, proportionate, and does not override your fundamental rights and freedoms.</p>
+
+            <h2>4. How We Use Your Information</h2>
+            
+            <h3>4.1 Primary Functions</h3>
+            <ul>
+                <li><strong>Clipboard Management:</strong> To provide clipboard history, search, and management functionality</li>
+                <li><strong>Data Storage:</strong> To maintain your clipboard history within the application</li>
+                <li><strong>Application Operation:</strong> To ensure proper functioning of the application features</li>
+            </ul>
+            
+            <div class="highlight">
+                <strong>Important:</strong> We do not perform any analysis, statistics, or data mining on your clipboard content. No statistical data is generated from your copied content.
+            </div>
+
+            <h3>4.2 Application Improvement</h3>
+            <ul>
+                <li><strong>Performance Optimization:</strong> To improve application performance and user experience through technical metrics only</li>
+                <li><strong>Feature Development:</strong> To develop new features and enhance existing functionality based on user feedback, not content analysis</li>
+                <li><strong>Bug Fixes:</strong> To identify and resolve technical issues through error logs and system diagnostics</li>
+            </ul>
+            
+            <div class="highlight">
+                <strong>Data Content Exclusion:</strong> We explicitly do not analyze, process, or generate statistics from the actual content of your clipboard items. All application improvements are based solely on technical performance data and user feedback.
+            </div>
+
+            <h2>5. Data Storage and Security</h2>
+            
+            <h3>5.1 Cloud Infrastructure (Railway.app)</h3>
+            <ul>
+                <li><strong>Hosting Provider:</strong> Qopy is hosted on Railway.app infrastructure</li>
+                <li><strong>Data Location:</strong> Application data is processed and stored on Railway's servers in Amsterdam, Netherlands</li>
+                <li><strong>Database:</strong> Clipboard data is stored in cloud-hosted databases managed through Railway's platform</li>
+                <li><strong>Geographic Location:</strong> EU West region (Amsterdam, Netherlands) ensuring GDPR compliance and data residency within the European Union</li>
+            </ul>
+
+            <h3>5.2 Railway.app Infrastructure Security</h3>
+            <ul>
+                <li><strong>SOC 2 Compliance:</strong> Railway.app maintains SOC 2 Type I certification</li>
+                <li><strong>Shared Responsibility:</strong> Security follows a shared responsibility model between Qopy and Railway</li>
+                <li><strong>Infrastructure Security:</strong> Railway provides enterprise-grade infrastructure security measures</li>
+                <li><strong>Data Processing Agreement:</strong> Railway operates under a Data Processing Agreement (DPA) for GDPR compliance</li>
+            </ul>
+
+            <h3>5.3 Application Security Measures</h3>
+            <ul>
+                <li><strong>Encryption in Transit:</strong> All data transmission is encrypted using TLS/SSL</li>
+                <li><strong>Access Controls:</strong> Strict access controls limit who can access your clipboard data</li>
+                <li><strong>Data Isolation:</strong> User data is isolated between different users and sessions</li>
+                <li><strong>Regular Security Updates:</strong> Both application and infrastructure receive regular security updates</li>
+            </ul>
+
+            <h3>5.4 Data Retention Periods</h3>
+            <ul>
+                <li><strong>Clipboard Content:</strong> Retained according to user-configured settings (default: 30 days)</li>
+                <li><strong>User Account Data:</strong> Retained for the duration of account activity plus 12 months</li>
+                <li><strong>System Logs:</strong> Retained for 90 days for security and operational purposes</li>
+                <li><strong>Backup Data:</strong> May be retained up to 1 year in encrypted backup systems</li>
+                <li><strong>Legal Hold:</strong> Data may be retained longer if subject to legal obligations</li>
+            </ul>
+
+            <h3>5.5 Automated Deletion</h3>
+            <ul>
+                <li><strong>Scheduled Cleanup:</strong> Automated deletion of expired clipboard items</li>
+                <li><strong>User-Triggered:</strong> Immediate deletion when users manually clear data</li>
+                <li><strong>Account Deletion:</strong> Complete data removal within 30 days of account deletion request</li>
+            </ul>
+
+            <h3>5.6 Data Minimization Principles</h3>
+            <ul>
+                <li><strong>Purpose Limitation:</strong> Data only processed for specified, legitimate purposes</li>
+                <li><strong>Storage Limitation:</strong> Data retained no longer than necessary for the purposes</li>
+                <li><strong>Accuracy:</strong> Measures to ensure data accuracy and keep it up to date</li>
+            </ul>
+
+            <h2>6. Data Breach Response</h2>
+            
+            <h3>6.1 Incident Response Plan</h3>
+            <ul>
+                <li><strong>Detection:</strong> Continuous monitoring systems to detect potential breaches</li>
+                <li><strong>Assessment:</strong> Rapid assessment of breach scope and risk to individual rights</li>
+                <li><strong>Notification:</strong> Authorities notified within 72 hours if high risk to rights and freedoms</li>
+                <li><strong>User Communication:</strong> Direct notification to affected users when required by law</li>
+            </ul>
+
+            <h3>6.2 Breach Mitigation</h3>
+            <ul>
+                <li><strong>Immediate Response:</strong> Immediate containment and remediation measures</li>
+                <li><strong>Investigation:</strong> Thorough investigation to prevent future occurrences</li>
+                <li><strong>Documentation:</strong> Comprehensive incident documentation and lessons learned</li>
+            </ul>
+
+            <h2>7. Data Sharing and Disclosure</h2>
+            
+            <h3>7.1 No Third-Party Sharing</h3>
+            <ul>
+                <li>We do not share, sell, or transfer your clipboard data to third parties</li>
+                <li>We do not upload your clipboard content to external servers</li>
+                <li>All data processing occurs locally on your device</li>
+            </ul>
+
+            <h3>7.2 Railway.app Infrastructure</h3>
+            <p>We may share certain technical and operational data with Railway.app as our hosting provider within the EU:</p>
+            <ul>
+                <li><strong>Infrastructure Data:</strong> Server logs, performance metrics, and system health data (processed in Amsterdam, Netherlands)</li>
+                <li><strong>Compliance Data:</strong> Data required for SOC 2 and GDPR compliance requirements</li>
+                <li><strong>Security Data:</strong> Information necessary for security monitoring and incident response within EU jurisdiction</li>
+            </ul>
+
+            <h3>7.3 Legal Requirements</h3>
+            <p>We may disclose information if required by law or legal process, but given our local-only storage model, such disclosure would be limited to what is legally compelled and technically feasible.</p>
+
+            <h2>8. Your Rights Under GDPR</h2>
+            
+            <h3>8.1 Data Subject Rights</h3>
+            <p>You have the following rights regarding your personal data:</p>
+            <ul>
+                <li><strong>Right of Access (Article 15):</strong> Request confirmation of processing and access to your personal data</li>
+                <li><strong>Right to Rectification (Article 16):</strong> Request correction of inaccurate or incomplete data</li>
+                <li><strong>Right to Erasure (Article 17):</strong> Request deletion of your personal data under certain circumstances</li>
+                <li><strong>Right to Restrict Processing (Article 18):</strong> Request limitation of processing under specific conditions</li>
+                <li><strong>Right to Data Portability (Article 20):</strong> Receive your data in a structured, machine-readable format</li>
+                <li><strong>Right to Object (Article 21):</strong> Object to processing based on legitimate interests</li>
+                <li><strong>Rights Related to Automated Decision-Making (Article 22):</strong> Protection against solely automated decision-making</li>
+            </ul>
+
+            <h3>8.2 Exercising Your Rights</h3>
+            <ul>
+                <li><strong>Contact Method:</strong> Submit requests through GitHub issues or email (when available)</li>
+                <li><strong>Response Time:</strong> We will respond within one calendar month of receipt</li>
+                <li><strong>Verification:</strong> We may require identity verification before processing requests</li>
+                <li><strong>No Cost:</strong> Exercising these rights is generally free of charge</li>
+            </ul>
+
+            <h3>8.3 Right to Lodge a Complaint</h3>
+            <p>You have the right to lodge a complaint with your local data protection authority if you believe we have not handled your data appropriately.</p>
+
+            <h2>9. Your Rights and Choices</h2>
+            
+            <h3>9.1 Data Control</h3>
+            <ul>
+                <li><strong>Access:</strong> You can view all your clipboard data through the application interface</li>
+                <li><strong>Deletion:</strong> You can delete individual items or clear your entire clipboard history</li>
+                <li><strong>Export:</strong> You can export your clipboard data through the application features</li>
+            </ul>
+
+            <h3>9.2 Settings Management</h3>
+            <ul>
+                <li><strong>Retention Settings:</strong> Configure how long clipboard data is retained</li>
+                <li><strong>Data Types:</strong> Choose which types of clipboard content to store</li>
+                <li><strong>Hotkey Configuration:</strong> Customize keyboard shortcuts and application behavior</li>
+            </ul>
+
+            <h2>10. Third-Party Services</h2>
+            
+            <h3>10.1 Railway.app Hosting Platform</h3>
+            <ul>
+                <li><strong>Infrastructure Provider:</strong> Railway.app provides cloud hosting and infrastructure services in EU West (Amsterdam, Netherlands)</li>
+                <li><strong>Data Processing:</strong> Railway processes technical data necessary for application operation within EU jurisdiction</li>
+                <li><strong>Compliance:</strong> Railway maintains SOC 2 Type I certification and full GDPR compliance through EU hosting</li>
+                <li><strong>Sub-processors:</strong> Any sub-processors used by Railway are subject to EU data protection requirements</li>
+            </ul>
+
+            <h3>10.2 Open Source Dependencies</h3>
+            <p>Qopy uses various open-source libraries and frameworks. These dependencies do not have access to your clipboard data and are used solely for application functionality.</p>
+
+            <h3>10.3 Operating System Integration</h3>
+            <p>The application integrates with your operating system's clipboard functionality but does not transmit data beyond local system boundaries.</p>
+
+            <h2>11. Updates and Notifications</h2>
+            
+            <h3>11.1 Application Updates</h3>
+            <ul>
+                <li><strong>Update Checks:</strong> The application may check for updates from our GitHub repository</li>
+                <li><strong>Optional Updates:</strong> All updates are optional and user-initiated</li>
+                <li><strong>No Automatic Data Transmission:</strong> Update checks do not transmit personal data</li>
+            </ul>
+
+            <h2>12. Data Retention</h2>
+            
+            <h3>12.1 User-Controlled Retention</h3>
+            <ul>
+                <li><strong>Configurable Limits:</strong> You can set limits on clipboard history size and retention period</li>
+                <li><strong>Manual Deletion:</strong> You can manually delete clipboard items at any time</li>
+                <li><strong>Automatic Cleanup:</strong> Configure automatic cleanup based on age or storage limits</li>
+            </ul>
+
+            <h3>12.2 Cloud Data Retention</h3>
+            <ul>
+                <li><strong>Hosting Provider Retention:</strong> Railway.app may retain certain infrastructure data according to their data retention policies (within EU jurisdiction)</li>
+                <li><strong>Backup Systems:</strong> Data may be included in automated backup systems for disaster recovery within the Amsterdam data center</li>
+                <li><strong>Log Retention:</strong> System logs and technical data may be retained for operational and security purposes within EU boundaries</li>
+            </ul>
+
+            <h2>13. Children's Privacy</h2>
+            <p>Qopy is not specifically designed for children under 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided personal information, please contact us.</p>
+
+            <h2>14. International Users and Data Transfers</h2>
+            
+            <h3>14.1 EU Data Residency</h3>
+            <ul>
+                <li><strong>Primary Location:</strong> Data is processed and stored in Railway.app's EU West data center (Amsterdam, Netherlands)</li>
+                <li><strong>GDPR Compliance:</strong> Full compliance with European data protection regulations through EU-based hosting</li>
+                <li><strong>No Cross-Border Transfers:</strong> User data remains within the European Union, eliminating concerns about international data transfers</li>
+            </ul>
+
+            <h3>14.2 EU/UK Users</h3>
+            <ul>
+                <li><strong>Legal Basis:</strong> Data processing is based on legitimate interests and contractual necessity</li>
+                <li><strong>Data Subject Rights:</strong> Full GDPR rights apply with simplified enforcement due to EU data residency</li>
+                <li><strong>Data Protection Officer:</strong> Users can contact Railway's DPO for data protection matters within the EU jurisdiction</li>
+            </ul>
+
+            <h2>15. Open Source Transparency</h2>
+            
+            <h3>15.1 Source Code Access</h3>
+            <ul>
+                <li><strong>GitHub Repository:</strong> Our source code is available at https://github.com/0PandaDEV/Qopy</li>
+                <li><strong>License:</strong> Licensed under AGPL-3.0</li>
+                <li><strong>Transparency:</strong> You can review how we handle data by examining our source code</li>
+            </ul>
+
+            <h3>15.2 Community Contributions</h3>
+            <ul>
+                <li><strong>Issue Reporting:</strong> You can report privacy concerns through GitHub issues</li>
+                <li><strong>Code Review:</strong> Community members can review and contribute to privacy improvements</li>
+            </ul>
+
+            <h2>16. Contact Information and Data Protection</h2>
+            
+            <h3>16.1 Data Controller Information</h3>
+            <ul>
+                <li><strong>Legal Entity:</strong> [Company Name and Legal Form]</li>
+                <li><strong>Registration:</strong> [Company Registration Number]</li>
+                <li><strong>Address:</strong> [Complete Postal Address]</li>
+                <li><strong>Email:</strong> [Contact Email Address]</li>
+            </ul>
+
+            <h3>16.2 Data Protection Officer (if applicable)</h3>
+            <ul>
+                <li><strong>DPO Contact:</strong> [DPO Email/Contact Information]</li>
+                <li><strong>Role:</strong> Available for data protection inquiries and complaints</li>
+            </ul>
+
+            <h3>16.3 EU Representative (if applicable)</h3>
+            <ul>
+                <li><strong>Representative:</strong> [EU Representative Contact Information]</li>
+                <li><strong>Jurisdiction:</strong> Represents data controller for GDPR matters in the EU</li>
+            </ul>
+
+            <h2>17. Cookies and Tracking</h2>
+            
+            <h3>17.1 Cookie Usage</h3>
+            <ul>
+                <li><strong>Essential Cookies:</strong> Strictly necessary cookies for application functionality only</li>
+                <li><strong>No Analytics Cookies:</strong> We do not use analytics or tracking cookies</li>
+                <li><strong>No Statistical Cookies:</strong> No cookies for statistical analysis or user behavior tracking</li>
+                <li><strong>Cookie Management:</strong> Users can manage cookie preferences through browser settings</li>
+            </ul>
+
+            <h3>17.2 Tracking Technologies</h3>
+            <ul>
+                <li><strong>Local Storage:</strong> Use of browser local storage for application state only</li>
+                <li><strong>Session Management:</strong> Temporary session identifiers for user experience</li>
+                <li><strong>No Analytics Tracking:</strong> No web analytics, user behavior tracking, or statistical analysis</li>
+                <li><strong>No Third-Party Tracking:</strong> No third-party advertising, tracking pixels, or analytics services</li>
+            </ul>
+
+            <h2>18. Age Restrictions and Parental Consent</h2>
+            
+            <h3>18.1 Minimum Age Requirements</h3>
+            <ul>
+                <li><strong>General Use:</strong> Service intended for users 16 years and older</li>
+                <li><strong>Parental Consent:</strong> Users under 16 require verifiable parental consent</li>
+                <li><strong>Special Protections:</strong> Enhanced privacy protections for users under 18</li>
+            </ul>
+
+            <h3>18.2 Verification Measures</h3>
+            <ul>
+                <li><strong>Age Verification:</strong> Reasonable efforts to verify user age during registration</li>
+                <li><strong>Parental Rights:</strong> Parents can request access to or deletion of their child's data</li>
+            </ul>
+
+            <h2>19. Changes to This Policy</h2>
+            
+            <h3>19.1 Updates</h3>
+            <ul>
+                <li><strong>Notification:</strong> We will notify users of significant changes through GitHub releases</li>
+                <li><strong>Effective Date:</strong> Changes become effective upon posting of the updated policy</li>
+                <li><strong>Version Control:</strong> Policy versions are maintained in our GitHub repository</li>
+            </ul>
+
+            <h3>19.2 Acceptance</h3>
+            <p>Continued use of the application after policy changes constitutes acceptance of the updated terms.</p>
+
+            <h2>20. Data Analysis and Statistics Policy</h2>
+            
+            <h3>20.1 No Content Analysis</h3>
+            <ul>
+                <li><strong>Clipboard Content Protection:</strong> We do not analyze, process, or derive insights from the actual content of your clipboard items</li>
+                <li><strong>No Statistical Generation:</strong> No statistics, patterns, or analytical data are generated from your copied content</li>
+                <li><strong>Content Privacy:</strong> Your clipboard content remains private and is used solely for clipboard management functionality</li>
+            </ul>
+
+            <h3>20.2 Technical Metrics Only</h3>
+            <ul>
+                <li><strong>System Performance:</strong> We only collect technical performance metrics such as response times, system load, and error rates</li>
+                <li><strong>Application Usage:</strong> Basic usage patterns (frequency of access, feature usage) without content inspection</li>
+                <li><strong>No Profiling:</strong> We do not create user profiles or behavioral analysis based on clipboard content</li>
+            </ul>
+
+            <h3>20.3 Data Processing Limitations</h3>
+            <ul>
+                <li><strong>Purpose Limitation:</strong> Clipboard content is processed only for storage, retrieval, and display purposes</li>
+                <li><strong>No Machine Learning:</strong> No machine learning algorithms are applied to your clipboard data</li>
+                <li><strong>No Pattern Recognition:</strong> We do not perform pattern recognition or content categorization on your data</li>
+            </ul>
+
+            <h2>21. Technical Safeguards</h2>
+            
+            <h3>21.1 Cloud Infrastructure Security</h3>
+            <ul>
+                <li><strong>Railway.app Security:</strong> Hosted on SOC 2 Type I certified infrastructure in Amsterdam, Netherlands</li>
+                <li><strong>Network Security:</strong> Railway provides DDoS protection and network security measures within EU data centers</li>
+                <li><strong>Data Encryption:</strong> All data transmission encrypted in transit; encryption at rest available within EU infrastructure</li>
+                <li><strong>Access Monitoring:</strong> Comprehensive logging and monitoring of data access within EU jurisdiction</li>
+            </ul>
+
+            <h3>21.2 Shared Responsibility Model</h3>
+            <ul>
+                <li><strong>Railway Responsibilities:</strong> Infrastructure security, platform compliance, network protection</li>
+                <li><strong>Qopy Responsibilities:</strong> Application security, data handling, user access controls</li>
+                <li><strong>User Responsibilities:</strong> Account security, appropriate usage, data sensitivity awareness</li>
+            </ul>
+
+            <div class="section-divider"></div>
+
+            <div class="footer-note">
+                <strong>Note:</strong> This privacy policy reflects Qopy's operation as a cloud-hosted service on Railway.app infrastructure in the EU West region (Amsterdam, Netherlands). By hosting within the European Union, we ensure full GDPR compliance and data residency requirements are met. All clipboard data remains within EU jurisdiction, providing enhanced privacy protection for European users. <strong>Importantly, we do not perform any analysis, statistics generation, or data mining on your clipboard content - your copied items are used solely for clipboard management functionality.</strong> We recommend reviewing Railway.app's privacy policy and DPA for additional details about infrastructure-level data handling.
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
