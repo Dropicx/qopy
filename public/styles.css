@@ -96,60 +96,46 @@ body {
   flex-direction: column;
 }
 
-/* Header - Modern Spotify-inspired */
+/* Header - Elegant Minimalist */
 header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
   position: relative;
-  padding: 1rem 1.5rem;
-  background: var(--gradient-header);
-  border-radius: 20px;
+  padding: 2rem 1rem;
+  background: linear-gradient(135deg, rgba(30, 215, 96, 0.08) 0%, rgba(29, 185, 84, 0.04) 100%);
+  border: 1px solid rgba(30, 215, 96, 0.15);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
   box-shadow: 
-    0 6px 24px var(--shadow-glow),
-    0 2px 12px var(--shadow-medium);
-  backdrop-filter: blur(10px);
-  overflow: hidden;
-}
-
-header::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  animation: shimmer 6s infinite;
-  pointer-events: none;
-}
-
-@keyframes shimmer {
-  0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-  100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .header-content {
   position: relative;
   z-index: 2;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 0.75rem;
 }
 
-/* Typing Logo Animation */
+/* Typing Logo Animation - Refined */
 .typing-logo {
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: 'Inter', monospace;
-  font-size: 2.5rem;
-  font-weight: 800;
+  font-size: 2.25rem;
+  font-weight: 700;
   color: #ffffff;
   text-shadow: 
-    0 0 20px rgba(255, 255, 255, 0.5),
-    0 4px 8px rgba(0, 0, 0, 0.3);
-  letter-spacing: 2px;
-  min-height: 80px;
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(30, 215, 96, 0.3);
+  letter-spacing: 1.5px;
+  min-height: 60px;
+  transition: all 0.3s ease;
 }
 
 #typing-text {
@@ -192,10 +178,17 @@ header::before {
   }
 }
 
-/* Hover effect */
-.typing-logo:hover {
-  transform: scale(1.02);
-  transition: transform 0.3s ease;
+/* Hover effects */
+header:hover .typing-logo {
+  transform: scale(1.01);
+  text-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 25px rgba(30, 215, 96, 0.4);
+}
+
+header:hover .header-subtitle {
+  opacity: 1;
+  color: var(--accent-color);
 }
 
 /* Mobile responsive */
@@ -1516,10 +1509,12 @@ footer p {
 }
 
 .header-subtitle {
-  margin-top: 0.5rem;
-  font-size: 1.15rem;
+  margin-top: 0;
+  font-size: 1rem;
   color: var(--text-secondary, #b3b3b3);
   text-align: center;
   font-weight: 400;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
 } 
