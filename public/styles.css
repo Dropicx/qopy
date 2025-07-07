@@ -224,8 +224,6 @@ header::before {
   }
 }
 
-
-
 /* Tab Navigation - Spotify-inspired */
 .tab-nav {
   display: flex;
@@ -866,7 +864,7 @@ footer p {
 }
 
 .legal-links a:hover {
-  color: var(--primary-color);
+  color: var(--accent-color);
   text-decoration: underline;
 }
 
@@ -1515,4 +1513,13 @@ footer p {
   .railway-faq-ad {
     margin-bottom: 2rem;
   }
+}
+
+.header-subtitle {
+  margin-top: 0.5rem;
+  font-size: 1.15rem;
+  color: var(--text-secondary, #b3b3b3);
+  text-align: center;
+  font-weight: 400;
+  letter-spacing: 0.01em;
 } 

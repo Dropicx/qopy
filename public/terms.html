@@ -132,6 +132,8 @@
                     <li><strong>Harassment:</strong> Use the Service to harass, abuse, or harm others</li>
                     <li><strong>Intellectual Property Violation:</strong> Store or transmit content that infringes intellectual property rights</li>
                     <li><strong>System Interference:</strong> Interfere with or disrupt the Service or its servers</li>
+                    <li><strong>Rate Limit Violations:</strong> Intentionally exceed rate limits or attempt to circumvent rate limiting measures</li>
+                    <li><strong>Automated Abuse:</strong> Use automated tools, bots, or scripts to abuse the service or generate excessive traffic</li>
                 </ul>
             </div>
 
@@ -303,70 +305,107 @@
                 <li><strong>Survival:</strong> Certain provisions of these Terms survive termination</li>
             </ul>
 
-            <h2>11. Technical Requirements and Compatibility</h2>
+            <h2>11. Rate Limiting and Fair Usage</h2>
 
-            <h3>11.1 System Requirements</h3>
+            <h3>11.1 Rate Limiting System</h3>
+            <p>Qopy implements a multi-layered IP-based rate limiting system to ensure fair usage and prevent abuse. This system helps maintain service quality for all users by preventing spam, automated attacks, and service overload.</p>
+
+            <h3>11.2 Rate Limits</h3>
+            <ul>
+                <li><strong>Burst Protection:</strong> 30 requests per IP address per minute</li>
+                <li><strong>General API Protection:</strong> 100 requests per IP address per 15 minutes</li>
+                <li><strong>Share API Protection:</strong> 20 share requests per IP address per 15 minutes</li>
+                <li><strong>Retrieval API Protection:</strong> 50 retrieval requests per IP address per 15 minutes</li>
+            </ul>
+
+            <h3>11.3 Rate Limit Enforcement</h3>
+            <ul>
+                <li><strong>IP-Based Limits:</strong> Rate limits are enforced based on your IP address to prevent abuse from individual sources</li>
+                <li><strong>Temporary Processing:</strong> IP addresses are temporarily processed in memory for rate limiting purposes but are not permanently stored</li>
+                <li><strong>Automatic Reset:</strong> Rate limits automatically reset after the specified time windows</li>
+                <li><strong>Exempt Endpoints:</strong> Health check endpoints (/health, /api/health, /ping) are exempt from rate limiting</li>
+            </ul>
+
+            <h3>11.4 Rate Limit Responses</h3>
+            <ul>
+                <li><strong>429 Status Code:</strong> When rate limits are exceeded, the service returns a 429 "Too Many Requests" status code</li>
+                <li><strong>Response Headers:</strong> Rate limit responses include headers indicating the limits and reset times</li>
+                <li><strong>User Guidance:</strong> Responses provide information to help users understand and adjust their usage patterns</li>
+            </ul>
+
+            <h3>11.5 Fair Usage Compliance</h3>
+            <ul>
+                <li><strong>Respect Limits:</strong> Users must respect rate limits and not attempt to circumvent them</li>
+                <li><strong>Reasonable Usage:</strong> Use the service in a reasonable manner that does not negatively impact other users</li>
+                <li><strong>Automated Tools:</strong> Automated tools, bots, or scripts that exceed rate limits are prohibited</li>
+                <li><strong>Service Impact:</strong> Users must not engage in activities that could degrade service performance for others</li>
+            </ul>
+
+            <h2>12. Technical Requirements and Compatibility</h2>
+
+            <h3>12.1 System Requirements</h3>
             <ul>
                 <li><strong>Supported Browsers:</strong> Modern web browsers with JavaScript enabled</li>
                 <li><strong>Internet Connection:</strong> Stable internet connection required for cloud features</li>
                 <li><strong>Device Compatibility:</strong> Compatible devices as specified in our documentation</li>
             </ul>
 
-            <h3>11.2 User Responsibilities</h3>
+            <h3>12.2 User Responsibilities</h3>
             <ul>
                 <li><strong>Software Updates:</strong> Keep your browser and software updated</li>
                 <li><strong>Security:</strong> Maintain appropriate security measures on your devices</li>
                 <li><strong>Compatibility:</strong> Ensure your system meets minimum requirements</li>
+                <li><strong>Rate Limit Awareness:</strong> Be aware of and respect service rate limits</li>
             </ul>
 
-            <h2>12. Fees and Payment Terms</h2>
+            <h2>13. Fees and Payment Terms</h2>
 
-            <h3>12.1 Current Service Model</h3>
+            <h3>13.1 Current Service Model</h3>
             <ul>
                 <li><strong>Free Service:</strong> Qopy is currently provided free of charge</li>
                 <li><strong>Future Fees:</strong> We reserve the right to introduce fees with appropriate notice</li>
                 <li><strong>Premium Features:</strong> Future premium features may be subject to fees</li>
             </ul>
 
-            <h3>12.2 Payment Terms (if applicable)</h3>
+            <h3>13.2 Payment Terms (if applicable)</h3>
             <ul>
                 <li><strong>Payment Methods:</strong> Accepted payment methods will be specified</li>
                 <li><strong>Billing Cycles:</strong> Billing frequency and cycles will be clearly communicated</li>
                 <li><strong>Refund Policy:</strong> Refund policies will be specified when fees are introduced</li>
             </ul>
 
-            <h2>13. Dispute Resolution</h2>
+            <h2>14. Dispute Resolution</h2>
 
-            <h3>13.1 Governing Law</h3>
+            <h3>14.1 Governing Law</h3>
             <p>These Terms are governed by the laws of the Netherlands, without regard to conflict of law principles.</p>
 
-            <h3>13.2 Jurisdiction</h3>
+            <h3>14.2 Jurisdiction</h3>
             <p>Any disputes shall be resolved in the competent courts of Amsterdam, Netherlands.</p>
 
-            <h3>13.3 Alternative Dispute Resolution</h3>
+            <h3>14.3 Alternative Dispute Resolution</h3>
             <ul>
                 <li><strong>Negotiation:</strong> We encourage good faith negotiations to resolve disputes</li>
                 <li><strong>Mediation:</strong> Disputes may be submitted to mediation before litigation</li>
                 <li><strong>EU Online Dispute Resolution:</strong> EU consumers may access the EU ODR platform</li>
             </ul>
 
-            <h2>14. Accessibility and Inclusion</h2>
+            <h2>15. Accessibility and Inclusion</h2>
 
-            <h3>14.1 Accessibility Commitment</h3>
+            <h3>15.1 Accessibility Commitment</h3>
             <ul>
                 <li><strong>Web Standards:</strong> We strive to comply with web accessibility standards</li>
                 <li><strong>Assistive Technology:</strong> We support common assistive technologies</li>
                 <li><strong>Feedback:</strong> We welcome feedback on accessibility improvements</li>
             </ul>
 
-            <h3>14.2 Inclusive Design</h3>
+            <h3>15.2 Inclusive Design</h3>
             <ul>
                 <li><strong>User Diversity:</strong> We design for users with diverse needs and abilities</li>
                 <li><strong>Language Support:</strong> We aim to support multiple languages where feasible</li>
                 <li><strong>Cultural Sensitivity:</strong> We respect cultural differences and preferences</li>
             </ul>
 
-            <h2>15. Environmental and Social Responsibility</h2>
+            <h2>16. Environmental and Social Responsibility</h2>
 
             <h3>15.1 Environmental Commitment</h3>
             <ul>

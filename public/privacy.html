@@ -101,7 +101,7 @@
             <ul>
                 <li><strong>Anonymous statistics:</strong> We collect basic, anonymous usage statistics (number of clips created, access patterns) to improve our service.</li>
                 <li><strong>No content analysis:</strong> We never analyze, read, or mine the content you share.</li>
-                <li><strong>No IP tracking:</strong> We do not store IP addresses or track individual users.</li>
+                <li><strong>Rate limiting data:</strong> We temporarily process IP addresses for rate limiting purposes to prevent abuse and ensure fair service usage. This data is not stored permanently and is only used to enforce usage limits.</li>
                 <li><strong>Error reporting:</strong> In the event of service errors, anonymous diagnostic information may be collected to help resolve issues.</li>
             </ul>
 
@@ -151,8 +151,8 @@
                 <li><strong>AES-256-GCM encryption:</strong> Military-grade encryption algorithm for all content.</li>
                 <li><strong>PBKDF2 key derivation:</strong> 100,000 iterations for password-protected content.</li>
                 <li><strong>HTTPS transmission:</strong> All data is transmitted over encrypted HTTPS connections.</li>
-                <li><strong>Rate limiting:</strong> Protection against abuse and spam attacks.</li>
-                <li><strong>No IP tracking:</strong> We do not store IP addresses or track individual users.</li>
+                <li><strong>Rate limiting:</strong> Multi-layered IP-based rate limiting system to prevent abuse and ensure fair usage for all users.</li>
+                <li><strong>Temporary IP processing:</strong> IP addresses are temporarily processed for rate limiting but are not permanently stored or used for tracking.</li>
             </ul>
 
             <h3>4.3 Data Retention</h3>
@@ -249,16 +249,45 @@
                 <li><strong>Right to non-discrimination:</strong> You have the right to not receive discriminatory treatment for exercising your privacy rights.</li>
             </ul>
 
-            <h2>14. Cookies and Tracking Technologies</h2>
+            <h2>14. Rate Limiting and IP Processing</h2>
+            
+            <h3>14.1 Rate Limiting System</h3>
+            <p>Qopy implements a multi-layered IP-based rate limiting system to prevent abuse and ensure fair service usage for all users. This system helps protect against spam, automated attacks, and service overload.</p>
+            
+            <h3>14.2 How Rate Limiting Works</h3>
+            <ul>
+                <li><strong>IP Address Processing:</strong> When you access our service, we temporarily process your IP address to enforce rate limits.</li>
+                <li><strong>Usage Limits:</strong> The system enforces different limits for different types of requests:
+                    <ul>
+                        <li>Burst protection: 30 requests per IP per minute</li>
+                        <li>General API protection: 100 requests per IP per 15 minutes</li>
+                        <li>Share API protection: 20 share requests per IP per 15 minutes</li>
+                        <li>Retrieval API protection: 50 retrieval requests per IP per 15 minutes</li>
+                    </ul>
+                </li>
+                <li><strong>Temporary Storage:</strong> IP addresses are only processed in memory for the duration of the rate limiting window and are not permanently stored.</li>
+                <li><strong>No Tracking:</strong> Rate limiting data is not used for user tracking, analytics, or any other purpose beyond preventing abuse.</li>
+            </ul>
+            
+            <h3>14.3 Rate Limit Exemptions</h3>
+            <ul>
+                <li><strong>Health Checks:</strong> Health check endpoints (/health, /api/health, /ping) are exempt from rate limiting.</li>
+                <li><strong>Admin Endpoints:</strong> Admin endpoints are protected by authentication rather than rate limiting.</li>
+            </ul>
+            
+            <h3>14.4 Rate Limit Responses</h3>
+            <p>When rate limits are exceeded, the service returns a 429 "Too Many Requests" status code with information about the limits and when they reset. This helps users understand and adjust their usage patterns.</p>
+
+            <h2>15. Cookies and Tracking Technologies</h2>
             <p>Qopy is a desktop application and does not use cookies or web-based tracking technologies. However, if you access our website or use web-based features, we may use cookies and similar technologies as described in our website privacy policy.</p>
 
-            <h2>15. Third-Party Services</h2>
+            <h2>16. Third-Party Services</h2>
             <p>Qopy may integrate with third-party services for specific functionality. These services have their own privacy policies, and we encourage you to review them. We are not responsible for the privacy practices of third-party services.</p>
 
-            <h2>16. Data Minimization</h2>
+            <h2>17. Data Minimization</h2>
             <p>We follow the principle of data minimization, collecting only the information necessary to provide our services. We do not collect unnecessary personal information and regularly review our data collection practices to ensure compliance with this principle.</p>
 
-            <h2>17. Security Best Practices</h2>
+            <h2>18. Security Best Practices</h2>
             <p>To protect your privacy and security when using Qopy:</p>
             
             <ul>
@@ -266,18 +295,19 @@
                 <li><strong>Use strong passwords:</strong> If you enable password protection, use strong, unique passwords.</li>
                 <li><strong>Be mindful of sensitive data:</strong> Be cautious about copying sensitive information to your clipboard.</li>
                 <li><strong>Regular cleanup:</strong> Regularly review and delete old clipboard entries.</li>
+                <li><strong>Respect rate limits:</strong> Be aware of usage limits to avoid service interruptions.</li>
             </ul>
 
-            <h2>18. Open Source Transparency</h2>
+            <h2>19. Open Source Transparency</h2>
             <p>Qopy is open-source software, which means the source code is publicly available for review. This transparency allows the community to verify our privacy and security practices. You can review the source code at our GitHub repository.</p>
 
-            <h2>19. Data Protection Officer</h2>
+            <h2>20. Data Protection Officer</h2>
             <p>For data protection inquiries, you can contact our data protection officer at qopy@lit.services. We will respond to your inquiries within the timeframes required by applicable law.</p>
 
-            <h2>20. Complaints and Dispute Resolution</h2>
+            <h2>21. Complaints and Dispute Resolution</h2>
             <p>If you have concerns about our data practices, we encourage you to contact us first. If you are not satisfied with our response, you may have the right to lodge a complaint with your local data protection authority.</p>
 
-            <h2>21. Conclusion</h2>
+            <h2>22. Conclusion</h2>
             <p>At Qopy, we are committed to protecting your privacy and ensuring the security of your data. This Privacy Policy reflects our commitment to transparency and user control. We believe that privacy is a fundamental right, and we design our products with this principle in mind.</p>
 
             <div class="highlight">
