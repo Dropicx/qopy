@@ -10,7 +10,7 @@ const path = require('path');
 const { Pool } = require('pg');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 console.log('🚀 Qopy Server (Minimal PostgreSQL) starting...');
 console.log(`📋 Port: ${PORT}`);
@@ -24,22 +24,34 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-// Create PostgreSQL connection pool
+// Create PostgreSQL connection pool with retry logic
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000,
+  retryDelay: 1000,
+  maxRetries: 3
 });
 
-// Test database connection
+// Test database connection with retry
+let connectionAttempts = 0;
+const maxConnectionAttempts = 3;
+
 pool.on('connect', () => {
   console.log('✅ Connected to PostgreSQL database');
+  connectionAttempts = 0; // Reset on successful connection
 });
 
 pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client', err);
+  connectionAttempts++;
+  
+  if (connectionAttempts >= maxConnectionAttempts) {
+    console.error('❌ Max database connection attempts reached, shutting down...');
+    process.exit(1);
+  }
 });
 
 // Trust proxy for Railway deployment
@@ -49,14 +61,32 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', true);
 }
 
-// IMMEDIATE HEALTH CHECK (no database queries)
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    version: 'minimal-1.0.0'
-  });
+// ENHANCED HEALTH CHECK with database test
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connection
+    const client = await pool.connect();
+    await client.query('SELECT NOW() as current_time');
+    client.release();
+    
+    res.status(200).json({
+      status: 'OK',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      version: 'minimal-1.0.0',
+      database: 'connected'
+    });
+  } catch (error) {
+    console.error('❌ Health check failed:', error.message);
+    res.status(503).json({
+      status: 'ERROR',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      version: 'minimal-1.0.0',
+      database: 'disconnected',
+      error: error.message
+    });
+  }
 });
 
 // API health check (for compatibility)
@@ -652,7 +682,15 @@ function gracefulShutdown() {
   }
   
   console.log('🔄 Closing database connection pool...');
+  
+  // Add timeout for database pool closure
+  const poolCloseTimeout = setTimeout(() => {
+    console.log('⚠️ Database pool close timeout, forcing exit...');
+    process.exit(0);
+  }, 10000); // 10 second timeout
+  
   pool.end((err) => {
+    clearTimeout(poolCloseTimeout);
     if (err) {
       console.error('❌ Error closing database pool:', err.message);
     } else {
@@ -666,14 +704,19 @@ function gracefulShutdown() {
 // Initialize and start server
 async function startServer() {
   try {
+    // Test database connection before starting server
+    console.log('🔍 Testing database connection...');
+    const client = await pool.connect();
+    await client.query('SELECT NOW() as current_time');
+    client.release();
+    console.log('✅ Database connection test successful');
+    
     const server = app.listen(PORT, () => {
       console.log(`🚀 Qopy server running on port ${PORT}`);
       console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🗄️ Database: PostgreSQL (Minimal Mode)`);
       console.log(`📊 Database connection pool initialized`);
       console.log(`✅ Health check available at /health`);
-      
-      // Database initialization is handled by db-init.js script
       console.log('✅ Database ready for connections');
     });
 
@@ -688,6 +731,7 @@ async function startServer() {
 
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
+    console.error('❌ Database connection failed:', error.message);
     process.exit(1);
   }
 }

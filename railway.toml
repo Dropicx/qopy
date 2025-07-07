@@ -6,7 +6,8 @@ dockerfilePath = "Dockerfile"
 startCommand = "node server.js"
 restartPolicyType = "always"
 healthcheckPath = "/health"
-healthcheckTimeout = 300
+healthcheckTimeout = 30
+healthcheckInterval = 60
 
 [env]
 NODE_ENV = "production" 
