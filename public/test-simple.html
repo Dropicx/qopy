@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Encryption Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        pre { white-space: pre-wrap; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Simple Encryption Test</h1>
+    
+    <button onclick="testBasic()">Test Basic Encryption</button>
+    <button onclick="testWithPassword()">Test With Password</button>
+    <button onclick="testWithoutPassword()">Test Without Password</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<pre>${message}</pre>`;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        async function testBasic() {
+            try {
+                log('🧪 Testing basic Web Crypto API...');
+                
+                // Test 1: Generate key
+                const key = await window.crypto.subtle.generateKey(
+                    { name: 'AES-GCM', length: 256 },
+                    true,
+                    ['encrypt', 'decrypt']
+                );
+                log('✅ Key generated successfully');
+                
+                // Test 2: Export key
+                const exportedKey = await window.crypto.subtle.exportKey('raw', key);
+                log(`✅ Key exported: ${exportedKey.byteLength} bytes`);
+                
+                // Test 3: Import key
+                const importedKey = await window.crypto.subtle.importKey(
+                    'raw',
+                    exportedKey,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['decrypt']
+                );
+                log('✅ Key imported successfully');
+                
+                // Test 4: Encrypt
+                const text = 'Hello World!';
+                const encoder = new TextEncoder();
+                const data = encoder.encode(text);
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                
+                const encrypted = await window.crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    data
+                );
+                log(`✅ Encrypted: ${encrypted.byteLength} bytes`);
+                
+                // Test 5: Decrypt
+                const decrypted = await window.crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    importedKey,
+                    encrypted
+                );
+                
+                const decoder = new TextDecoder();
+                const result = decoder.decode(decrypted);
+                log(`✅ Decrypted: "${result}"`);
+                
+                if (result === text) {
+                    log('🎉 SUCCESS: Basic encryption/decryption works!', 'success');
+                } else {
+                    log('❌ FAILED: Decrypted text does not match original', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ ERROR: ${error.message}`, 'error');
+                log(`Stack: ${error.stack}`, 'error');
+            }
+        }
+
+        async function testWithPassword() {
+            try {
+                log('🧪 Testing password-based encryption...');
+                
+                const password = 'testPassword123';
+                const text = 'Secret message!';
+                
+                // Derive key from password
+                const encoder = new TextEncoder();
+                const salt = encoder.encode('qopy-salt-v1');
+                const keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(password),
+                    { name: 'PBKDF2' },
+                    false,
+                    ['deriveBits', 'deriveKey']
+                );
+                
+                const key = await window.crypto.subtle.deriveKey(
+                    {
+                        name: 'PBKDF2',
+                        salt: salt,
+                        iterations: 100000,
+                        hash: 'SHA-256'
+                    },
+                    keyMaterial,
+                    { name: 'AES-GCM', length: 256 },
+                    true,
+                    ['encrypt', 'decrypt']
+                );
+                
+                log('✅ Password-based key derived');
+                
+                // Encrypt
+                const data = encoder.encode(text);
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                
+                const encrypted = await window.crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    data
+                );
+                
+                log(`✅ Encrypted with password: ${encrypted.byteLength} bytes`);
+                
+                // Derive key again (simulating retrieval)
+                const keyMaterial2 = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(password),
+                    { name: 'PBKDF2' },
+                    false,
+                    ['deriveBits', 'deriveKey']
+                );
+                
+                const key2 = await window.crypto.subtle.deriveKey(
+                    {
+                        name: 'PBKDF2',
+                        salt: salt,
+                        iterations: 100000,
+                        hash: 'SHA-256'
+                    },
+                    keyMaterial2,
+                    { name: 'AES-GCM', length: 256 },
+                    true,
+                    ['encrypt', 'decrypt']
+                );
+                
+                // Decrypt
+                const decrypted = await window.crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key2,
+                    encrypted
+                );
+                
+                const decoder = new TextDecoder();
+                const result = decoder.decode(decrypted);
+                log(`✅ Decrypted with password: "${result}"`);
+                
+                if (result === text) {
+                    log('🎉 SUCCESS: Password-based encryption works!', 'success');
+                } else {
+                    log('❌ FAILED: Password decryption failed', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ ERROR: ${error.message}`, 'error');
+                log(`Stack: ${error.stack}`, 'error');
+            }
+        }
+
+        async function testWithoutPassword() {
+            try {
+                log('🧪 Testing storage-based encryption...');
+                
+                const text = 'Message without password!';
+                
+                // Generate key
+                const key = await window.crypto.subtle.generateKey(
+                    { name: 'AES-GCM', length: 256 },
+                    true,
+                    ['encrypt', 'decrypt']
+                );
+                
+                // Export key
+                const exportedKey = await window.crypto.subtle.exportKey('raw', key);
+                log(`✅ Key exported: ${exportedKey.byteLength} bytes`);
+                
+                // Encrypt
+                const encoder = new TextEncoder();
+                const data = encoder.encode(text);
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                
+                const encrypted = await window.crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    data
+                );
+                
+                log(`✅ Encrypted without password: ${encrypted.byteLength} bytes`);
+                
+                // Create storage format
+                const storage = {
+                    iv: Array.from(iv),
+                    data: Array.from(new Uint8Array(encrypted)),
+                    key: Array.from(new Uint8Array(exportedKey))
+                };
+                
+                const base64 = btoa(JSON.stringify(storage));
+                log(`✅ Storage format: ${base64.length} chars`);
+                
+                // Retrieve and decrypt
+                const retrieved = JSON.parse(atob(base64));
+                const keyArray = new Uint8Array(retrieved.key);
+                const ivArray = new Uint8Array(retrieved.iv);
+                const dataArray = new Uint8Array(retrieved.data);
+                
+                log(`🔑 Retrieved key: ${keyArray.byteLength} bytes`);
+                log(`🎲 Retrieved IV: ${ivArray.byteLength} bytes`);
+                log(`📦 Retrieved data: ${dataArray.byteLength} bytes`);
+                
+                const importedKey = await window.crypto.subtle.importKey(
+                    'raw',
+                    keyArray,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['decrypt']
+                );
+                
+                const decrypted = await window.crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: ivArray },
+                    importedKey,
+                    dataArray
+                );
+                
+                const decoder = new TextDecoder();
+                const result = decoder.decode(decrypted);
+                log(`✅ Decrypted without password: "${result}"`);
+                
+                if (result === text) {
+                    log('🎉 SUCCESS: Storage-based encryption works!', 'success');
+                } else {
+                    log('❌ FAILED: Storage decryption failed', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ ERROR: ${error.message}`, 'error');
+                log(`Stack: ${error.stack}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html> 

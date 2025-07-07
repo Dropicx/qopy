@@ -723,7 +723,7 @@ class ClipboardApp {
                 },
                 keyMaterial,
                 { name: 'AES-GCM', length: 256 },
-                false,
+                true,
                 ['encrypt', 'decrypt']
             );
         } else {
@@ -779,7 +779,7 @@ class ClipboardApp {
             const result = {
                 iv: Array.from(iv),
                 data: Array.from(new Uint8Array(encryptedData)),
-                key: keyData ? Array.from(keyData) : null
+                key: keyData ? Array.from(new Uint8Array(keyData)) : null
             };
             
             console.log('📦 Final structure:', {
@@ -854,9 +854,17 @@ class ClipboardApp {
                 key = await this.generateKey(password);
             } else if (encrypted.key) {
                 console.log('🔑 Importing stored key...');
+                console.log('🔑 Key array length:', encrypted.key.length);
+                const keyArray = new Uint8Array(encrypted.key);
+                console.log('🔑 Key byte length:', keyArray.byteLength);
+                
+                if (keyArray.byteLength !== 32) {
+                    throw new Error(`Invalid key length: ${keyArray.byteLength} bytes (expected 32)`);
+                }
+                
                 key = await window.crypto.subtle.importKey(
                     'raw',
-                    new Uint8Array(encrypted.key),
+                    keyArray,
                     { name: 'AES-GCM', length: 256 },
                     false,
                     ['decrypt']
