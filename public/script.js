@@ -10,6 +10,7 @@ class ClipboardApp {
         this.setupEventListeners();
         this.setupRouting();
         this.setupKeyboardShortcuts();
+        this.checkPrivacyNotice();
     }
 
     // Typing Animation
@@ -111,6 +112,11 @@ class ClipboardApp {
             button.addEventListener('click', () => {
                 this.toggleFAQ(button.dataset.faq);
             });
+        });
+
+        // Privacy Notice Dismiss
+        document.getElementById('privacy-dismiss').addEventListener('click', () => {
+            this.dismissPrivacyNotice();
         });
     }
 
@@ -651,6 +657,33 @@ class ClipboardApp {
         } else {
             question.classList.add('active');
             answer.classList.add('active');
+        }
+    }
+
+    // Privacy Notice Management
+    dismissPrivacyNotice() {
+        const privacyNotice = document.getElementById('privacy-notice');
+        privacyNotice.classList.add('hidden');
+        
+        // Store dismissal in localStorage to remember user preference
+        try {
+            localStorage.setItem('privacy-notice-dismissed', 'true');
+        } catch (e) {
+            // If localStorage is not available, just hide the notice
+            console.log('localStorage not available, notice hidden for this session only');
+        }
+    }
+
+    // Check if privacy notice should be shown
+    checkPrivacyNotice() {
+        try {
+            const dismissed = localStorage.getItem('privacy-notice-dismissed');
+            if (dismissed === 'true') {
+                document.getElementById('privacy-notice').classList.add('hidden');
+            }
+        } catch (e) {
+            // If localStorage is not available, show the notice
+            console.log('localStorage not available, showing privacy notice');
         }
     }
 }

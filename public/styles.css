@@ -1096,17 +1096,13 @@ footer p {
 
 /* Railway Advertisement Section */
 .railway-ad {
-  background: var(--gradient-secondary);
-  border-radius: 20px;
-  margin: 3rem 0 2rem 0;
-  padding: 2rem;
-  box-shadow: 
-    0 8px 32px var(--shadow-medium),
-    0 4px 16px var(--shadow-light);
-  backdrop-filter: blur(10px);
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  margin: 1.5rem 0 1rem 0;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 4px 16px var(--shadow-light);
   border: 1px solid var(--border-color);
   position: relative;
-  overflow: hidden;
 }
 
 .railway-ad::before {
@@ -1117,67 +1113,32 @@ footer p {
   right: 0;
   height: 2px;
   background: var(--gradient-primary);
-  border-radius: 20px 20px 0 0;
+  border-radius: 12px 12px 0 0;
 }
 
 .railway-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 2rem;
+  gap: 1rem;
 }
 
 .railway-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   flex: 1;
 }
 
-.railway-info h3 {
-  color: var(--text-primary);
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.railway-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
 }
 
-.railway-info p {
+.railway-text {
   color: var(--text-secondary);
-  font-size: 1rem;
-  line-height: 1.6;
-  margin-bottom: 1rem;
-}
-
-.railway-features {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.railway-features .feature {
-  background: var(--accent-light);
-  color: var(--accent-color);
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border: 1px solid rgba(30, 215, 96, 0.2);
-  transition: all 0.3s ease;
-}
-
-.railway-features .feature:hover {
-  background: var(--accent-color);
-  color: #ffffff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px var(--shadow-glow);
-}
-
-.railway-cta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  min-width: 200px;
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .railway-button {
@@ -1186,41 +1147,22 @@ footer p {
   gap: 0.5rem;
   background: var(--gradient-primary);
   color: #ffffff;
-  padding: 0.875rem 1.5rem;
-  border-radius: 12px;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
   text-decoration: none;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.9rem;
   transition: all 0.3s ease;
-  box-shadow: 
-    0 4px 16px var(--shadow-glow),
-    0 2px 8px var(--shadow-medium);
+  box-shadow: 0 2px 8px var(--shadow-medium);
   border: none;
   cursor: pointer;
-  position: relative;
-  overflow: hidden;
-}
-
-.railway-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.railway-button:hover::before {
-  left: 100%;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .railway-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 
-    0 8px 24px var(--shadow-glow),
-    0 4px 12px var(--shadow-medium);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--shadow-glow);
   background: var(--accent-hover);
 }
 
@@ -1228,11 +1170,88 @@ footer p {
   transform: translateY(0);
 }
 
-.railway-note {
+/* Privacy Notice Banner */
+.privacy-notice {
+  background: var(--bg-secondary);
+  border-top: 2px solid var(--accent-color);
+  padding: 1rem 0;
+  margin: 2rem 0 0 0;
+  position: relative;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.privacy-notice.hidden {
+  display: none;
+}
+
+.privacy-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.privacy-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.privacy-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.privacy-text {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.privacy-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.privacy-text a {
+  color: var(--accent-color);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.privacy-text a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.privacy-dismiss {
+  background: none;
+  border: none;
   color: var(--text-muted);
-  font-size: 0.875rem;
-  text-align: center;
-  margin: 0;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.privacy-dismiss:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+.privacy-dismiss:active {
+  transform: scale(0.95);
 }
 
 /* Responsive Design */
@@ -1346,38 +1365,48 @@ footer p {
 
   /* Railway Advertisement Responsive */
   .railway-ad {
-    margin: 2rem 0 1.5rem 0;
-    padding: 1.5rem;
+    margin: 1rem 0 0.5rem 0;
+    padding: 1rem;
   }
 
   .railway-content {
     flex-direction: column;
     text-align: center;
-    gap: 1.5rem;
+    gap: 1rem;
   }
 
-  .railway-info h3 {
-    font-size: 1.3rem;
-    justify-content: center;
+  .railway-info {
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
-  .railway-features {
-    justify-content: center;
-  }
-
-  .railway-features .feature {
-    font-size: 0.8rem;
-    padding: 0.4rem 0.8rem;
-  }
-
-  .railway-cta {
-    min-width: auto;
-    width: 100%;
+  .railway-text {
+    font-size: 0.85rem;
   }
 
   .railway-button {
     width: 100%;
     justify-content: center;
+  }
+
+  /* Privacy Notice Responsive */
+  .privacy-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .privacy-info {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .privacy-text {
+    font-size: 0.85rem;
+  }
+
+  .privacy-dismiss {
+    align-self: center;
   }
 }
 
