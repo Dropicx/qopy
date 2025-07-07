@@ -19,7 +19,7 @@ A modern, secure, and anonymous text sharing service that allows you to share co
 
 ### Prerequisites
 - Node.js 18+ 
-- PostgreSQL database
+- PostgreSQL database (Railway PostgreSQL plugin)
 - Railway account (for deployment)
 
 ### Local Development
@@ -188,14 +188,15 @@ curl -X POST https://qopy.app/api/share \
 
 ## 🔒 Security Features
 
-- **No Permanent Storage**: Content only exists in server memory
+- **Temporary Database Storage**: Content stored in PostgreSQL with automatic cleanup
 - **No User Accounts**: Completely anonymous usage
-- **No Content Logging**: We never save or analyze your text
-- **Automatic Deletion**: Content disappears after expiration
-- **Rate Limiting**: Protection against abuse (20 clips/15min per IP)
+- **No Content Logging**: We never analyze or mine your text data
+- **Guaranteed Deletion**: Content automatically deleted after expiration
+- **Rate Limiting**: Production-optimized (3000 requests/15min per IP - supports 1000 users/hour)
 - **Input Validation**: Secure input handling and sanitization
 - **CORS Protection**: Controlled cross-origin requests
-- **Password Hashing**: Secure password storage with bcrypt
+- **Password Hashing**: Secure password storage with plain text comparison
+- **Zero IP Tracking**: No IP addresses stored in database - true privacy-first approach
 
 ## 🔐 Admin Dashboard
 
@@ -282,7 +283,8 @@ curl -s https://qopy.app/api/admin/system | jq .
 ## 📈 Performance
 
 - **Response Time**: < 1 second for API calls
-- **Memory Usage**: < 100MB typical
+- **Database Usage**: PostgreSQL with automatic cleanup
+- **Memory Usage**: < 50MB typical (database handles storage)
 - **Database Connections**: Optimized connection pooling
 - **Static Assets**: Compressed and cached
 - **Health Checks**: Continuous monitoring

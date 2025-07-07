@@ -35,7 +35,7 @@ pool.on('error', (err) => {
   process.exit(-1);
 });
 
-// Create clips table
+// Create clips table (privacy-first: no IP/user-agent tracking)
 const createClipsTable = `
 CREATE TABLE IF NOT EXISTS clips (
   id SERIAL PRIMARY KEY,
@@ -47,9 +47,7 @@ CREATE TABLE IF NOT EXISTS clips (
   accessed_at BIGINT,
   access_count INTEGER DEFAULT 0,
   one_time BOOLEAN DEFAULT FALSE,
-  is_expired BOOLEAN DEFAULT FALSE,
-  created_by_ip VARCHAR(45),
-  user_agent TEXT
+  is_expired BOOLEAN DEFAULT FALSE
 )`;
 
 // Create users table (for future user management)
@@ -78,13 +76,11 @@ CREATE TABLE IF NOT EXISTS user_clips (
   FOREIGN KEY (clip_id) REFERENCES clips (clip_id) ON DELETE CASCADE
 )`;
 
-// Create access_logs table (for analytics and security)
+// Create access_logs table (privacy-first: basic stats only, no IP tracking)
 const createAccessLogsTable = `
 CREATE TABLE IF NOT EXISTS access_logs (
   id SERIAL PRIMARY KEY,
   clip_id VARCHAR(6),
-  ip_address VARCHAR(45),
-  user_agent TEXT,
   accessed_at BIGINT NOT NULL,
   success BOOLEAN DEFAULT TRUE,
   error_message TEXT,
@@ -102,7 +98,7 @@ const createIndexes = [
   'CREATE INDEX IF NOT EXISTS idx_user_clips_user_id ON user_clips(user_id)',
   'CREATE INDEX IF NOT EXISTS idx_user_clips_clip_id ON user_clips(clip_id)',
   'CREATE INDEX IF NOT EXISTS idx_access_logs_clip_id ON access_logs(clip_id)',
-  'CREATE INDEX IF NOT EXISTS idx_access_logs_ip_address ON access_logs(ip_address)',
+
   'CREATE INDEX IF NOT EXISTS idx_access_logs_accessed_at ON access_logs(accessed_at)'
 ];
 

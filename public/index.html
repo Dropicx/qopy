@@ -113,7 +113,7 @@
                     <div class="faq-answer" id="faq-how-secure">
                         <p><strong>Very secure!</strong> We implement multiple security measures:</p>
                         <ul>
-                            <li>🔒 <strong>No permanent storage</strong> - All content is stored temporarily in memory</li>
+                            <li>🔒 <strong>Temporary storage</strong> - All content is stored temporarily in database and auto-deleted</li>
                             <li>🚫 <strong>No logging</strong> - We don't track or log your content</li>
                             <li>⏰ <strong>Auto-expiration</strong> - Content automatically deletes after your chosen time</li>
                             <li>🔐 <strong>Optional encryption</strong> - Add password protection for extra security</li>
@@ -149,7 +149,7 @@
                     <div class="faq-answer" id="faq-spam-protection">
                         <p>We have balanced anti-spam measures that protect users while allowing legitimate content:</p>
                         <ul>
-                            <li>🚦 <strong>Rate limiting</strong> - Maximum 20 clips per IP every 15 minutes</li>
+                            <li>🚦 <strong>Rate limiting</strong> - Production-ready (3000 requests per IP every 15 minutes)</li>
                             <li>🛡️ <strong>Smart filtering</strong> - Detects obvious spam while allowing code and technical content</li>
                             <li>🔍 <strong>Pattern recognition</strong> - Focuses on clearly malicious patterns</li>
                             <li>⚠️ <strong>Keyword filtering</strong> - Blocks known scam and phishing terms</li>
@@ -168,12 +168,12 @@
                     <div class="faq-answer" id="faq-data-privacy">
                         <p><strong>Privacy is our top priority:</strong></p>
                         <ul>
-                            <li>🔒 <strong>No permanent storage</strong> - Content only exists in server memory</li>
+                            <li>🔒 <strong>Temporary database storage</strong> - Content stored securely with guaranteed auto-deletion</li>
                             <li>🚫 <strong>No user accounts</strong> - Completely anonymous usage</li>
-                            <li>📝 <strong>No content logging</strong> - We never save or analyze your text</li>
-                            <li>⏰ <strong>Automatic deletion</strong> - Content disappears after expiration</li>
+                            <li>📝 <strong>No content logging</strong> - We never analyze or mine your text data</li>
+                            <li>⏰ <strong>Automatic deletion</strong> - Content disappears after expiration via database cleanup</li>
                             <li>🌍 <strong>GDPR compliant</strong> - Follows European privacy standards</li>
-                            <li>🔄 <strong>Server restart = data gone</strong> - All content is lost on restart</li>
+                            <li>🚫 <strong>Zero IP tracking</strong> - No IP addresses stored in database for true privacy</li>
                         </ul>
                         <p>Your content is as private as it gets - we literally can't access it after you share it!</p>
                     </div>
@@ -189,8 +189,8 @@
                         <ul>
                             <li>📄 <strong>Content size</strong> - Maximum 100,000 characters per clip</li>
                             <li>⏰ <strong>Expiration time</strong> - Between 5 minutes and 24 hours</li>
-                            <li>🚦 <strong>Rate limits</strong> - 20 clips per IP every 15 minutes</li>
-                            <li>🔍 <strong>Retrievals</strong> - 100 retrievals per IP every 15 minutes</li>
+                            <li>🚦 <strong>Rate limits</strong> - 3000 requests per IP every 15 minutes (production-ready)</li>
+                            <li>🔍 <strong>No IP tracking</strong> - Rate limiting works without storing IP addresses</li>
                             <li>🔐 <strong>Password length</strong> - Maximum 128 characters</li>
                             <li>🆔 <strong>Clip ID</strong> - 6 characters (auto-generated)</li>
                         </ul>
@@ -215,8 +215,8 @@
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Privacy & Security</div>
-                                <div class="qopy-col">✅ Zero logs, memory-only storage</div>
-                                <div class="pastebin-col">❌ Permanent storage, data mining</div>
+                                <div class="qopy-col">✅ Zero logs, zero IP tracking, temporary storage</div>
+                                <div class="pastebin-col">❌ Permanent storage, IP tracking, data mining</div>
                             </div>
                             
                             <div class="comparison-row">
@@ -265,7 +265,7 @@
                         <p><strong>Why choose Qopy?</strong></p>
                         <ul>
                             <li>🎯 <strong>Simplicity first</strong> - Share text in 3 clicks, no registration needed</li>
-                            <li>🔒 <strong>Privacy by design</strong> - Your data never touches a database</li>
+                            <li>🔒 <strong>Privacy by design</strong> - Your data is automatically deleted from database after expiration</li>
                             <li>📱 <strong>Mobile-optimized</strong> - QR codes and responsive design for easy sharing</li>
                             <li>🚫 <strong>Zero distractions</strong> - No ads, no tracking, no bloat</li>
                             <li>⚡ <strong>Lightning fast</strong> - Instant sharing with 6-character IDs</li>

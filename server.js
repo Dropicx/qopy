@@ -140,13 +140,13 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
+// Rate limiting - Production optimized for 1000 users/hour with 3 clips each
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 3000, // limit each IP to 3000 requests per windowMs (supports ~1000 users/hour)
   message: {
     error: 'Too many requests',
-    message: 'Please try again later'
+    message: 'Rate limit exceeded. Please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -272,8 +272,6 @@ app.post('/api/share', [
     }
 
     const { content, expiration, password, oneTime } = req.body;
-    const clientIP = req.ip || req.connection.remoteAddress;
-    const userAgent = req.headers['user-agent'] || 'Unknown';
 
     // Calculate expiration time
     const expirationTimes = {
@@ -288,23 +286,11 @@ app.post('/api/share', [
     const expirationTime = Date.now() + expirationTimes[expiration];
     const clipId = generateClipId();
 
-    // Insert clip into database (with fallback for missing columns)
-    try {
-      await pool.query(`
-        INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at, created_by_ip, user_agent)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      `, [clipId, content, expirationTime, password || null, oneTime || false, Date.now(), clientIP, userAgent]);
-    } catch (error) {
-      if (error.message.includes('created_by_ip') || error.message.includes('user_agent')) {
-        // Fallback: insert without created_by_ip and user_agent columns
-        await pool.query(`
-          INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [clipId, content, expirationTime, password || null, oneTime || false, Date.now()]);
-      } else {
-        throw error;
-      }
-    }
+    // Insert clip into database (privacy-first: no IP/user-agent tracking)
+    await pool.query(`
+      INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [clipId, content, expirationTime, password || null, oneTime || false, Date.now()]);
 
     console.log(`📋 Created clip: ${clipId}`);
 
