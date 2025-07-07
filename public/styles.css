@@ -833,6 +833,7 @@ footer {
   font-size: 0.85rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   margin-top: auto;
+  margin-bottom: 80px; /* Space for sticky privacy notice */
   background: var(--blur-bg);
   backdrop-filter: blur(20px);
   position: relative;
@@ -1175,14 +1176,21 @@ footer p {
   background: var(--bg-secondary);
   border-top: 2px solid var(--accent-color);
   padding: 1rem 0;
-  margin: 2rem 0 0 0;
-  position: relative;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
   backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -4px 16px var(--shadow-medium);
+  transform: translateY(100%);
+  opacity: 0;
 }
 
 .privacy-notice.hidden {
-  display: none;
+  transform: translateY(100%);
+  opacity: 0;
 }
 
 .privacy-content {
