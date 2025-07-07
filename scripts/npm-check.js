@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /*
  * Copyright (C) 2025 Qopy App
  * 
@@ -14,7 +16,7 @@
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- */ #!/usr/bin/env node
+ */
 
 /**
  * npm Version Checker for Qopy
