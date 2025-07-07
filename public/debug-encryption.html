@@ -254,8 +254,15 @@
             const resultDiv = document.getElementById('encryption-result');
             
             try {
+                console.log('🧪 Starting encryption test...');
                 const encrypted = await debug.encryptContent(content, password || null);
-                resultDiv.textContent = `✅ Encryption successful!\n\nEncrypted content:\n${encrypted}`;
+                
+                // Test immediate decryption
+                console.log('🧪 Testing immediate decryption...');
+                const decrypted = await debug.decryptContent(encrypted, password || null);
+                const matches = content === decrypted;
+                
+                resultDiv.textContent = `✅ Encryption successful!\n\nEncrypted content:\n${encrypted}\n\nImmediate decryption test: ${matches ? '✅ PASSED' : '❌ FAILED'}\nDecrypted: "${decrypted}"`;
                 resultDiv.className = 'result success';
                 resultDiv.style.display = 'block';
                 
@@ -263,7 +270,7 @@
                 document.getElementById('encrypted-content').value = encrypted;
                 document.getElementById('decrypt-password').value = password;
             } catch (error) {
-                resultDiv.textContent = `❌ Encryption failed:\n${error.message}`;
+                resultDiv.textContent = `❌ Encryption failed:\n${error.message}\n\nStack trace:\n${error.stack}`;
                 resultDiv.className = 'result error';
                 resultDiv.style.display = 'block';
             }
@@ -275,12 +282,16 @@
             const resultDiv = document.getElementById('decryption-result');
             
             try {
+                console.log('🧪 Starting decryption test...');
+                console.log('Input length:', encrypted.length);
+                console.log('Has password:', !!password);
+                
                 const decrypted = await debug.decryptContent(encrypted, password || null);
-                resultDiv.textContent = `✅ Decryption successful!\n\nDecrypted content:\n"${decrypted}"`;
+                resultDiv.textContent = `✅ Decryption successful!\n\nDecrypted content:\n"${decrypted}"\n\nContent length: ${decrypted.length} characters`;
                 resultDiv.className = 'result success';
                 resultDiv.style.display = 'block';
             } catch (error) {
-                resultDiv.textContent = `❌ Decryption failed:\n${error.message}`;
+                resultDiv.textContent = `❌ Decryption failed:\n${error.message}\n\nStack trace:\n${error.stack}`;
                 resultDiv.className = 'result error';
                 resultDiv.style.display = 'block';
             }
