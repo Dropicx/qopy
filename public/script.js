@@ -640,7 +640,7 @@ class ClipboardApp {
         return div.innerHTML;
     }
 
-    // FAQ Accordion functionality
+    // FAQ Accordion functionality with dynamic height
     toggleFAQ(faqId) {
         const question = document.querySelector(`[data-faq="${faqId}"]`);
         const answer = document.getElementById(`faq-${faqId}`);
@@ -653,6 +653,8 @@ class ClipboardApp {
                 const otherAnswer = document.getElementById(`faq-${otherId}`);
                 if (otherAnswer) {
                     otherAnswer.classList.remove('active');
+                    // Reset height for closed answers
+                    otherAnswer.style.maxHeight = '0px';
                 }
             }
         });
@@ -660,11 +662,29 @@ class ClipboardApp {
         // Toggle current FAQ
         const isActive = question.classList.contains('active');
         if (isActive) {
+            // Closing
             question.classList.remove('active');
             answer.classList.remove('active');
+            answer.style.maxHeight = '0px';
         } else {
+            // Opening
             question.classList.add('active');
             answer.classList.add('active');
+            
+            // Calculate the actual content height
+            const contentHeight = answer.scrollHeight;
+            const maxViewportHeight = window.innerHeight * 0.8; // 80% of viewport height
+            const finalHeight = Math.min(contentHeight, maxViewportHeight);
+            
+            // Set the height for smooth animation
+            answer.style.maxHeight = `${finalHeight}px`;
+            
+            // Add scroll if content is taller than viewport
+            if (contentHeight > maxViewportHeight) {
+                answer.style.overflowY = 'auto';
+            } else {
+                answer.style.overflowY = 'hidden';
+            }
         }
     }
 
