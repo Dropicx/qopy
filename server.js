@@ -536,13 +536,96 @@ app.post('/api/clip/:clipId', [
   }
 });
 
+// Admin authentication middleware
+function requireAdminAuth(req, res, next) {
+  const adminToken = process.env.ADMIN_TOKEN;
+  
+  if (!adminToken) {
+    console.error('❌ ADMIN_TOKEN environment variable not set');
+    return res.status(500).json({
+      error: 'Admin authentication not configured',
+      message: 'Please set ADMIN_TOKEN environment variable'
+    });
+  }
+  
+  // For API requests, check Authorization header
+  if (req.path.startsWith('/api/admin/')) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || authHeader !== `Bearer ${adminToken}`) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid admin token'
+      });
+    }
+  }
+  
+  next();
+}
+
+// Admin authentication endpoint
+app.post('/api/admin/auth', [
+  body('password').isLength({ min: 1, max: 128 }).withMessage('Password is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { password } = req.body;
+    const adminToken = process.env.ADMIN_TOKEN;
+    
+    if (!adminToken) {
+      console.error('❌ ADMIN_TOKEN environment variable not set');
+      return res.status(500).json({
+        error: 'Admin authentication not configured',
+        message: 'Please set ADMIN_TOKEN environment variable'
+      });
+    }
+    
+    if (password === adminToken) {
+      res.json({
+        success: true,
+        message: 'Authentication successful'
+      });
+    } else {
+      res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Invalid admin password'
+      });
+    }
+  } catch (error) {
+    console.error('❌ Admin authentication error:', error.message);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Authentication failed'
+    });
+  }
+});
+
 // Admin routes
 app.get('/admin', (req, res) => {
+  // Check if admin token is configured
+  if (!process.env.ADMIN_TOKEN) {
+    return res.status(500).send(`
+      <html>
+        <head><title>Admin Not Configured</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1>🔧 Admin Dashboard Not Configured</h1>
+          <p>The ADMIN_TOKEN environment variable is not set.</p>
+          <p>Please configure the admin token in your Railway environment variables.</p>
+        </body>
+      </html>
+    `);
+  }
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// Admin statistics
-app.get('/api/admin/stats', async (req, res) => {
+// Protected Admin statistics
+app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
   try {
     // Get total clips
     const totalResult = await pool.query('SELECT COUNT(*) as count FROM clips');
@@ -585,8 +668,8 @@ app.get('/api/admin/stats', async (req, res) => {
   }
 });
 
-// Admin recent clips
-app.get('/api/admin/clips', async (req, res) => {
+// Protected Admin recent clips
+app.get('/api/admin/clips', requireAdminAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT clip_id, content, created_at, expiration_time, is_expired, 
@@ -606,8 +689,8 @@ app.get('/api/admin/clips', async (req, res) => {
   }
 });
 
-// Admin system info
-app.get('/api/admin/system', async (req, res) => {
+// Protected Admin system info
+app.get('/api/admin/system', requireAdminAuth, async (req, res) => {
   try {
     // Test database connection
     const dbTest = await pool.query('SELECT NOW() as current_time');

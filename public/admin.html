@@ -353,35 +353,60 @@
     </div>
 
     <script>
-        const ADMIN_PASSWORD = 'qopy2024'; // Simple password for demo
         let isAuthenticated = false;
+        let adminToken = '';
 
         // Login functionality
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const password = document.getElementById('password').value;
             
-            if (password === ADMIN_PASSWORD) {
-                isAuthenticated = true;
-                document.getElementById('loginContainer').style.display = 'none';
-                document.getElementById('dashboard').classList.add('active');
-                loadDashboard();
-            } else {
-                alert('❌ Invalid password!');
+            try {
+                const response = await fetch('/api/admin/auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ password })
+                });
+                
+                if (response.ok) {
+                    isAuthenticated = true;
+                    adminToken = password; // Store the token for API calls
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('dashboard').classList.add('active');
+                    loadDashboard();
+                } else {
+                    const error = await response.json();
+                    alert(`❌ ${error.message || 'Invalid password!'}`);
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                alert('❌ Login failed. Please try again.');
             }
         });
 
         // Logout functionality
         function logout() {
             isAuthenticated = false;
+            adminToken = ''; // Clear the admin token
             document.getElementById('dashboard').classList.remove('active');
             document.getElementById('loginContainer').style.display = 'flex';
             document.getElementById('password').value = '';
         }
 
+        // Check authentication status
+        function checkAuth() {
+            if (!isAuthenticated || !adminToken) {
+                logout();
+                return false;
+            }
+            return true;
+        }
+
         // Load dashboard data
         async function loadDashboard(showLoading = true) {
-            if (!isAuthenticated) return;
+            if (!checkAuth()) return;
 
             const refreshBtn = document.querySelector('.refresh-btn');
             
@@ -444,8 +469,18 @@
 
         // Load statistics
         async function loadStatistics() {
+            if (!checkAuth()) return;
+            
             try {
-                const response = await fetch('/api/admin/stats');
+                const response = await fetch('/api/admin/stats', {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+                if (response.status === 401) {
+                    logout();
+                    throw new Error('Authentication expired. Please login again.');
+                }
                 if (!response.ok) {
                     throw new Error(`Stats API failed: ${response.status} ${response.statusText}`);
                 }
@@ -487,8 +522,18 @@
 
         // Load recent clips
         async function loadRecentClips() {
+            if (!checkAuth()) return;
+            
             try {
-                const response = await fetch('/api/admin/clips');
+                const response = await fetch('/api/admin/clips', {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+                if (response.status === 401) {
+                    logout();
+                    throw new Error('Authentication expired. Please login again.');
+                }
                 if (!response.ok) {
                     throw new Error(`Clips API failed: ${response.status} ${response.statusText}`);
                 }
@@ -542,8 +587,18 @@
 
         // Load system info
         async function loadSystemInfo() {
+            if (!checkAuth()) return;
+            
             try {
-                const response = await fetch('/api/admin/system');
+                const response = await fetch('/api/admin/system', {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+                if (response.status === 401) {
+                    logout();
+                    throw new Error('Authentication expired. Please login again.');
+                }
                 if (!response.ok) {
                     throw new Error(`System API failed: ${response.status} ${response.statusText}`);
                 }
