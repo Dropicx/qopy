@@ -738,41 +738,29 @@ class ClipboardApp {
 
     async encryptContent(content, password = null) {
         try {
-            console.log('🔒 Starting encryption...');
-            console.log('Content length:', content?.length);
-            console.log('Has password:', !!password);
-            
             // Check if content is already encrypted
             if (this.isEncrypted(content)) {
-                console.log('📝 Content is already encrypted, returning as-is');
                 return content; // Already encrypted, return as-is
             }
             
-            console.log('🔑 Generating key...');
             const key = await this.generateKey(password);
             const encoder = new TextEncoder();
             const data = encoder.encode(content);
-            console.log('📦 Encoded data length:', data.length);
             
             // Generate random IV
             const iv = window.crypto.getRandomValues(new Uint8Array(12));
-            console.log('🎲 Generated IV length:', iv.length);
             
             // Encrypt the content
-            console.log('🔒 Encrypting data...');
             const encryptedData = await window.crypto.subtle.encrypt(
                 { name: 'AES-GCM', iv: iv },
                 key,
                 data
             );
-            console.log('🔒 Encrypted data length:', encryptedData.byteLength);
             
             // Export key if it was randomly generated (for non-password clips)
             let keyData = null;
             if (!password) {
-                console.log('🔑 Exporting key for storage...');
                 keyData = await window.crypto.subtle.exportKey('raw', key);
-                console.log('🔑 Exported key length:', keyData.byteLength);
             }
             
             // Combine IV + encrypted data + key (if present)
@@ -782,25 +770,10 @@ class ClipboardApp {
                 key: keyData ? Array.from(new Uint8Array(keyData)) : null
             };
             
-            console.log('📦 Final structure:', {
-                ivLength: result.iv.length,
-                dataLength: result.data.length,
-                hasKey: !!result.key,
-                keyLength: result.key?.length
-            });
-            
             // Convert to base64 for storage
-            const base64Result = btoa(JSON.stringify(result));
-            console.log('✅ Encryption complete, base64 length:', base64Result.length);
-            
-            return base64Result;
+            return btoa(JSON.stringify(result));
         } catch (error) {
-            console.error('❌ Encryption error:', error);
-            console.error('Error details:', {
-                name: error.name,
-                message: error.message,
-                stack: error.stack
-            });
+            console.error('Encryption error:', error);
             throw new Error('Failed to encrypt content');
         }
     }
@@ -825,38 +798,19 @@ class ClipboardApp {
 
     async decryptContent(encryptedContent, password = null) {
         try {
-            console.log('🔓 Starting decryption...');
-            console.log('Content length:', encryptedContent?.length);
-            console.log('Has password:', !!password);
-            
             // Check if content is actually encrypted
             if (!this.isEncrypted(encryptedContent)) {
-                console.log('📝 Content is not encrypted, returning as-is');
                 return encryptedContent;
             }
             
-            console.log('🔐 Content is encrypted, parsing...');
-            
             // Parse the encrypted data
             const encrypted = JSON.parse(atob(encryptedContent));
-            console.log('📦 Parsed structure:', {
-                hasIv: !!encrypted.iv,
-                ivLength: encrypted.iv?.length,
-                hasData: !!encrypted.data,
-                dataLength: encrypted.data?.length,
-                hasKey: !!encrypted.key,
-                keyLength: encrypted.key?.length
-            });
             
             let key;
             if (password) {
-                console.log('🔑 Deriving key from password...');
                 key = await this.generateKey(password);
             } else if (encrypted.key) {
-                console.log('🔑 Importing stored key...');
-                console.log('🔑 Key array length:', encrypted.key.length);
                 const keyArray = new Uint8Array(encrypted.key);
-                console.log('🔑 Key byte length:', keyArray.byteLength);
                 
                 if (keyArray.byteLength !== 32) {
                     throw new Error(`Invalid key length: ${keyArray.byteLength} bytes (expected 32)`);
@@ -870,11 +824,8 @@ class ClipboardApp {
                     ['decrypt']
                 );
             } else {
-                console.error('❌ No key available for decryption');
                 throw new Error('No key available for decryption');
             }
-            
-            console.log('🔓 Decrypting data...');
             
             // Decrypt the content
             const decryptedData = await window.crypto.subtle.decrypt(
@@ -883,20 +834,10 @@ class ClipboardApp {
                 new Uint8Array(encrypted.data)
             );
             
-            console.log('✅ Decryption successful, decoding...');
-            
             const decoder = new TextDecoder();
-            const result = decoder.decode(decryptedData);
-            console.log('✅ Final result length:', result.length);
-            
-            return result;
+            return decoder.decode(decryptedData);
         } catch (error) {
-            console.error('❌ Decryption error:', error);
-            console.error('Error details:', {
-                name: error.name,
-                message: error.message,
-                stack: error.stack
-            });
+            console.error('Decryption error:', error);
             throw new Error('Failed to decrypt content. The content may be corrupted or the password is incorrect.');
         }
     }
