@@ -707,14 +707,14 @@ class ClipboardApp {
             // Derive key from password using PBKDF2
             const encoder = new TextEncoder();
             const salt = encoder.encode('qopy-salt-v1');
-            const keyMaterial = await crypto.subtle.importKey(
+            const keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
                 encoder.encode(password),
                 { name: 'PBKDF2' },
                 false,
                 ['deriveBits', 'deriveKey']
             );
-            return await crypto.subtle.deriveKey(
+            return await window.crypto.subtle.deriveKey(
                 {
                     name: 'PBKDF2',
                     salt: salt,
@@ -728,7 +728,7 @@ class ClipboardApp {
             );
         } else {
             // Generate random key for non-password clips
-            return await crypto.subtle.generateKey(
+            return await window.crypto.subtle.generateKey(
                 { name: 'AES-GCM', length: 256 },
                 true,
                 ['encrypt', 'decrypt']
@@ -748,10 +748,10 @@ class ClipboardApp {
             const data = encoder.encode(content);
             
             // Generate random IV
-            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
             
             // Encrypt the content
-            const encryptedData = await crypto.subtle.encrypt(
+            const encryptedData = await window.crypto.subtle.encrypt(
                 { name: 'AES-GCM', iv: iv },
                 key,
                 data
@@ -760,7 +760,7 @@ class ClipboardApp {
             // Export key if it was randomly generated (for non-password clips)
             let keyData = null;
             if (!password) {
-                keyData = await crypto.subtle.exportKey('raw', key);
+                keyData = await window.crypto.subtle.exportKey('raw', key);
             }
             
             // Combine IV + encrypted data + key (if present)
@@ -780,9 +780,16 @@ class ClipboardApp {
 
     isEncrypted(content) {
         try {
+            // Check if content looks like base64
+            if (typeof content !== 'string' || content.length < 20) {
+                return false;
+            }
+            
             // Try to parse as encrypted content
             const parsed = JSON.parse(atob(content));
-            return parsed && typeof parsed === 'object' && parsed.iv && parsed.data;
+            return parsed && typeof parsed === 'object' && 
+                   Array.isArray(parsed.iv) && parsed.iv.length === 12 &&
+                   Array.isArray(parsed.data) && parsed.data.length > 0;
         } catch {
             // If parsing fails, it's not encrypted
             return false;
@@ -806,7 +813,7 @@ class ClipboardApp {
                 key = await this.generateKey(password);
             } else if (encrypted.key) {
                 // Import the stored key
-                key = await crypto.subtle.importKey(
+                key = await window.crypto.subtle.importKey(
                     'raw',
                     new Uint8Array(encrypted.key),
                     { name: 'AES-GCM', length: 256 },
@@ -818,7 +825,7 @@ class ClipboardApp {
             }
             
             // Decrypt the content
-            const decryptedData = await crypto.subtle.decrypt(
+            const decryptedData = await window.crypto.subtle.decrypt(
                 { name: 'AES-GCM', iv: new Uint8Array(encrypted.iv) },
                 key,
                 new Uint8Array(encrypted.data)
