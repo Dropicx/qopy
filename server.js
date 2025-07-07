@@ -9,6 +9,8 @@ const QRCode = require('qrcode');
 const path = require('path');
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
+const xss = require('xss');
+const sanitizeHtml = require('sanitize-html');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -58,8 +60,10 @@ pool.on('error', (err) => {
 // Trust proxy for Railway deployment
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
+  console.log('🔒 Trust proxy enabled for production (Railway)');
 } else {
   app.set('trust proxy', true);
+  console.log('🔒 Trust proxy enabled for development');
 }
 
 // ENHANCED HEALTH CHECK with database test
@@ -130,29 +134,23 @@ const corsOptions = {
     const allowedOrigins = [];
     
     // Development origins
-    if (process.env.NODE_ENV !== 'production') {
+    /*if (process.env.NODE_ENV !== 'production') {
       allowedOrigins.push(
         'http://localhost:3000',
         'http://127.0.0.1:3000',
         'http://localhost:8080',
         'http://127.0.0.1:8080'
       );
-    }
+    }*/
     
     // Production origins
     if (process.env.NODE_ENV === 'production') {
       allowedOrigins.push(
         'https://qopy.app',
-        'https://www.qopy.app',
-        'https://qopy-production.up.railway.app',
-        'https://qopy-staging.up.railway.app'
+        //'https://www.qopy.app',
+        //'https://qopy-production.up.railway.app',
+        //'https://qopy-staging.up.railway.app'
       );
-    }
-    
-    // Allow Chrome extensions (for browser extensions that want to use Qopy API)
-    if (origin.startsWith('chrome-extension://')) {
-      console.log(`🔌 Allowing Chrome extension: ${origin}`);
-      return callback(null, true);
     }
     
     if (allowedOrigins.includes(origin)) {
@@ -171,20 +169,99 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting - Global limit for all users combined
-const limiter = rateLimit({
+// IP-based rate limiting functions
+function getClientIP(req) {
+  // Trust proxy for Railway deployment
+  return req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket?.remoteAddress;
+}
+
+// Rate limiting monitoring
+function logRateLimitEvent(req, res, next) {
+  const clientIP = getClientIP(req);
+  const userAgent = req.get('User-Agent') || 'Unknown';
+  const path = req.path;
+  
+  // Log suspicious patterns
+  if (req.path === '/api/share' && req.method === 'POST') {
+    console.log(`📋 Share request from ${clientIP} - ${userAgent.substring(0, 50)}`);
+  }
+  
+  // Log rate limit hits
+  res.on('finish', () => {
+    if (res.statusCode === 429) {
+      console.warn(`🚫 Rate limit hit by ${clientIP} on ${path} - ${userAgent.substring(0, 50)}`);
+    }
+  });
+  
+  next();
+}
+
+// General API rate limiting (per IP)
+const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 3000, // Global limit: 3000 requests total per windowMs (supports ~1000 users/hour)
+  max: 100, // 100 requests per IP per 15 minutes
   message: {
     error: 'Too many requests',
     message: 'Rate limit exceeded. Please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: () => 'global', // Use same key for all requests = global limit
+  keyGenerator: getClientIP,
+  skip: (req) => {
+    // Skip rate limiting for health checks and admin routes
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/');
+  }
 });
 
-app.use('/api/', limiter);
+// Share API rate limiting (stricter for content creation)
+const shareLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 share requests per IP per 15 minutes
+  message: {
+    error: 'Too many share requests',
+    message: 'Share rate limit exceeded. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIP
+});
+
+// Clip retrieval rate limiting (more permissive for reading)
+const retrieveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // 50 retrieval requests per IP per 15 minutes
+  message: {
+    error: 'Too many retrieval requests',
+    message: 'Retrieval rate limit exceeded. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIP
+});
+
+// Burst rate limiting (very short window for immediate protection)
+const burstLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 30, // 30 requests per IP per minute
+  message: {
+    error: 'Too many requests',
+    message: 'Burst rate limit exceeded. Please slow down.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIP,
+  skip: (req) => {
+    // Skip burst limiting for health checks and admin routes
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/');
+  }
+});
+
+// Apply rate limiting (order matters - most specific first)
+app.use('/api/', logRateLimitEvent); // Logging first
+app.use('/api/', burstLimiter); // Burst protection
+app.use('/api/', generalLimiter); // General protection
+app.use('/api/share', shareLimiter); // Share-specific protection
+app.use('/api/clip/', retrieveLimiter); // Retrieval-specific protection
 
 // Serve static files (before API routes)
 app.use(express.static('public'));
@@ -317,6 +394,32 @@ async function cleanupExpiredClips() {
   }
 }
 
+// Content-Sanitization-Funktion
+function sanitizeContent(content) {
+  // Erst grobe HTML-Säuberung (entfernt gefährliche Tags/Attribute)
+  let clean = sanitizeHtml(content, {
+    allowedTags: [
+      'b', 'i', 'em', 'strong', 'u', 'pre', 'code', 'br', 'p', 'ul', 'ol', 'li', 'a', 'blockquote', 'span', 'hr'
+    ],
+    allowedAttributes: {
+      'a': ['href', 'name', 'target', 'rel'],
+      'span': ['class']
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowedSchemesByTag: {},
+    allowedClasses: {
+      'span': ['hljs', 'hljs-*']
+    },
+    allowProtocolRelative: false,
+    disallowedTagsMode: 'discard',
+    // Keine Styles erlauben
+    allowedStyles: {}
+  });
+  // Dann XSS-Filter (z.B. für Inline-JS oder Sonderfälle)
+  clean = xss(clean);
+  return clean;
+}
+
 // Create share
 app.post('/api/share', [
   body('content').isLength({ min: 1, max: 100000 }).withMessage('Content must be between 1 and 100000 characters'),
@@ -333,7 +436,16 @@ app.post('/api/share', [
       });
     }
 
-    const { content, expiration, password, oneTime } = req.body;
+    let { content, expiration, password, oneTime } = req.body;
+
+    // Content-Sanitization
+    content = sanitizeContent(content);
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Invalid content',
+        message: 'Content is empty or invalid after sanitization.'
+      });
+    }
 
     // Calculate expiration time
     const expirationTimes = {
