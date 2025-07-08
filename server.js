@@ -47,11 +47,15 @@ if (!DATABASE_URL) {
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10,
+  max: process.env.NODE_ENV === 'production' ? 100 : 10, // 100 für Produktion, 10 für Development
+  min: process.env.NODE_ENV === 'production' ? 10 : 2,   // Mindestens 10 Connections in Produktion
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
   retryDelay: 1000,
-  maxRetries: 3
+  maxRetries: 3,
+  // Zusätzliche Performance-Optimierungen
+  allowExitOnIdle: false, // Verhindert unerwartetes Schließen
+  maxUses: 7500, // Connection nach 7500 Queries neu erstellen (Memory-Leak Prevention)
 });
 
 // Test database connection with retry
