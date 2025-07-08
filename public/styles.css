@@ -72,6 +72,22 @@
   box-sizing: border-box;
 }
 
+/* Global link styles */
+a {
+  color: var(--accent-color);
+  text-decoration: none;
+  transition: color 0.3s ease, text-decoration 0.3s ease;
+}
+
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+a:visited {
+  color: var(--accent-color);
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   line-height: 1.6;
