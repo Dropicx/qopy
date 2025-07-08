@@ -33,9 +33,7 @@ const sanitizeHtml = require('sanitize-html');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-console.log('🚀 Qopy Server (Minimal PostgreSQL) starting...');
-console.log(`📋 Port: ${PORT}`);
-console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log('🚀 Qopy Server starting...');
 
 // PostgreSQL Configuration
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -78,10 +76,10 @@ pool.on('error', (err) => {
 // Trust proxy for Railway deployment
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
-  console.log('🔒 Trust proxy enabled for production (Railway)');
+  
 } else {
   app.set('trust proxy', true);
-  console.log('🔒 Trust proxy enabled for development');
+  
 }
 
 // ENHANCED HEALTH CHECK with database test
@@ -201,7 +199,7 @@ function logRateLimitEvent(req, res, next) {
   
   // Log suspicious patterns
   if (req.path === '/api/share' && req.method === 'POST') {
-    console.log(`📋 Share request from ${clientIP} - ${userAgent.substring(0, 50)}`);
+
   }
   
   // Log rate limit hits
@@ -405,7 +403,7 @@ async function cleanupExpiredClips() {
       [Date.now()]
     );
     if (result.rowCount > 0) {
-      console.log(`🧹 Cleaned up ${result.rowCount} expired clips`);
+  
     }
   } catch (error) {
     console.error('❌ Error cleaning up expired clips:', error.message);
@@ -427,16 +425,14 @@ function sanitizeContent(content) {
 
 // Create share
 app.post('/api/share', [
-  body('content').isLength({ min: 1, max: 200000 }).withMessage('Content must be between 1 and 200000 characters'),
+  body('content').isLength({ min: 1, max: 400000 }).withMessage('Content must be between 1 and 400000 characters'),
   body('expiration').isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
   body('password').optional().isLength({ min: 1, max: 128 }).withMessage('Password must be between 1 and 128 characters'),
   body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean')
 ], async (req, res) => {
   try {
-    console.log('📋 Share request body:', req.body);
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation failed:', errors.array());
       return res.status(400).json({
         error: 'Validation failed',
         details: errors.array()
@@ -486,7 +482,7 @@ app.post('/api/share', [
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [clipId, content, expirationTime, passwordHash, oneTime || false, Date.now()]);
 
-    console.log(`📋 Created clip: ${clipId}`);
+
 
     res.json({
       success: true,
@@ -602,10 +598,7 @@ app.get('/api/clip/:clipId', [
         'UPDATE clips SET is_expired = true WHERE clip_id = $1',
         [clipId]
       );
-      console.log(`🗑️ One-time clip accessed and deleted: ${clipId}`);
     }
-
-    console.log(`📋 Retrieved clip: ${clipId}`);
 
     res.json({
       success: true,
@@ -678,10 +671,7 @@ app.post('/api/clip/:clipId', [
         'UPDATE clips SET is_expired = true WHERE clip_id = $1',
         [clipId]
       );
-      console.log(`🗑️ One-time clip accessed and deleted: ${clipId}`);
     }
-
-    console.log(`📋 Retrieved password-protected clip: ${clipId}`);
 
     res.json({
       success: true,
@@ -952,19 +942,12 @@ function gracefulShutdown() {
 async function startServer() {
   try {
     // Test database connection before starting server
-    console.log('🔍 Testing database connection...');
     const client = await pool.connect();
     await client.query('SELECT NOW() as current_time');
     client.release();
-    console.log('✅ Database connection test successful');
     
     const server = app.listen(PORT, () => {
       console.log(`🚀 Qopy server running on port ${PORT}`);
-      console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🗄️ Database: PostgreSQL (Minimal Mode)`);
-      console.log(`📊 Database connection pool initialized`);
-      console.log(`✅ Health check available at /health`);
-      console.log('✅ Database ready for connections');
     });
 
     server.on('error', (error) => {
