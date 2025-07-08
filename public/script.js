@@ -415,7 +415,13 @@ class ClipboardApp {
             if (response.ok) {
                 this.showShareResult(data);
             } else {
-                throw new Error(data.error || 'Failed to create clip');
+                console.error('Server response:', data);
+                if (data.details && data.details.length > 0) {
+                    const errorMessages = data.details.map(detail => detail.msg).join(', ');
+                    throw new Error(`Validation failed: ${errorMessages}`);
+                } else {
+                    throw new Error(data.error || 'Failed to create clip');
+                }
             }
         } catch (error) {
             console.error('Share error:', error);

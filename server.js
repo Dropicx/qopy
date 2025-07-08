@@ -414,40 +414,15 @@ async function cleanupExpiredClips() {
 
 // Content-Sanitization-Funktion
 function sanitizeContent(content) {
-  // Prüfe, ob es sich um reinen Text/Code handelt (kein HTML)
-  const isPlainText = !/<[^>]*>/.test(content) || content.includes('const ') || content.includes('function ') || content.includes('require(') || content.includes('module.exports');
-  
-  if (isPlainText) {
-    // Für reinen Text/Code nur grundlegende XSS-Bereinigung
-    return xss(content, {
-      whiteList: {}, // Keine HTML-Tags erlauben
-      stripIgnoreTag: true,
-      stripIgnoreTagBody: ['script']
-    });
-  }
-  
-  // Für HTML-Inhalt: Erst grobe HTML-Säuberung (entfernt gefährliche Tags/Attribute)
-  let clean = sanitizeHtml(content, {
-    allowedTags: [
-      'b', 'i', 'em', 'strong', 'u', 'pre', 'code', 'br', 'p', 'ul', 'ol', 'li', 'a', 'blockquote', 'span', 'hr'
-    ],
-    allowedAttributes: {
-      'a': ['href', 'name', 'target', 'rel'],
-      'span': ['class']
-    },
-    allowedSchemes: ['http', 'https', 'mailto'],
-    allowedSchemesByTag: {},
-    allowedClasses: {
-      'span': ['hljs', 'hljs-*']
-    },
-    allowProtocolRelative: false,
-    disallowedTagsMode: 'discard',
-    // Keine Styles erlauben
-    allowedStyles: {}
+  // Für alle Inhalte: HTML-Tags entfernen und als reinen Text behandeln
+  // Das ist die sicherste Option - Code wird nur als Text angezeigt
+  return xss(content, {
+    whiteList: {}, // Keine HTML-Tags erlauben
+    stripIgnoreTag: true,
+    stripIgnoreTagBody: ['script', 'style', 'iframe', 'object', 'embed'],
+    // Erlaubt nur sichere Zeichen
+    allowCommentTag: false
   });
-  // Dann XSS-Filter (z.B. für Inline-JS oder Sonderfälle)
-  clean = xss(clean);
-  return clean;
 }
 
 // Create share
@@ -458,8 +433,10 @@ app.post('/api/share', [
   body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean')
 ], async (req, res) => {
   try {
+    console.log('📋 Share request body:', req.body);
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ Validation failed:', errors.array());
       return res.status(400).json({
         error: 'Validation failed',
         details: errors.array()
