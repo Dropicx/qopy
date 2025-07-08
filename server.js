@@ -427,7 +427,7 @@ function sanitizeContent(content) {
 
 // Create share
 app.post('/api/share', [
-  body('content').isLength({ min: 1, max: 100000 }).withMessage('Content must be between 1 and 100000 characters'),
+  body('content').isLength({ min: 1, max: 200000 }).withMessage('Content must be between 1 and 200000 characters'),
   body('expiration').isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
   body('password').optional().isLength({ min: 1, max: 128 }).withMessage('Password must be between 1 and 128 characters'),
   body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean')
