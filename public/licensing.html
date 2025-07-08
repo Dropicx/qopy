@@ -118,6 +118,49 @@
             font-weight: bold;
             color: var(--primary-color);
         }
+        .resource-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        .resource-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+        .resource-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow-medium);
+            border-color: var(--primary-color);
+        }
+        .resource-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+        .resource-content h4 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1rem;
+        }
+        .resource-content h4 a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .resource-content h4 a:hover {
+            text-decoration: underline;
+        }
+        .resource-content p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
         footer {
             background: var(--bg-secondary);
             margin-top: 3rem;
@@ -244,24 +287,20 @@
                 </tbody>
             </table>
 
-            <h2>Commercial License Pricing</h2>
+            <h2>Commercial License Information</h2>
             
             <div class="license-card">
-                <h3>Annual License Fees:</h3>
-                <ul>
-                    <li><strong>Startup</strong> (<$1M revenue): <strong>$500/year</strong></li>
-                    <li><strong>Small Business</strong> (<$10M revenue): <strong>$1,500/year</strong></li>
-                    <li><strong>Enterprise</strong>: <strong>Contact for pricing</strong></li>
-                    <li><strong>OEM/Redistribution</strong>: <strong>Contact for pricing</strong></li>
-                </ul>
-                
-                <p><strong>Included with Commercial License:</strong></p>
+                <h3>Commercial License Benefits:</h3>
                 <ul>
                     <li><strong>Commercial support</strong> - Email and priority support</li>
                     <li><strong>Warranty</strong> - Software warranty and liability protection</li>
                     <li><strong>Updates</strong> - Access to all updates and new features</li>
                     <li><strong>Documentation</strong> - Commercial documentation and guides</li>
                 </ul>
+                
+                <p><strong>Pricing and Licensing:</strong> Commercial licenses are available for proprietary software, SaaS applications, and commercial products. Pricing is determined based on your specific use case, company size, and requirements.</p>
+                
+                <p><strong>Contact Required:</strong> For commercial licensing inquiries, please contact us with details about your intended use case, company information, and specific requirements. We'll provide a customized quote based on your needs.</p>
             </div>
 
             <div class="contact-section">
@@ -285,7 +324,7 @@
                     <tr>
                         <td>Cost</td>
                         <td class="feature-yes">Free</td>
-                        <td class="feature-no">Paid</td>
+                        <td class="feature-no">Contact for pricing</td>
                     </tr>
                     <tr>
                         <td>Source code disclosure</td>
@@ -322,19 +361,49 @@
 
             <h2>Additional Resources</h2>
             
-            <ul>
-                <li><a href="/LICENSING.md" target="_blank">Detailed Licensing Guide</a> - Comprehensive licensing documentation</li>
-                <li><a href="/LICENSE-AGPL" target="_blank">AGPL-3.0 License Text</a> - Full license terms</li>
-                <li><a href="/LICENSE-COMMERCIAL" target="_blank">Commercial License Text</a> - Commercial license agreement</li>
-                <li><a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank">GNU AGPL-3.0 Information</a> - Official GNU documentation</li>
-            </ul>
+            <div class="license-card">
+                <div class="resource-grid">
+                    <div class="resource-item">
+                        <div class="resource-icon">📋</div>
+                        <div class="resource-content">
+                            <h4><a href="/LICENSING.md" target="_blank">Detailed Licensing Guide</a></h4>
+                            <p>Comprehensive licensing documentation</p>
+                        </div>
+                    </div>
+                    
+                    <div class="resource-item">
+                        <div class="resource-icon">📄</div>
+                        <div class="resource-content">
+                            <h4><a href="/LICENSE-AGPL" target="_blank">AGPL-3.0 License Text</a></h4>
+                            <p>Full license terms</p>
+                        </div>
+                    </div>
+                    
+                    <div class="resource-item">
+                        <div class="resource-icon">💼</div>
+                        <div class="resource-content">
+                            <h4><a href="/LICENSE-COMMERCIAL" target="_blank">Commercial License Text</a></h4>
+                            <p>Commercial license agreement</p>
+                        </div>
+                    </div>
+                    
+                    <div class="resource-item">
+                        <div class="resource-icon">🌐</div>
+                        <div class="resource-content">
+                            <h4><a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank">GNU AGPL-3.0 Information</a></h4>
+                            <p>Official GNU documentation</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <p><small>Last Updated: July 2025</small></p>
         </div>
     </div>
 
     <footer>
-        <p>No logs, no tracking, auto-expires. Your privacy is protected.</p>
+        <p>🔒 No logs, no tracking, auto-expires. Your privacy is protected.</p>
+        <p>⚡ Built for secure, anonymous text sharing</p>
         <div class="legal-links">
             <a href="/features.html">Features</a>
             <span class="separator">|</span>
