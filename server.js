@@ -414,7 +414,19 @@ async function cleanupExpiredClips() {
 
 // Content-Sanitization-Funktion
 function sanitizeContent(content) {
-  // Erst grobe HTML-Säuberung (entfernt gefährliche Tags/Attribute)
+  // Prüfe, ob es sich um reinen Text/Code handelt (kein HTML)
+  const isPlainText = !/<[^>]*>/.test(content) || content.includes('const ') || content.includes('function ') || content.includes('require(') || content.includes('module.exports');
+  
+  if (isPlainText) {
+    // Für reinen Text/Code nur grundlegende XSS-Bereinigung
+    return xss(content, {
+      whiteList: {}, // Keine HTML-Tags erlauben
+      stripIgnoreTag: true,
+      stripIgnoreTagBody: ['script']
+    });
+  }
+  
+  // Für HTML-Inhalt: Erst grobe HTML-Säuberung (entfernt gefährliche Tags/Attribute)
   let clean = sanitizeHtml(content, {
     allowedTags: [
       'b', 'i', 'em', 'strong', 'u', 'pre', 'code', 'br', 'p', 'ul', 'ol', 'li', 'a', 'blockquote', 'span', 'hr'
