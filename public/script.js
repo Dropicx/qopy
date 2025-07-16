@@ -260,7 +260,20 @@ class ClipboardApp {
                 if (data.hasPassword) {
                     this.switchTab('retrieve');
                     document.getElementById('clip-id-input').value = clipId;
-                    document.getElementById('retrieve-password-input').focus();
+                    
+                    // Ensure password section is visible
+                    const passwordSection = document.getElementById('password-section');
+                    if (passwordSection) {
+                        passwordSection.classList.remove('hidden');
+                        console.log('Password section made visible for password-protected clip');
+                    }
+                    
+                    // Focus password input
+                    const passwordInput = document.getElementById('retrieve-password-input');
+                    if (passwordInput) {
+                        passwordInput.focus();
+                        console.log('Password input focused');
+                    }
                     
                     // Show hint about URL secret if available
                     if (urlSecret) {
@@ -316,6 +329,18 @@ class ClipboardApp {
                     console.log('Ensured password field is visible in share tab');
                 }
             }
+            
+            // Ensure password field is visible in retrieve tab if URL secret is present
+            if (tab === 'retrieve') {
+                const urlSecret = this.extractUrlSecret();
+                if (urlSecret) {
+                    const passwordSection = document.getElementById('password-section');
+                    if (passwordSection) {
+                        passwordSection.classList.remove('hidden');
+                        console.log('Password section made visible in retrieve tab due to URL secret');
+                    }
+                }
+            }
 
             // Focus appropriate input after a short delay
             setTimeout(() => {
@@ -366,14 +391,18 @@ class ClipboardApp {
                     if (data.hasPassword) {
                         passwordSection.classList.remove('hidden');
                         document.getElementById('retrieve-password-input').focus();
+                        console.log('Password section shown for clip with password');
                     } else {
                         passwordSection.classList.add('hidden');
+                        console.log('Password section hidden for clip without password');
                     }
                 } else {
                     passwordSection.classList.add('hidden');
+                    console.log('Password section hidden - clip not found');
                 }
             } catch (error) {
                 passwordSection.classList.add('hidden');
+                console.log('Password section hidden due to error:', error);
             }
         } else {
             passwordSection.classList.add('hidden');
