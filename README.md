@@ -88,6 +88,15 @@ GET /api/clip/{clipId}/info
 GET /api/clip/{clipId}
 ```
 
+## ⚠️ Important API Security Note
+
+**Client-side encryption is only available through the web interface.** When using the API directly (e.g., with curl), content is sent as plaintext to the server and then encrypted server-side. This means:
+
+- ✅ **Web interface**: True client-side encryption (content encrypted in browser)
+- ❌ **Direct API calls**: Server-side encryption only (content sent as plaintext)
+
+For maximum security, always use the web interface at `https://qopy.app` for client-side encryption.
+
 ## 🔧 Configuration
 
 ### Environment Variables

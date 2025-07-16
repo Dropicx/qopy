@@ -151,7 +151,7 @@
                 <div class="feature-card">
                     <span class="feature-icon">🔑</span>
                     <h3>Passwortschutz</h3>
-                    <p>Fügen Sie ein optionales Passwort zu Ihrem geteilten Inhalt hinzu. Passwörter werden mit 100.000 PBKDF2-Iterationen für maximale Sicherheit verarbeitet.</p>
+                    <p>Fügen Sie ein optionales Passwort zu Ihrem geteilten Inhalt hinzu. Passwörter werden mit 100.000 PBKDF2-Iterationen verarbeitet und verlassen niemals Ihren Browser.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -181,7 +181,7 @@
                 <div class="feature-card">
                     <span class="feature-icon">🔌</span>
                     <h3>REST API Zugang</h3>
-                    <p>Integrieren Sie Qopy in Ihre Anwendungen mit unserer umfassenden REST API. Perfekt für Automatisierung und benutzerdefinierte Integrationen.</p>
+                    <p>Integrieren Sie Qopy in Ihre Anwendungen mit unserer umfassenden REST API. Hinweis: Client-Side Verschlüsselung ist nur über die Web-Oberfläche verfügbar.</p>
                 </div>
             </div>
             
@@ -193,6 +193,7 @@
                 <li>Wir sehen niemals Ihren Klartext-Inhalt</li>
                 <li>Alle Verschlüsselung findet in Ihrem Browser statt</li>
                 <li>Nur verschlüsselte Daten werden auf unseren Servern gespeichert</li>
+                <li>Passwörter verlassen niemals Ihren Browser</li>
                 <li>Selbst wenn unsere Server kompromittiert würden, blieben Ihre Daten sicher</li>
             </ul>
             
@@ -211,6 +212,14 @@
                 <li>Allgemeiner API-Schutz für Gesamtstabilität</li>
                 <li>Inhaltsspezifische Limits zur Spam-Prävention</li>
                 <li>IP-basierte Durchsetzung mit temporärer Verarbeitung</li>
+            </ul>
+            
+            <h3>API Sicherheitsbeschränkungen</h3>
+            <p><strong>Wichtig:</strong> Client-Side Verschlüsselung ist nur über die Web-Oberfläche verfügbar. Bei direkter API-Nutzung:</p>
+            <ul>
+                <li>Inhalt wird als Klartext an den Server gesendet</li>
+                <li>Server-seitige Verschlüsselung wird angewendet</li>
+                <li>Für maximale Sicherheit immer die Web-Oberfläche verwenden</li>
             </ul>
             
             <h2>📊 Wie Qopy sich mit Alternativen vergleicht</h2>

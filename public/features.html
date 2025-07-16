@@ -151,7 +151,7 @@
                 <div class="feature-card">
                     <span class="feature-icon">🔑</span>
                     <h3>Password Protection</h3>
-                    <p>Add an optional password to your shared content. Passwords are processed with 100,000 PBKDF2 iterations for maximum security.</p>
+                    <p>Add an optional password to your shared content. Passwords are processed with 100,000 PBKDF2 iterations and never leave your browser.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -181,7 +181,7 @@
                 <div class="feature-card">
                     <span class="feature-icon">🔌</span>
                     <h3>REST API Access</h3>
-                    <p>Integrate Qopy into your applications with our comprehensive REST API. Perfect for automation and custom integrations.</p>
+                    <p>Integrate Qopy into your applications with our comprehensive REST API. Note: Client-side encryption is only available through the web interface.</p>
                 </div>
             </div>
             
@@ -193,6 +193,7 @@
                 <li>We never see your plain text content</li>
                 <li>All encryption happens in your browser</li>
                 <li>Only encrypted data is stored on our servers</li>
+                <li>Passwords never leave your browser</li>
                 <li>Even if our servers were compromised, your data would remain secure</li>
             </ul>
             
@@ -211,6 +212,14 @@
                 <li>General API protection for overall stability</li>
                 <li>Content-specific limits to prevent spam</li>
                 <li>IP-based enforcement with temporary processing</li>
+            </ul>
+            
+            <h3>API Security Limitations</h3>
+            <p><strong>Important:</strong> Client-side encryption is only available through the web interface. When using the API directly:</p>
+            <ul>
+                <li>Content is sent as plaintext to the server</li>
+                <li>Server-side encryption is applied</li>
+                <li>For maximum security, always use the web interface</li>
             </ul>
             
             <h2>📊 How Qopy Compares to Alternatives</h2>

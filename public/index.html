@@ -334,6 +334,7 @@
                             <li>🛡️ <strong>Zero-knowledge</strong> - We never see your plain text content</li>
                             <li>🔄 <strong>Backward compatible</strong> - Existing unencrypted clips continue to work</li>
                             <li>⚡ <strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
+                            <li>🚫 <strong>No password transmission</strong> - Passwords never leave your browser</li>
                         </ul>
                         <p><strong>How it works:</strong></p>
                         <ol>
@@ -342,7 +343,9 @@
                             <li>Only encrypted data is stored in our database</li>
                             <li>When someone retrieves the content, it's decrypted in their browser</li>
                             <li>We never see the plain text at any point</li>
+                            <li>Passwords are used only for encryption, never sent to our servers</li>
                         </ol>
+                        <p><strong>⚠️ Important:</strong> Client-side encryption is only available through the web interface. API calls send content as plaintext to the server.</p>
                     </div>
                 </div>
 
@@ -360,17 +363,12 @@
   -d '{
     "content": "Your text content here",
     "expiration": "1hr",
-    "password": "optional-password",
-    "oneTime": false
+    "oneTime": false,
+    "hasPassword": false
   }'</code></pre>
                         
                         <h4>📖 Retrieving Clips (GET /api/clip/:clipId)</h4>
                         <pre><code>curl https://qopy.app/api/clip/X8K2M9</code></pre>
-                        
-                        <h4>🔐 Retrieving Password-Protected Clips (POST /api/clip/:clipId)</h4>
-                        <pre><code>curl -X POST https://qopy.app/api/clip/X8K2M9 \
-  -H "Content-Type: application/json" \
-  -d '{"password": "your-password"}'</code></pre>
                         
                         <h4>ℹ️ Getting Clip Info (GET /api/clip/:clipId/info)</h4>
                         <pre><code>curl https://qopy.app/api/clip/X8K2M9/info</code></pre>
@@ -379,8 +377,8 @@
                         <ul>
                             <li><strong>content</strong> - Text content (1-100,000 characters)</li>
                             <li><strong>expiration</strong> - "5min", "15min", "30min", "1hr", "6hr", "24hr"</li>
-                            <li><strong>password</strong> - Optional password (1-128 characters)</li>
                             <li><strong>oneTime</strong> - Boolean, deletes clip after first access</li>
+                            <li><strong>hasPassword</strong> - Boolean, indicates if content is password-protected</li>
                         </ul>
                         
                         <h4>📋 Response Format:</h4>
@@ -392,10 +390,19 @@
   "oneTime": false
 }</code></pre>
                         
-                        <h4>⚠️ Important Notes:</h4>
+                        <h4>⚠️ Important Security Note:</h4>
+                        <p><strong>Client-side encryption is only available through the web interface.</strong> When using the API directly (e.g., with curl), content is sent as plaintext to the server and then encrypted server-side.</p>
+                        
+                        <ul>
+                            <li>✅ <strong>Web interface</strong> - True client-side encryption (content encrypted in browser)</li>
+                            <li>❌ <strong>Direct API calls</strong> - Server-side encryption only (content sent as plaintext)</li>
+                        </ul>
+                        
+                        <p><strong>For maximum security, always use the web interface at <a href="https://qopy.app" target="_blank">qopy.app</a> for client-side encryption.</strong></p>
+                        
+                        <h4>🔒 Other API Notes:</h4>
                         <ul>
                             <li>🔒 <strong>Rate limiting</strong> - API endpoints are subject to the same rate limiting as the web interface</li>
-                            <li>🔐 <strong>Encryption</strong> - Content is encrypted client-side before being sent to the API</li>
                             <li>🛡️ <strong>Validation</strong> - All inputs are validated and sanitized</li>
                             <li>📱 <strong>No authentication</strong> - No API keys required, but rate limits apply per IP</li>
                             <li>⚡ <strong>JSON only</strong> - All requests and responses use JSON format</li>
