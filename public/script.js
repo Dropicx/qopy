@@ -454,8 +454,8 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
-                // Include URL secret in the share URL for enhanced security (only for normal mode with password)
-                const shareUrl = (password && !quickShare) ? `${data.url}#${urlSecret}` : data.url;
+                // Include URL secret in the share URL for enhanced security
+                const shareUrl = (!quickShare) ? `${data.url}#${urlSecret}` : data.url;
                 data.url = shareUrl;
                 this.showShareResult(data);
             } else {

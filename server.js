@@ -148,6 +148,15 @@ const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
         
+        // Explicitly block Chrome Extensions and other potentially malicious origins
+        if (origin.startsWith('chrome-extension://') || 
+            origin.startsWith('moz-extension://') || 
+            origin.startsWith('safari-extension://') ||
+            origin.startsWith('ms-browser-extension://')) {
+            console.warn(`🚫 BLOCKED: Browser extension origin: ${origin}`);
+            return callback(new Error('Browser extensions are not allowed'));
+        }
+        
         const allowedOrigins = [];
         
         // Development origins
