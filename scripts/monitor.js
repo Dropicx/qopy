@@ -37,72 +37,72 @@ const ERROR_THRESHOLD = 3; // Alert after 3 consecutive errors
 const MAX_ERRORS = 10; // Stop monitoring after 10 errors
 
 async function checkHealth() {
-    checkCount++;
-    const timestamp = new Date().toISOString();
+  checkCount++;
+  const timestamp = new Date().toISOString();
+  
+  try {
+    // Try /api/health first, then fallback to /health
+    let response = await makeRequest('/api/health');
+    if (response.status !== 200) {
+      response = await makeRequest('/health');
+    }
     
-    try {
-        // Try /api/health first, then fallback to /health
-        let response = await makeRequest('/api/health');
-        if (response.status !== 200) {
-            response = await makeRequest('/health');
-        }
-        
-        if (response.status === 200) {
-            const uptime = response.data.uptime;
-            
-            if (errorCount > 0) {
-                console.log(`   🔄 Recovered from ${errorCount} previous errors`);
+    if (response.status === 200) {
+      const uptime = response.data.uptime;
+      
+      if (errorCount > 0) {
+        console.log(`   🔄 Recovered from ${errorCount} previous errors`);
             }
             
-            errorCount = 0;
-            lastError = null;
-            return true;
-        } else {
-            throw new Error(`HTTP ${response.status}`);
-        }
-    } catch (error) {
-        errorCount++;
-        lastError = error.message;
-        
-        if (errorCount >= ERROR_THRESHOLD) {
-            console.log(`🚨 ALERT: ${errorCount} consecutive errors detected!`);
-            console.log(`   Last error: ${lastError}`);
-            console.log(`   Check Railway logs: railway logs --tail`);
-        }
-        
-        if (errorCount >= MAX_ERRORS) {
-            console.log(`🛑 Stopping monitoring after ${MAX_ERRORS} errors`);
-            process.exit(1);
-        }
-        
-        return false;
+        errorCount = 0;
+        lastError = null;
+      return true;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
     }
+  } catch (error) {
+    errorCount++;
+    lastError = error.message;
+    
+    if (errorCount >= ERROR_THRESHOLD) {
+      console.log(`🚨 ALERT: ${errorCount} consecutive errors detected!`);
+      console.log(`   Last error: ${lastError}`);
+      console.log(`   Check Railway logs: railway logs --tail`);
+    }
+    
+    if (errorCount >= MAX_ERRORS) {
+      console.log(`🛑 Stopping monitoring after ${MAX_ERRORS} errors`);
+      process.exit(1);
+    }
+    
+    return false;
+  }
 }
 
 async function checkDatabase() {
-    try {
-        const response = await makeRequest('/api/clip/ABCDEF/info');
-        
-        if (response.status === 404) {
-            // Expected - clip doesn't exist, but database is working
-            return true;
-        } else if (response.status === 500) {
-            throw new Error('Database connection failed');
-        } else {
-            throw new Error(`Unexpected status: ${response.status}`);
-        }
-    } catch (error) {
-        return false;
+  try {
+    const response = await makeRequest('/api/clip/ABCDEF/info');
+    
+    if (response.status === 404) {
+      // Expected - clip doesn't exist, but database is working
+      return true;
+    } else if (response.status === 500) {
+      throw new Error('Database connection failed');
+    } else {
+      throw new Error(`Unexpected status: ${response.status}`);
     }
+  } catch (error) {
+    return false;
+  }
 }
 
 async function checkMainPage() {
-    try {
-        const response = await makeRequest('/');
-        return response.status === 200;
-    } catch (error) {
-        return false;
-    }
+  try {
+    const response = await makeRequest('/');
+    return response.status === 200;
+  } catch (error) {
+    return false;
+  }
 }
 
 async function performAdditionalChecks() {
@@ -189,25 +189,25 @@ async function makeRequest(path, method = 'GET', data = null) {
 }
 
 async function runHealthCheck() {
-    const healthOk = await checkHealth();
-    
-    if (healthOk) {
-        // Additional checks only if health is OK
+  const healthOk = await checkHealth();
+  
+  if (healthOk) {
+    // Additional checks only if health is OK
         await performAdditionalChecks();
     }
 }
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-    console.log('\n🛑 Monitoring stopped by user');
-    console.log(`📊 Final stats: ${checkCount} checks, ${errorCount} errors`);
-    process.exit(0);
+  console.log('\n🛑 Monitoring stopped by user');
+  console.log(`📊 Final stats: ${checkCount} checks, ${errorCount} errors`);
+  process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-    console.log('\n🛑 Monitoring stopped by system');
-    console.log(`📊 Final stats: ${checkCount} checks, ${errorCount} errors`);
-    process.exit(0);
+  console.log('\n🛑 Monitoring stopped by system');
+  console.log(`📊 Final stats: ${checkCount} checks, ${errorCount} errors`);
+  process.exit(0);
 });
 
 console.log(`⏰ Starting continuous monitoring (${CHECK_INTERVAL/1000}s intervals)`);
@@ -215,5 +215,5 @@ console.log(`🚨 Alert threshold: ${ERROR_THRESHOLD} consecutive errors`);
 console.log(`🛑 Stop threshold: ${MAX_ERRORS} total errors`);
 
 // Start monitoring
-setInterval(runHealthCheck, CHECK_INTERVAL);
+setInterval(runHealthCheck, CHECK_INTERVAL); 
 runHealthCheck(); // Initial check 

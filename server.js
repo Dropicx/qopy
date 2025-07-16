@@ -405,7 +405,34 @@ async function cleanupExpiredClips() {
 
 // Create share
 app.post('/api/share', [
-  body('content').isLength({ min: 1, max: 400000 }).withMessage('Content must be between 1 and 400000 characters'),
+  body('content').custom((value) => {
+    // Validate content as binary array or string
+    if (Array.isArray(value)) {
+      // New format: binary array
+      if (value.length === 0) {
+        throw new Error('Content cannot be empty');
+      }
+      if (value.length > 400000) {
+        throw new Error('Content too large (max 400KB)');
+      }
+      // Validate all elements are numbers
+      if (!value.every(item => typeof item === 'number' && item >= 0 && item <= 255)) {
+        throw new Error('Invalid binary data format');
+      }
+      return true;
+    } else if (typeof value === 'string') {
+      // Old format: base64 string (for backward compatibility)
+      if (value.length === 0) {
+        throw new Error('Content cannot be empty');
+      }
+      if (value.length > 400000) {
+        throw new Error('Content too large (max 400KB)');
+      }
+      return true;
+    } else {
+      throw new Error('Content must be an array or string');
+    }
+  }),
   body('expiration').isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
   body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
   body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean')
