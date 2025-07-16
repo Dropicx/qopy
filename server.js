@@ -496,13 +496,12 @@ app.post('/api/share', [
     // hasPassword is just a flag for UI purposes
 
     // Insert clip into database (privacy-first: no IP/user-agent tracking)
-    // Use hex format for binary data to avoid encoding issues
-    const hexContent = binaryContent.toString('hex');
-    console.log(`📦 Converting ${binaryContent.length} bytes to hex: ${hexContent.substring(0, 32)}...`);
+    // Store binary data directly as BYTEA
+    console.log(`📦 Storing ${binaryContent.length} bytes directly as BYTEA`);
     await pool.query(`
       INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
-      VALUES ($1, decode($2, 'hex'), $3, $4, $5, $6)
-    `, [clipId, hexContent, expirationTime, hasPassword ? 'client-encrypted' : null, oneTime || false, Date.now()]);
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [clipId, binaryContent, expirationTime, hasPassword ? 'client-encrypted' : null, oneTime || false, Date.now()]);
 
     res.json({
       success: true,
