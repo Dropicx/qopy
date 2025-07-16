@@ -1,11 +1,11 @@
-# Qopy - Secure Temporary Text Sharing
+# Qopy - Military-Grade Secure Temporary Text Sharing
 
-Qopy is a privacy-first, secure temporary text sharing web application with military-grade client-side encryption, zero-knowledge architecture, and automatic expiration.
+Qopy is a privacy-first, secure temporary text sharing web application with military-grade client-side encryption, zero-knowledge architecture, and automatic expiration. Built with modern web technologies and optimized for both development and production environments.
 
 ## 🔐 Security Features
 
 ### Military-Grade Client-Side Encryption
-- **AES-256-GCM encryption** for all content with PBKDF2 key derivation
+- **AES-256-GCM encryption** for all content with PBKDF2 key derivation (100,000 iterations)
 - **Zero-knowledge architecture** - server never sees plaintext content
 - **Hybrid security system** - URL secrets + passwords for defense in depth
 - **Deterministic IV derivation** - IV derived from combined secrets, not transmitted
@@ -19,41 +19,88 @@ Qopy is a privacy-first, secure temporary text sharing web application with mili
 - **Combined secrets** - URL secret + password combined for maximum security
 - **No password transmission** - passwords never leave the client
 - **Defense in depth** - Even weak passwords protected by URL secret
-- **Automatic expiration** with guaranteed cleanup
+- **Automatic expiration** with guaranteed cleanup every 5 minutes
 - **One-time access** option for sensitive content
+- **Rate limiting** - Multi-layered protection against abuse
 
 ### Privacy Protection
 - **No IP tracking** or user-agent logging
 - **No content analysis** or storage
 - **Temporary rate limiting** - IP addresses processed only in memory
-- **HTTPS-only** operation
+- **HTTPS-only** operation with secure headers
 - **GDPR compliant** architecture
+- **CORS protection** - Blocks browser extensions and unauthorized origins
 
-## 🚀 Features
+## 🚀 Core Features
 
 ### Quick Share Mode
 - **4-character codes** for ultra-fast sharing
 - **5-minute expiration** for temporary content
 - **No URL secrets** - simplified sharing for non-sensitive content
-- **Still encrypted** - content remains secure
+- **Still encrypted** - content remains secure with client-side encryption
+- **Perfect for** - quick code snippets, temporary notes, instant sharing
 
 ### Normal Mode
 - **10-character codes** for enhanced security
 - **URL secrets** - 16-character random secrets in URL fragments
 - **Flexible expiration** - 5 minutes to 24 hours
 - **Password protection** - optional additional security layer
+- **Perfect for** - sensitive documents, confidential information, long-term sharing
 
 ### User Experience
 - **No registration required** - instant sharing
 - **Mobile-optimized** - responsive design with QR codes
-- **Modern UI** - Spotify-inspired interface
+- **Modern UI** - Spotify-inspired interface with smooth animations
 - **Keyboard shortcuts** - Ctrl/Cmd + 1/2 for tab switching
 - **Auto-retrieval** - direct links automatically load content
+- **Character counter** - real-time content length tracking (100,000 char limit)
+- **Copy functionality** - one-click copying of URLs, IDs, and content
+- **Typing animation** - engaging logo animation on homepage
+
+### Advanced Features
+- **QR Code sharing** - client-side QR generation for mobile access
+- **Content validation** - automatic content sanitization and validation
+- **Error handling** - comprehensive error messages and recovery
+- **Loading states** - visual feedback during operations
+- **Toast notifications** - user-friendly success/error messages
+- **FAQ system** - built-in help and information
+- **Privacy notice** - GDPR-compliant privacy information
+
+## 🛠️ Technical Features
+
+### API Endpoints
+- **POST /api/share** - Create new encrypted content
+- **GET /api/clip/:clipId/info** - Get clip information
+- **GET /api/clip/:clipId** - Retrieve encrypted content
+- **GET /health** - Application health check
+- **GET /api/health** - API health check
+- **GET /ping** - Simple ping endpoint
+
+### Admin Dashboard
+- **Protected admin interface** - Secure admin authentication
+- **Real-time statistics** - Live usage metrics and analytics
+- **System monitoring** - Database health and system status
+- **Recent clips overview** - Latest content management
+- **Performance metrics** - Uptime and response time tracking
+
+### Database Features
+- **PostgreSQL optimization** - Connection pooling and performance tuning
+- **Automatic migrations** - Database schema management
+- **Sequence management** - Automatic ID sequence optimization
+- **Statistics tracking** - Comprehensive usage analytics
+- **Automatic cleanup** - Expired content removal every 5 minutes
+
+### Deployment & Infrastructure
+- **Docker support** - Multi-stage Dockerfile for production
+- **Railway deployment** - Optimized for Railway platform
+- **Health checks** - Automatic health monitoring
+- **Graceful shutdown** - Proper resource cleanup
+- **Environment configuration** - Flexible environment variable support
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 20+ (Volta configuration included)
 - PostgreSQL database
 - Railway account (for deployment)
 
@@ -83,10 +130,10 @@ railway up
 railway variables set NODE_ENV=production
 railway variables set ADMIN_TOKEN=your-secure-admin-token
 
-# The server automatically handles database migrations
+# The server automatically handles database migrations and cleanup
 ```
 
-## 📋 API Endpoints
+## 📋 API Documentation
 
 ### Create Share
 ```http
@@ -94,7 +141,7 @@ POST /api/share
 Content-Type: application/json
 
 {
-  "content": "encrypted-content-array",
+  "content": [encrypted-binary-array],
   "expiration": "30min",
   "oneTime": false,
   "hasPassword": true,
@@ -112,6 +159,11 @@ GET /api/clip/{clipId}/info
 GET /api/clip/{clipId}
 ```
 
+### Health Check
+```http
+GET /health
+```
+
 ## ⚠️ Important Security Note
 
 **Client-side encryption is only available through the web interface.** When using the API directly (e.g., with curl), content is sent as plaintext to the server and then encrypted server-side. This means:
@@ -124,7 +176,7 @@ For maximum security, always use the web interface at `https://qopy.app` for cli
 ## 🔧 Configuration
 
 ### Environment Variables
-- `DATABASE_URL`: PostgreSQL connection string
+- `DATABASE_URL`: PostgreSQL connection string (required)
 - `NODE_ENV`: Environment (development/production)
 - `ADMIN_TOKEN`: Admin authentication token
 - `PORT`: Server port (default: 8080)
@@ -142,6 +194,17 @@ CREATE TABLE clips (
   access_count INTEGER DEFAULT 0,
   one_time BOOLEAN DEFAULT FALSE,
   is_expired BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE statistics (
+  id SERIAL PRIMARY KEY,
+  total_clips BIGINT DEFAULT 0,
+  total_accesses BIGINT DEFAULT 0,
+  password_protected_clips BIGINT DEFAULT 0,
+  quick_share_clips BIGINT DEFAULT 0,
+  one_time_clips BIGINT DEFAULT 0,
+  normal_clips BIGINT DEFAULT 0,
+  last_updated BIGINT DEFAULT 0
 );
 ```
 
@@ -175,7 +238,7 @@ CREATE TABLE clips (
 - ✅ IV not transmitted (derived deterministically)
 - ✅ Hybrid security: URL secret + password provides defense in depth
 
-## 📊 Monitoring
+## 📊 Monitoring & Analytics
 
 ### Health Checks
 ```bash
@@ -184,12 +247,37 @@ curl https://your-app.railway.app/health
 
 # Check API health
 curl https://your-app.railway.app/api/health
+
+# Simple ping
+curl https://your-app.railway.app/ping
 ```
+
+### Admin Dashboard
+- **Access**: `/admin.html` with admin token authentication
+- **Statistics**: Real-time usage metrics and analytics
+- **System monitoring**: Database health and performance
+- **Recent activity**: Latest clips and access patterns
 
 ### Automatic Maintenance
 - **Database migrations** - handled automatically on server start
 - **Expired clip cleanup** - runs every 5 minutes
 - **Rate limiting** - multi-layered protection against abuse
+- **Connection pooling** - optimized database performance
+- **Graceful shutdown** - proper resource cleanup
+
+## 🌐 Internationalization
+
+### Multi-Language Support
+- **English** - Primary language with full feature set
+- **German** - Complete German translation (`features-de.html`)
+- **Localized content** - Region-specific features and information
+
+### SEO Optimization
+- **Structured data** - JSON-LD schema markup
+- **Meta tags** - Comprehensive SEO meta information
+- **Sitemap** - Automatic sitemap generation
+- **Robots.txt** - Search engine optimization
+- **Canonical URLs** - Proper URL canonicalization
 
 ## 📄 License
 
@@ -217,6 +305,15 @@ This project is dual-licensed:
 - **Issues**: [GitHub Issues](https://github.com/your-username/qopy/issues)
 - **Documentation**: [Wiki](https://github.com/your-username/qopy/wiki)
 
+## 🏢 Company Information
+
+**LIT Services**
+- **Address**: Am Edelspfad 6, 61169 Friedberg, Germany
+- **Website**: https://lit.services
+- **Contact**: qopy@lit.services
+
 ---
 
 **Qopy** - Secure, private, temporary text sharing. Built with ❤️ by [LIT Services](https://lit.services).
+
+*Version: minimal-1.0.0 | Last Updated: December 2024*
