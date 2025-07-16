@@ -275,6 +275,10 @@ class ClipboardApp {
                 return;
             }
             
+            // For Self-Destruct clips, we need to retrieve and show immediately
+            // since the clip will be deleted after the first API call
+            const isSelfDestruct = infoData.oneTime;
+            
             // Extract URL secret from current URL if available
             const urlSecret = this.extractUrlSecret();
             
@@ -294,8 +298,12 @@ class ClipboardApp {
                     
                     // Check if this is a Quick Share (4-digit ID) or normal clip
                     if (clipId.length === 4) {
-                        // Quick Share: Decrypt without URL secret (like normal clips without password)
-                        decryptedContent = await this.decryptContent(data.content, null, null);
+                        // Quick Share: Use the secret from server response
+                        const quickShareSecret = data.quickShareSecret || data.password_hash;
+                        if (!quickShareSecret) {
+                            throw new Error('Quick Share secret not found');
+                        }
+                        decryptedContent = await this.decryptContent(data.content, null, quickShareSecret);
                     } else {
                         // Normal mode: Decrypt the content
                         decryptedContent = await this.decryptContent(data.content, null, urlSecret);
@@ -313,7 +321,11 @@ class ClipboardApp {
                         passwordSection.classList.add('hidden');
                     }
                     
-                    this.showRetrieveResult(resultData);
+                    // For Self-Destruct clips, show result immediately
+                    // For regular clips, only show if user manually clicks retrieve
+                    if (isSelfDestruct) {
+                        this.showRetrieveResult(resultData);
+                    }
                 } catch (decryptError) {
                     // For auto-retrieve, don't show error - let user manually retrieve
                 }
