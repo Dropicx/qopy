@@ -88,16 +88,18 @@
             </div>
 
             <h2>1. Introduction</h2>
-            <p>This Privacy Policy describes how Qopy ("we," "our," or "us") collects, uses, and protects your personal information when you use our secure text sharing service (the "Service"). Qopy is a web-based, open-source text sharing platform that prioritizes privacy and security through client-side encryption.</p>
+            <p>This Privacy Policy describes how Qopy ("we," "our," or "us") collects, uses, and protects your personal information when you use our military-grade secure text sharing service (the "Service"). Qopy is a web-based, open-source text sharing platform that prioritizes privacy and security through zero-knowledge client-side encryption with hybrid security architecture.</p>
 
             <h2>2. Information We Collect</h2>
             
             <h3>2.1 Shared Content</h3>
             <ul>
                 <li><strong>What we collect:</strong> Qopy allows you to share text content temporarily through our web service.</li>
-                <li><strong>Client-side encryption:</strong> All content is encrypted in your browser using AES-256-GCM before being transmitted to our servers.</li>
-                <li><strong>Zero-knowledge architecture:</strong> We never see your plain text content - only encrypted data is stored in our database.</li>
+                <li><strong>Military-grade client-side encryption:</strong> All content is encrypted in your browser using AES-256-GCM with PBKDF2 key derivation before being transmitted to our servers.</li>
+                <li><strong>Zero-knowledge architecture:</strong> We literally cannot see your plain text content - only encrypted data is stored in our database.</li>
+                <li><strong>Hybrid security:</strong> URL secrets and passwords are combined for defense in depth protection.</li>
                 <li><strong>Duration:</strong> Content is automatically deleted after your chosen expiration time (5 minutes to 24 hours).</li>
+                <li><strong>Quick Share mode:</strong> 4-character codes for ultra-fast sharing with simplified security.</li>
             </ul>
 
             <h3>2.2 Service Usage Data</h3>
@@ -153,9 +155,13 @@
             <ul>
                 <li><strong>AES-256-GCM encryption:</strong> Military-grade encryption algorithm for all content.</li>
                 <li><strong>PBKDF2 key derivation:</strong> 100,000 iterations for password-protected content.</li>
+                <li><strong>Hybrid security system:</strong> URL secrets and passwords combined for defense in depth.</li>
+                <li><strong>Deterministic IV derivation:</strong> IV derived from combined secrets, not transmitted.</li>
+                <li><strong>Binary storage:</strong> Encrypted content stored as BYTEA for efficiency and security.</li>
                 <li><strong>HTTPS transmission:</strong> All data is transmitted over encrypted HTTPS connections.</li>
                 <li><strong>Rate limiting:</strong> Multi-layered IP-based rate limiting system to prevent abuse and ensure fair usage for all users.</li>
                 <li><strong>Temporary IP processing:</strong> IP addresses are temporarily processed for rate limiting but are not permanently stored or used for tracking.</li>
+                <li><strong>Browser extension blocking:</strong> Chrome extensions and other potentially malicious origins are blocked.</li>
             </ul>
 
             <h3>4.3 Data Retention</h3>

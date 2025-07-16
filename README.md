@@ -1,35 +1,54 @@
 # Qopy - Secure Temporary Text Sharing
 
-Qopy is a privacy-first, secure temporary text sharing web application with client-side encryption and automatic expiration.
+Qopy is a privacy-first, secure temporary text sharing web application with military-grade client-side encryption, zero-knowledge architecture, and automatic expiration.
 
 ## 🔐 Security Features
 
-### Client-Side Encryption
-- **AES-256-GCM encryption** for all content
+### Military-Grade Client-Side Encryption
+- **AES-256-GCM encryption** for all content with PBKDF2 key derivation
 - **Zero-knowledge architecture** - server never sees plaintext content
-- **PBKDF2 key derivation** for password-protected clips
-- **No password transmission** - passwords never leave the client
-- **Deterministic IV derivation** - IV derived from password, not transmitted
-- **Optimized storage format** - direct byte concatenation, 40% less overhead
-- **Hybrid security** - URL secrets + passwords for enhanced protection
-- **Binary database storage** - encrypted content stored as BYTEA for efficiency and security
+- **Hybrid security system** - URL secrets + passwords for defense in depth
+- **Deterministic IV derivation** - IV derived from combined secrets, not transmitted
+- **Binary database storage** - encrypted content stored as BYTEA for efficiency
 - **Direct binary transmission** - no base64 overhead, raw bytes sent to server
+- **Client-side QR generation** - QR codes generated locally, no external API calls
 
-### Password Security
-- **Client-only encryption** - passwords used only for content encryption
-- **No server authentication** - content is already encrypted, no need for password verification
-- **PBKDF2 with 100,000 iterations** for key derivation
-- **Deterministic IV derivation** with 50,000 iterations for password-protected clips
-- **Zero password transmission** to server
-- **URL secret enhancement** - 16-character random secret in URL fragment adds extra security layer
+### Advanced Security Architecture
+- **URL secrets** - 16-character random secrets in URL fragments for enhanced protection
+- **Password protection** - Optional passwords with 100,000 PBKDF2 iterations
+- **Combined secrets** - URL secret + password combined for maximum security
+- **No password transmission** - passwords never leave the client
+- **Defense in depth** - Even weak passwords protected by URL secret
+- **Automatic expiration** with guaranteed cleanup
+- **One-time access** option for sensitive content
 
 ### Privacy Protection
 - **No IP tracking** or user-agent logging
 - **No content analysis** or storage
-- **Automatic expiration** with cleanup
-- **One-time access** option
+- **Temporary rate limiting** - IP addresses processed only in memory
 - **HTTPS-only** operation
-- **Client-side QR generation** - QR codes generated locally, no external API calls
+- **GDPR compliant** architecture
+
+## 🚀 Features
+
+### Quick Share Mode
+- **4-character codes** for ultra-fast sharing
+- **5-minute expiration** for temporary content
+- **No URL secrets** - simplified sharing for non-sensitive content
+- **Still encrypted** - content remains secure
+
+### Normal Mode
+- **10-character codes** for enhanced security
+- **URL secrets** - 16-character random secrets in URL fragments
+- **Flexible expiration** - 5 minutes to 24 hours
+- **Password protection** - optional additional security layer
+
+### User Experience
+- **No registration required** - instant sharing
+- **Mobile-optimized** - responsive design with QR codes
+- **Modern UI** - Spotify-inspired interface
+- **Keyboard shortcuts** - Ctrl/Cmd + 1/2 for tab switching
+- **Auto-retrieval** - direct links automatically load content
 
 ## 🚀 Quick Start
 
@@ -51,9 +70,6 @@ npm install
 export DATABASE_URL="postgresql://user:password@localhost:5432/qopy"
 export NODE_ENV="development"
 
-# Initialize database
-npm run db:init
-
 # Start development server
 npm run dev
 ```
@@ -67,11 +83,7 @@ railway up
 railway variables set NODE_ENV=production
 railway variables set ADMIN_TOKEN=your-secure-admin-token
 
-# Initialize production database
-railway run npm run db:init
-
-# Migrate existing data to binary storage (if upgrading)
-railway run npm run db:migrate-binary
+# The server automatically handles database migrations
 ```
 
 ## 📋 API Endpoints
@@ -82,10 +94,11 @@ POST /api/share
 Content-Type: application/json
 
 {
-  "content": "encrypted-content-base64",
+  "content": "encrypted-content-array",
   "expiration": "30min",
   "oneTime": false,
-  "hasPassword": true
+  "hasPassword": true,
+  "quickShare": false
 }
 ```
 
@@ -99,7 +112,7 @@ GET /api/clip/{clipId}/info
 GET /api/clip/{clipId}
 ```
 
-## ⚠️ Important API Security Note
+## ⚠️ Important Security Note
 
 **Client-side encryption is only available through the web interface.** When using the API directly (e.g., with curl), content is sent as plaintext to the server and then encrypted server-side. This means:
 
@@ -120,7 +133,7 @@ For maximum security, always use the web interface at `https://qopy.app` for cli
 ```sql
 CREATE TABLE clips (
   id SERIAL PRIMARY KEY,
-  clip_id VARCHAR(6) UNIQUE NOT NULL,
+  clip_id VARCHAR(10) UNIQUE NOT NULL,
   content BYTEA NOT NULL,
   password_hash VARCHAR(60),
   expiration_time BIGINT NOT NULL,
@@ -134,25 +147,22 @@ CREATE TABLE clips (
 
 ## 🛡️ Security Architecture
 
-### Password Flow
-1. **User enters password** in browser
+### Enhanced Security Flow
+1. **User enters content** in browser
 2. **URL secret generated** automatically (16-character random string)
-3. **Combined secret created** from URL secret + password
+3. **Combined secret created** from URL secret + password (if provided)
 4. **Content encrypted** with AES-256-GCM + PBKDF2-derived key from combined secret
 5. **IV derived deterministically** from combined secret (not transmitted)
 6. **Share URL includes secret** as fragment (e.g., `/clip/abc123#x7y9z2...`)
 7. **Encrypted content sent** to server (no password transmitted)
 8. **Server stores encrypted content** without ability to decrypt
 
-### Content Encryption
-1. **Content encrypted** client-side with AES-256-GCM
-2. **URL secret + password combined** for enhanced security
-3. **IV derived from combined secret** for password-protected clips (deterministic)
-4. **Random IV** for non-password clips
-5. **Direct byte concatenation** (IV + encrypted data + key if needed)
-6. **Raw binary transmission** to server (no base64 encoding overhead)
-7. **BYTEA storage** in database for maximum efficiency
-8. **Client decrypts** content when retrieved using URL secret + password
+### Quick Share Flow
+1. **User enables Quick Share** mode
+2. **4-character ID generated** for ultra-fast sharing
+3. **Content encrypted** with standard encryption (no URL secret)
+4. **5-minute expiration** automatically set
+5. **Simplified sharing** for non-sensitive content
 
 ### Zero-Knowledge Guarantees
 - ✅ Server never sees plaintext content
@@ -174,22 +184,12 @@ curl https://your-app.railway.app/health
 
 # Check API health
 curl https://your-app.railway.app/api/health
-
-# Production monitoring
-npm run monitor
 ```
 
-### Database Maintenance
-```bash
-# Check database status
-npm run db:check
-
-# Migrate passwords (if needed)
-npm run db:migrate-passwords
-
-# Clean up expired clips (automatic)
-# Runs every 5 minutes in production
-```
+### Automatic Maintenance
+- **Database migrations** - handled automatically on server start
+- **Expired clip cleanup** - runs every 5 minutes
+- **Rate limiting** - multi-layered protection against abuse
 
 ## 📄 License
 
