@@ -29,6 +29,16 @@ class ClipboardApp {
         this.setupRouting();
         this.setupKeyboardShortcuts();
         this.checkPrivacyNotice();
+        
+        // Ensure password field is visible on page load
+        setTimeout(() => {
+            const passwordField = document.getElementById('password-input');
+            if (passwordField) {
+                passwordField.style.display = 'block';
+                passwordField.classList.remove('hidden');
+                console.log('Password field visibility ensured on page load');
+            }
+        }, 500);
     }
 
     // Typing Animation
@@ -297,6 +307,16 @@ class ClipboardApp {
                 history.replaceState(null, '', '/');
             }
 
+            // Ensure password field is visible in share tab
+            if (tab === 'share') {
+                const passwordField = document.getElementById('password-input');
+                if (passwordField) {
+                    passwordField.style.display = 'block';
+                    passwordField.classList.remove('hidden');
+                    console.log('Ensured password field is visible in share tab');
+                }
+            }
+
             // Focus appropriate input after a short delay
             setTimeout(() => {
                 if (tab === 'share') {
@@ -378,6 +398,13 @@ class ClipboardApp {
             this.showToast('Content is too long (max 400,000 characters)', 'error');
             return;
         }
+
+        // Debug: Log password field status
+        const passwordField = document.getElementById('password-input');
+        console.log('Password field found:', !!passwordField);
+        console.log('Password field visible:', passwordField && !passwordField.classList.contains('hidden'));
+        console.log('Password field value:', password);
+        console.log('Password field style display:', passwordField ? passwordField.style.display : 'N/A');
 
         this.showLoading('loading');
         const shareButton = document.getElementById('share-button');
