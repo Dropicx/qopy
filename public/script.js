@@ -468,16 +468,37 @@ class ClipboardApp {
         const oneTime = document.getElementById('one-time-checkbox').checked;
         const quickShare = document.getElementById('quick-share-checkbox').checked;
 
-        // Validation
+        // Enhanced validation with specific error messages
         if (!content) {
-            this.showToast('Please enter content to share', 'error');
+            this.showToast('❌ Please enter some content to share', 'error');
+            document.getElementById('content-input').focus();
+            return;
+        }
+
+        if (content.trim().length === 0) {
+            this.showToast('❌ Content cannot be empty (only spaces/whitespace)', 'error');
             document.getElementById('content-input').focus();
             return;
         }
 
         if (content.length > 400000) {
-            this.showToast('Content is too long (max 400,000 characters)', 'error');
+            this.showToast(`❌ Content too long: ${content.length.toLocaleString()} characters (max 400,000)`, 'error');
+            document.getElementById('content-input').focus();
             return;
+        }
+
+        // Validate password if provided
+        if (password && !quickShare) {
+            if (password.length < 1) {
+                this.showToast('❌ Password cannot be empty', 'error');
+                document.getElementById('password-input').focus();
+                return;
+            }
+            if (password.length > 128) {
+                this.showToast(`❌ Password too long: ${password.length} characters (max 128)`, 'error');
+                document.getElementById('password-input').focus();
+                return;
+            }
         }
 
         this.showLoading('loading');
@@ -540,9 +561,11 @@ class ClipboardApp {
             } else {
                 if (data.details && data.details.length > 0) {
                     const errorMessages = data.details.map(detail => detail.msg).join(', ');
-                    throw new Error(`Validation failed: ${errorMessages}`);
+                    throw new Error(`❌ Server validation failed: ${errorMessages}`);
+                } else if (data.message) {
+                    throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
                 } else {
-                    throw new Error(data.error || 'Failed to create clip');
+                    throw new Error(`❌ ${data.error || 'Failed to create clip'}`);
                 }
             }
         } catch (error) {
@@ -606,16 +629,40 @@ class ClipboardApp {
         const clipId = document.getElementById('clip-id-input').value.trim();
         const password = document.getElementById('retrieve-password-input').value.trim();
 
-        // Validation
+        // Enhanced validation with specific error messages
         if (!clipId) {
-            this.showToast('Please enter a clip ID', 'error');
+            this.showToast('❌ Please enter a clip ID', 'error');
+            document.getElementById('clip-id-input').focus();
+            return;
+        }
+
+        if (clipId.trim().length === 0) {
+            this.showToast('❌ Clip ID cannot be empty (only spaces/whitespace)', 'error');
             document.getElementById('clip-id-input').focus();
             return;
         }
 
         if (clipId.length !== 4 && clipId.length !== 10) {
-            this.showToast('Clip ID must be exactly 4 or 10 characters', 'error');
+            this.showToast(`❌ Invalid clip ID length: ${clipId.length} characters (must be exactly 4 or 10)`, 'error');
+            document.getElementById('clip-id-input').focus();
             return;
+        }
+
+        // Validate clip ID format (only uppercase letters and numbers)
+        if (!/^[A-Z0-9]+$/.test(clipId)) {
+            const invalidChars = clipId.split('').filter(char => !/[A-Z0-9]/.test(char));
+            this.showToast(`❌ Invalid characters in clip ID: ${invalidChars.join(', ')} (only A-Z and 0-9 allowed)`, 'error');
+            document.getElementById('clip-id-input').focus();
+            return;
+        }
+
+        // Validate password if required
+        if (clipId.length === 10 && password) {
+            if (password.length > 128) {
+                this.showToast(`❌ Password too long: ${password.length} characters (max 128)`, 'error');
+                document.getElementById('retrieve-password-input').focus();
+                return;
+            }
         }
 
         this.showLoading('retrieve-loading');
@@ -658,13 +705,25 @@ class ClipboardApp {
                     data.content = decryptedContent;
                     this.showRetrieveResult(data);
                 } catch (decryptError) {
-                    throw new Error(decryptError.message);
+                    if (decryptError.message.includes('password is incorrect')) {
+                        throw new Error('❌ Wrong password or URL secret');
+                    } else if (decryptError.message.includes('corrupted')) {
+                        throw new Error('❌ Content appears to be corrupted or tampered with');
+                    } else if (decryptError.message.includes('Quick Share secret not found')) {
+                        throw new Error('❌ Quick Share secret not found - clip may be corrupted');
+                    } else {
+                        throw new Error(`❌ Decryption failed: ${decryptError.message}`);
+                    }
                 }
             } else {
-                throw new Error(data.error || 'Failed to retrieve clip');
+                if (data.message) {
+                    throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
+                } else {
+                    throw new Error(`❌ ${data.error || 'Failed to retrieve clip'}`);
+                }
             }
         } catch (error) {
-            this.showToast(error.message || 'Failed to retrieve content', 'error');
+            this.showToast(error.message || '❌ Failed to retrieve content', 'error');
             document.getElementById('content-result').classList.add('hidden');
         } finally {
             this.hideLoading('retrieve-loading');
