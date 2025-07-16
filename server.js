@@ -859,8 +859,8 @@ app.get('/api/admin/system', requireAdminAuth, async (req, res) => {
 });
 
 // Route for direct clip access (must come after static files)
-app.get('/clip/:clipId([A-Z0-9]{6})$', (req, res) => {
-  // This route only matches exact 6-character alphanumeric clip IDs (with $ anchor)
+app.get('/clip/:clipId([A-Z0-9]{4}|[A-Z0-9]{10})$', (req, res) => {
+  // This route matches exact 4-character (Quick Share) or 10-character (normal) alphanumeric clip IDs
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
