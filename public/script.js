@@ -254,8 +254,8 @@ class ClipboardApp {
                     
                     // Check if this is a Quick Share (4-digit ID) or normal clip
                     if (clipId.length === 4) {
-                        // Quick Share: Content is stored as plain text
-                        decryptedContent = new TextDecoder().decode(new Uint8Array(data.content));
+                        // Quick Share: Decrypt without URL secret (like normal clips without password)
+                        decryptedContent = await this.decryptContent(data.content, null, null);
                     } else {
                         // Normal mode: Decrypt the content
                         decryptedContent = await this.decryptContent(data.content, null, urlSecret);
@@ -424,10 +424,11 @@ class ClipboardApp {
             let urlSecret = null;
             
             if (quickShare) {
-                // Quick Share: No encryption, send plain text
-                encryptedContent = new TextEncoder().encode(content);
+                // Quick Share: Use normal encryption without URL secret (like clips without password)
+                // This provides database security while keeping URLs simple
+                encryptedContent = await this.encryptContent(content, null, null);
             } else {
-                // Normal mode: Use encryption
+                // Normal mode: Use encryption with URL secret
                 urlSecret = this.generateUrlSecret();
                 encryptedContent = await this.encryptContent(content, password, urlSecret);
             }
@@ -453,7 +454,7 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
-                // Include URL secret in the share URL for enhanced security (only for normal mode)
+                // Include URL secret in the share URL for enhanced security (only for normal mode with password)
                 const shareUrl = (password && !quickShare) ? `${data.url}#${urlSecret}` : data.url;
                 data.url = shareUrl;
                 this.showShareResult(data);
@@ -528,8 +529,8 @@ class ClipboardApp {
                     
                     // Check if this is a Quick Share (4-digit ID) or normal clip
                     if (clipId.length === 4) {
-                        // Quick Share: Content is stored as plain text
-                        decryptedContent = new TextDecoder().decode(new Uint8Array(data.content));
+                        // Quick Share: Decrypt without URL secret (like normal clips without password)
+                        decryptedContent = await this.decryptContent(data.content, null, null);
                     } else {
                         // Normal mode: Decrypt the content
                         decryptedContent = await this.decryptContent(data.content, password, urlSecret);
