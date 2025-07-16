@@ -659,10 +659,10 @@ app.get('/api/clip/:clipId', [
       WHERE clip_id = $2
     `, [Date.now(), clipId]);
 
-    // Handle one-time access
+    // Handle one-time access - immediately delete from database
     if (clip.one_time) {
       await pool.query(
-        'UPDATE clips SET is_expired = true WHERE clip_id = $1',
+        'DELETE FROM clips WHERE clip_id = $1',
         [clipId]
       );
     }
