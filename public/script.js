@@ -634,19 +634,22 @@ class ClipboardApp {
         document.getElementById('share-url').value = data.url;
         document.getElementById('clip-id').value = data.clipId;
         
+        // Show/hide clip ID section based on Quick Share mode
+        const clipIdSection = document.getElementById('clip-id-section');
+        if (data.quickShare) {
+            // For Quick Share: show the ID section
+            clipIdSection.style.display = 'block';
+        } else {
+            // For normal clips: hide the ID section (URL secret is needed anyway)
+            clipIdSection.style.display = 'none';
+        }
+        
         // Generate QR code client-side
         this.generateQRCode(data.url);
         
         document.getElementById('expiry-time').textContent = new Date(data.expiresAt).toLocaleString();
         
         document.getElementById('success-modal').classList.remove('hidden');
-        
-        // Clear form
-        document.getElementById('content-input').value = '';
-        document.getElementById('password-input').value = '';
-        document.getElementById('one-time-checkbox').checked = false;
-        document.getElementById('quick-share-checkbox').checked = false;
-        this.updateCharCounter();
     }
 
     // Generate QR code client-side
@@ -765,6 +768,31 @@ class ClipboardApp {
     // Modal Management
     closeModal() {
         document.getElementById('success-modal').classList.add('hidden');
+        
+        // Reset the share form when modal is closed
+        this.resetShareForm();
+    }
+
+    // Reset Share Form
+    resetShareForm() {
+        // Clear content input
+        document.getElementById('content-input').value = '';
+        
+        // Clear password input
+        document.getElementById('password-input').value = '';
+        
+        // Reset checkboxes to default state
+        document.getElementById('one-time-checkbox').checked = false;
+        document.getElementById('quick-share-checkbox').checked = false;
+        
+        // Reset expiration to default (30 minutes)
+        document.getElementById('expiration-select').value = '30min';
+        
+        // Update character counter
+        this.updateCharCounter();
+        
+        // Focus back to content input for better UX
+        document.getElementById('content-input').focus();
     }
 
     // Loading States
