@@ -321,11 +321,8 @@ class ClipboardApp {
                         passwordSection.classList.add('hidden');
                     }
                     
-                    // For Self-Destruct clips, show result immediately
-                    // For regular clips, only show if user manually clicks retrieve
-                    if (isSelfDestruct) {
-                        this.showRetrieveResult(resultData);
-                    }
+                    // Show result immediately for all clips accessed via direct link
+                    this.showRetrieveResult(resultData);
                 } catch (decryptError) {
                     // For auto-retrieve, don't show error - let user manually retrieve
                 }
