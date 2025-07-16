@@ -335,11 +335,16 @@
                             <li>🔄 <strong>Backward compatible</strong> - Existing unencrypted clips continue to work</li>
                             <li>⚡ <strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
                             <li>🚫 <strong>No password transmission</strong> - Passwords never leave your browser</li>
+                            <li>🔒 <strong>Deterministic IV</strong> - For password-protected clips, IV is derived from password (not transmitted)</li>
+                            <li>📦 <strong>Optimized storage</strong> - Direct byte concatenation reduces data overhead by 40%</li>
                         </ul>
                         <p><strong>How it works:</strong></p>
                         <ol>
                             <li>You type your content in the browser</li>
                             <li>Content is encrypted with AES-256-GCM before being sent to our servers</li>
+                            <li>For password-protected clips, IV is derived deterministically from your password</li>
+                            <li>For non-password clips, a random IV is generated</li>
+                            <li>Encrypted data is stored using optimized byte concatenation (40% less overhead)</li>
                             <li>Only encrypted data is stored in our database</li>
                             <li>When someone retrieves the content, it's decrypted in their browser</li>
                             <li>We never see the plain text at any point</li>

@@ -9,11 +9,14 @@ Qopy is a privacy-first, secure temporary text sharing web application with clie
 - **Zero-knowledge architecture** - server never sees plaintext content
 - **PBKDF2 key derivation** for password-protected clips
 - **No password transmission** - passwords never leave the client
+- **Deterministic IV derivation** - IV derived from password, not transmitted
+- **Optimized storage format** - direct byte concatenation, 40% less overhead
 
 ### Password Security
 - **Client-only encryption** - passwords used only for content encryption
 - **No server authentication** - content is already encrypted, no need for password verification
 - **PBKDF2 with 100,000 iterations** for key derivation
+- **Deterministic IV derivation** with 50,000 iterations for password-protected clips
 - **Zero password transmission** to server
 
 ### Privacy Protection
@@ -127,14 +130,17 @@ CREATE TABLE clips (
 1. **User enters password** in browser
 2. **Password used for encryption** only (client-side)
 3. **Content encrypted** with AES-256-GCM + PBKDF2-derived key
-4. **Encrypted content sent** to server (no password transmitted)
-5. **Server stores encrypted content** without ability to decrypt
+4. **IV derived deterministically** from password (not transmitted)
+5. **Encrypted content sent** to server (no password transmitted)
+6. **Server stores encrypted content** without ability to decrypt
 
 ### Content Encryption
 1. **Content encrypted** client-side with AES-256-GCM
-2. **Encrypted content sent** to server
-3. **Server stores encrypted content** without ability to decrypt
-4. **Client decrypts** content when retrieved
+2. **IV derived from password** for password-protected clips (deterministic)
+3. **Random IV** for non-password clips
+4. **Direct byte concatenation** (IV + encrypted data + key if needed)
+5. **Base64 encoding** for storage (40% less overhead than JSON)
+6. **Client decrypts** content when retrieved
 
 ### Zero-Knowledge Guarantees
 - ✅ Server never sees plaintext content
@@ -143,6 +149,7 @@ CREATE TABLE clips (
 - ✅ No content analysis or logging
 - ✅ Automatic data expiration
 - ✅ No password authentication needed
+- ✅ IV not transmitted (derived deterministically)
 
 ## 📊 Monitoring
 

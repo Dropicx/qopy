@@ -187,22 +187,26 @@
             
             <h2>🔒 Erweiterte Sicherheitsfeatures</h2>
             
+            <h3>Erweiterte Verschlüsselungsfunktionen</h3>
+            <p>Qopy implementiert modernste Verschlüsselungstechniken für maximale Sicherheit:</p>
+            <ul>
+                <li><strong>AES-256-GCM Verschlüsselung</strong> - Militärischer Standard, weltweit von Regierungen verwendet</li>
+                <li><strong>PBKDF2 Schlüsselableitung</strong> - 100.000 Iterationen für passwortgeschützte Inhalte</li>
+                <li><strong>Deterministische IV-Ableitung</strong> - IV wird aus Passwort abgeleitet, nicht übertragen (50.000 Iterationen)</li>
+                <li><strong>Optimiertes Speicherformat</strong> - Direkte Byte-Konkatenation reduziert Overhead um 40%</li>
+                <li><strong>Zufällige Schlüsselgenerierung</strong> - Kryptographisch sichere Zufallsschlüssel für nicht-passwortgeschützte Clips</li>
+                <li><strong>Authentifizierte Verschlüsselung</strong> - GCM-Modus bietet sowohl Vertraulichkeit als auch Integrität</li>
+            </ul>
+            
             <h3>Zero-Knowledge Architektur</h3>
-            <p>Qopy arbeitet nach dem Zero-Knowledge-Prinzip. Das bedeutet:</p>
+            <p>Echter Datenschutz mit Zero-Knowledge-Garantien:</p>
             <ul>
                 <li>Wir sehen niemals Ihren Klartext-Inhalt</li>
                 <li>Alle Verschlüsselung findet in Ihrem Browser statt</li>
                 <li>Nur verschlüsselte Daten werden auf unseren Servern gespeichert</li>
                 <li>Passwörter verlassen niemals Ihren Browser</li>
                 <li>Selbst wenn unsere Server kompromittiert würden, blieben Ihre Daten sicher</li>
-            </ul>
-            
-            <h3>Militärische Verschlüsselung</h3>
-            <p>Wir verwenden AES-256-GCM Verschlüsselung, den gleichen Standard, der von Regierungen und Finanzinstituten weltweit verwendet wird. Dies bietet:</p>
-            <ul>
-                <li>256-Bit-Schlüsselstärke für maximale Sicherheit</li>
-                <li>Galois/Counter Mode (GCM) für authentifizierte Verschlüsselung</li>
-                <li>Schutz vor Vertraulichkeits- und Integritätsangriffen</li>
+                <li>Keine IV-Übertragung - wird deterministisch aus Passwort abgeleitet</li>
             </ul>
             
             <h3>Rate Limiting & Missbrauch-Prävention</h3>

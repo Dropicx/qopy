@@ -723,6 +723,35 @@ class ClipboardApp {
         }
     }
 
+    // Derive IV deterministically from password (for password-protected clips)
+    async deriveIV(password, salt = 'qopy-iv-salt-v1') {
+        const encoder = new TextEncoder();
+        const saltBytes = encoder.encode(salt);
+        const passwordBytes = encoder.encode(password);
+        
+        // Use PBKDF2 to derive IV bytes
+        const keyMaterial = await window.crypto.subtle.importKey(
+            'raw',
+            passwordBytes,
+            { name: 'PBKDF2' },
+            false,
+            ['deriveBits']
+        );
+        
+        const ivBytes = await window.crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                salt: saltBytes,
+                iterations: 50000, // Lower iterations for IV derivation
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            96 // 12 bytes = 96 bits for AES-GCM IV
+        );
+        
+        return new Uint8Array(ivBytes);
+    }
+
     async encryptContent(content, password = null) {
         try {
             // Check if content is already encrypted
@@ -734,8 +763,13 @@ class ClipboardApp {
             const encoder = new TextEncoder();
             const data = encoder.encode(content);
             
-            // Generate random IV
-            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            // Generate IV: deterministic for password clips, random for others
+            let iv;
+            if (password) {
+                iv = await this.deriveIV(password);
+            } else {
+                iv = window.crypto.getRandomValues(new Uint8Array(12));
+            }
             
             // Encrypt the content
             const encryptedData = await window.crypto.subtle.encrypt(
@@ -750,15 +784,27 @@ class ClipboardApp {
                 keyData = await window.crypto.subtle.exportKey('raw', key);
             }
             
-            // Combine IV + encrypted data + key (if present)
-            const result = {
-                iv: Array.from(iv),
-                data: Array.from(new Uint8Array(encryptedData)),
-                key: keyData ? Array.from(new Uint8Array(keyData)) : null
-            };
+            // Direct byte concatenation instead of JSON
+            const encryptedBytes = new Uint8Array(encryptedData);
+            const ivBytes = new Uint8Array(iv);
+            
+            let combined;
+            if (keyData) {
+                // Non-password clip: IV + encrypted data + key
+                const keyBytes = new Uint8Array(keyData);
+                combined = new Uint8Array(ivBytes.length + encryptedBytes.length + keyBytes.length);
+                combined.set(ivBytes, 0);
+                combined.set(encryptedBytes, ivBytes.length);
+                combined.set(keyBytes, ivBytes.length + encryptedBytes.length);
+            } else {
+                // Password-protected clip: IV + encrypted data (no key needed)
+                combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
+                combined.set(ivBytes, 0);
+                combined.set(encryptedBytes, ivBytes.length);
+            }
             
             // Convert to base64 for storage
-            return btoa(JSON.stringify(result));
+            return btoa(String.fromCharCode(...combined));
         } catch (error) {
             console.error('Encryption error:', error);
             throw new Error('Failed to encrypt content');
@@ -772,13 +818,17 @@ class ClipboardApp {
                 return false;
             }
             
-            // Try to parse as encrypted content
-            const parsed = JSON.parse(atob(content));
-            return parsed && typeof parsed === 'object' && 
-                   Array.isArray(parsed.iv) && parsed.iv.length === 12 &&
-                   Array.isArray(parsed.data) && parsed.data.length > 0;
+            // Try to decode as base64
+            const decoded = atob(content);
+            const bytes = new Uint8Array(decoded.length);
+            for (let i = 0; i < decoded.length; i++) {
+                bytes[i] = decoded.charCodeAt(i);
+            }
+            
+            // Check minimum size: IV (12 bytes) + some encrypted data
+            return bytes.length >= 20;
         } catch {
-            // If parsing fails, it's not encrypted
+            // If decoding fails, it's not encrypted
             return false;
         }
     }
@@ -790,35 +840,54 @@ class ClipboardApp {
                 return encryptedContent;
             }
             
-            // Parse the encrypted data
-            const encrypted = JSON.parse(atob(encryptedContent));
+            // Decode base64 to bytes
+            const decoded = atob(encryptedContent);
+            const bytes = new Uint8Array(decoded.length);
+            for (let i = 0; i < decoded.length; i++) {
+                bytes[i] = decoded.charCodeAt(i);
+            }
+            
+            // Extract IV (first 12 bytes)
+            const iv = bytes.slice(0, 12);
+            const encryptedData = bytes.slice(12);
             
             let key;
             if (password) {
+                // Password-protected: derive key from password
                 key = await this.generateKey(password);
-            } else if (encrypted.key) {
-                const keyArray = new Uint8Array(encrypted.key);
-                
-                if (keyArray.byteLength !== 32) {
-                    throw new Error(`Invalid key length: ${keyArray.byteLength} bytes (expected 32)`);
+            } else {
+                // Non-password: extract key from encrypted data
+                if (encryptedData.length < 32) {
+                    throw new Error('Invalid encrypted data: missing key');
                 }
+                
+                const keyBytes = encryptedData.slice(-32);
+                const actualEncryptedData = encryptedData.slice(0, -32);
                 
                 key = await window.crypto.subtle.importKey(
                     'raw',
-                    keyArray,
+                    keyBytes,
                     { name: 'AES-GCM', length: 256 },
                     false,
                     ['decrypt']
                 );
-            } else {
-                throw new Error('No key available for decryption');
+                
+                // Decrypt the content
+                const decryptedData = await window.crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    actualEncryptedData
+                );
+                
+                const decoder = new TextDecoder();
+                return decoder.decode(decryptedData);
             }
             
-            // Decrypt the content
+            // Decrypt password-protected content
             const decryptedData = await window.crypto.subtle.decrypt(
-                { name: 'AES-GCM', iv: new Uint8Array(encrypted.iv) },
+                { name: 'AES-GCM', iv: iv },
                 key,
-                new Uint8Array(encrypted.data)
+                encryptedData
             );
             
             const decoder = new TextDecoder();
