@@ -318,6 +318,15 @@ app.get('/clip/fonts/Inter-ExtraBold.woff2', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'fonts', 'Inter-ExtraBold.woff2'));
 });
 
+// QR Code library route
+app.get('/qrcode.min.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'qrcode.min.js'));
+});
+
+app.get('/clip/qrcode.min.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'qrcode.min.js'));
+});
+
 // Logo routes to prevent conflicts with /clip/ routes
 app.get('/clip/logos/Favicon.png', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'logos', 'Favicon.png'));
