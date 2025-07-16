@@ -178,18 +178,15 @@ const corsOptions = {
             );
             
             // Allow any Railway.app subdomain for flexibility
-            if (origin.includes('.railway.app')) {
-                console.log(`✅ Allowing Railway.app origin: ${origin}`);
-                return callback(null, true);
-            }
+                    if (origin.includes('.railway.app')) {
+            return callback(null, true);
+        }
         }
         
         if (allowedOrigins.includes(origin)) {
-            console.log(`✅ Allowing origin: ${origin}`);
             callback(null, true);
         } else {
             console.warn(`🚫 CORS blocked origin: ${origin}`);
-            console.warn(`🚫 Allowed origins: ${allowedOrigins.join(', ')}`);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -502,15 +499,15 @@ app.post('/api/share', [
       if (Array.isArray(content)) {
         // New format: raw bytes array from client
         binaryContent = Buffer.from(content);
-        console.log(`📦 Converting array of ${content.length} bytes to Buffer`);
+
       } else if (typeof content === 'string') {
         // Old format: base64 string (for backward compatibility)
         binaryContent = Buffer.from(content, 'base64');
-        console.log(`📦 Converting base64 string of ${content.length} chars to Buffer`);
+
       } else {
         throw new Error('Invalid content format');
       }
-      console.log(`📦 Buffer created: ${binaryContent.length} bytes, type: ${typeof binaryContent}`);
+      
     } catch (error) {
       console.error('❌ Error converting content to binary:', error);
       return res.status(400).json({
@@ -537,7 +534,7 @@ app.post('/api/share', [
 
     // Insert clip into database (privacy-first: no IP/user-agent tracking)
     // Store binary data directly as BYTEA
-    console.log(`📦 Storing ${binaryContent.length} bytes directly as BYTEA`);
+    
     await pool.query(`
       INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -909,7 +906,7 @@ process.on('SIGINT', () => {
 
 // Graceful shutdown
 function gracefulShutdown() {
-    console.log('🛑 Starting graceful shutdown sequence');
+            console.log('🛑 Graceful shutdown initiated');
     
     // Clear cleanup interval
     if (cleanupInterval) {
@@ -917,11 +914,9 @@ function gracefulShutdown() {
     }
     
     // Close database connection pool
-    console.log('🔄 Closing database connection pool...');
     pool.end()
         .then(() => {
-            console.log('✅ Database connection pool closed');
-            console.log('🔌 Server closed');
+            console.log('✅ Server shutdown complete');
             process.exit(0);
         })
         .catch((err) => {
@@ -944,7 +939,6 @@ async function startServer() {
         await client.query('SELECT NOW() as current_time');
         
         // Run database migration for clip_id column length
-        console.log('🔄 Checking clip_id column migration...');
         try {
             // Check if clips table exists first
             const tableExists = await client.query(`
@@ -955,7 +949,7 @@ async function startServer() {
             `);
             
             if (!tableExists.rows[0].exists) {
-                console.log('⚠️ clips table does not exist, skipping migration');
+                // Table doesn't exist, skip migration
             } else {
                 const currentDef = await client.query(`
                     SELECT column_name, data_type, character_maximum_length 
@@ -965,10 +959,8 @@ async function startServer() {
                 
                 if (currentDef.rows.length > 0) {
                     const currentLength = currentDef.rows[0].character_maximum_length;
-                    console.log(`📋 Current clip_id length: ${currentLength}`);
                     
                     if (currentLength < 10) {
-                        console.log('🔄 Migrating clip_id column to VARCHAR(10)...');
                         await client.query('ALTER TABLE clips ALTER COLUMN clip_id TYPE VARCHAR(10)');
                         
                         // Verify migration
@@ -979,33 +971,24 @@ async function startServer() {
                         `);
                         
                         const newLength = newDef.rows[0].character_maximum_length;
-                        console.log(`📋 New clip_id length: ${newLength}`);
                         
                         if (newLength >= 10) {
-                            console.log('✅ clip_id migration successful!');
-                            
                             // Add comment (ignore errors)
                             try {
                                 await client.query(`
                                     COMMENT ON COLUMN clips.clip_id IS 'Clip ID: 4 characters for Quick Share, 10 characters for normal clips'
                                 `);
-                                console.log('✅ Added column comment');
                             } catch (commentError) {
-                                console.log('⚠️ Could not add column comment (non-critical)');
+                                // Comment addition failed, but migration succeeded
                             }
                         } else {
                             console.error('❌ Migration failed - column length not updated');
                         }
-                    } else {
-                        console.log('✅ clip_id column already supports 10 characters');
                     }
-                } else {
-                    console.log('⚠️ clip_id column not found in clips table');
                 }
             }
         } catch (migrationError) {
             console.error('❌ Migration error:', migrationError.message);
-            console.log('⚠️ Continuing server start despite migration error');
         }
         
         client.release();

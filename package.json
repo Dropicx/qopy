@@ -6,14 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "npm install",
-    "db:init": "node scripts/db-init.js",
-    "db:check": "node scripts/db-check.js",
-    "db:migrate-passwords": "node scripts/migrate-passwords.js",
-    "db:migrate-binary": "node scripts/migrate-to-binary.js",
-    "test": "node scripts/test.js",
-    "monitor": "node scripts/monitor.js",
-    "health": "node scripts/health.js"
+    "build": "npm install"
   },
   "keywords": ["clipboard", "sharing", "anonymous", "temporary", "qopy"],
   "author": "Qopy App",

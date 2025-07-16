@@ -236,7 +236,7 @@ class ClipboardApp {
                 }
             }
         } catch (error) {
-            console.error('Routing error:', error);
+            // Routing error - non-critical
         }
     }
 
@@ -262,7 +262,6 @@ class ClipboardApp {
             
             // If clip has password, don't auto-decrypt - just prepare UI
             if (infoData.hasPassword) {
-                console.log('🔐 Password-protected clip detected, requiring manual password entry');
                 this.hideLoading('retrieve-loading');
                 
                 // Show password section and focus password input
@@ -312,14 +311,12 @@ class ClipboardApp {
                     
                     this.showRetrieveResult(data);
                 } catch (decryptError) {
-                    console.error('Auto-retrieve decryption failed:', decryptError);
                     // For auto-retrieve, don't show error - let user manually retrieve
                 }
             } else {
                 // For auto-retrieve, don't show error - let user manually retrieve
             }
         } catch (error) {
-            console.error('Auto-retrieve error:', error);
             // For auto-retrieve, don't show error - let user manually retrieve
         } finally {
             this.hideLoading('retrieve-loading');
@@ -402,7 +399,7 @@ class ClipboardApp {
                 }
             }, 200);
         } catch (error) {
-            console.error('❌ Error in switchTab:', error);
+            // Tab switching error - non-critical
         }
     }
 
@@ -458,7 +455,6 @@ class ClipboardApp {
                 }
             } catch (error) {
                 // On error, password section stays hidden
-                console.log('Could not check clip info:', error.message);
             }
         }
         // If clip ID is not complete, password section stays hidden (default behavior)
@@ -539,7 +535,6 @@ class ClipboardApp {
                 }
             }
         } catch (error) {
-            console.error('Share error:', error);
             this.showToast(error.message || 'Failed to create share link', 'error');
         } finally {
             this.hideLoading('loading');
@@ -611,14 +606,12 @@ class ClipboardApp {
                     data.content = decryptedContent;
                     this.showRetrieveResult(data);
                 } catch (decryptError) {
-                    console.error('Decryption failed in retrieveContent:', decryptError);
                     throw new Error(decryptError.message);
                 }
             } else {
                 throw new Error(data.error || 'Failed to retrieve clip');
             }
         } catch (error) {
-            console.error('Retrieve error:', error);
             this.showToast(error.message || 'Failed to retrieve content', 'error');
             document.getElementById('content-result').classList.add('hidden');
         } finally {
@@ -697,7 +690,6 @@ class ClipboardApp {
             document.body.removeChild(tempContainer);
             
         } catch (error) {
-            console.error('QR code generation error:', error);
             // Fallback to text if QR generation fails
             const qrCodeImg = document.getElementById('qr-code');
             qrCodeImg.style.display = 'none';
@@ -1046,7 +1038,6 @@ class ClipboardApp {
             // Return raw bytes instead of base64
             return combined;
         } catch (error) {
-            console.error('Encryption error:', error);
             throw new Error('Failed to encrypt content');
         }
     }
@@ -1159,7 +1150,6 @@ class ClipboardApp {
                 return decoder.decode(decryptedData);
             }
         } catch (error) {
-            console.error('Decryption error:', error);
             throw new Error('Failed to decrypt content. The content may be corrupted or the password is incorrect.');
         }
     }
