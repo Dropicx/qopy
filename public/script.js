@@ -90,6 +90,9 @@ class ClipboardApp {
         // Share form
         document.getElementById('share-button').addEventListener('click', this.shareContent.bind(this));
 
+        // Quick Share checkbox
+        document.getElementById('quick-share-checkbox').addEventListener('change', this.handleQuickShareChange.bind(this));
+
         // Retrieve form
         document.getElementById('retrieve-button').addEventListener('click', this.retrieveContent.bind(this));
         document.getElementById('clip-id-input').addEventListener('input', this.checkClipId.bind(this));
@@ -192,46 +195,46 @@ class ClipboardApp {
             // More robust pattern matching for clip URLs
             let clipId = null;
             
-            // Check for /clip/ABC123 pattern
-            if (path.startsWith('/clip/') && path.length === 12) {
+            // Check for /clip/ABC123 pattern (10-char normal ID)
+            if (path.startsWith('/clip/') && path.length === 16) {
                 clipId = path.substring(6);
             }
-            // Check for /ABC123 pattern (direct 6-char ID)
-            else if (path.length === 7 && path.startsWith('/') && /^[A-Z0-9]{6}$/.test(path.substring(1))) {
+            // Check for /clip/ABC1 pattern (4-char Quick Share ID)
+            else if (path.startsWith('/clip/') && path.length === 10) {
+                clipId = path.substring(6);
+            }
+            // Check for /ABC123 pattern (direct 10-char ID)
+            else if (path.length === 11 && path.startsWith('/') && /^[A-Z0-9]{10}$/.test(path.substring(1))) {
+                clipId = path.substring(1);
+            }
+            // Check for /ABC1 pattern (direct 4-char Quick Share ID)
+            else if (path.length === 5 && path.startsWith('/') && /^[A-Z0-9]{4}$/.test(path.substring(1))) {
                 clipId = path.substring(1);
             }
             
-            if (clipId && /^[A-Z0-9]{6}$/.test(clipId)) {
-                // Force switch to retrieve tab immediately
-                this.switchTab('retrieve');
-                
-                // Set clip ID in input field
-                const clipIdInput = document.getElementById('clip-id-input');
-                if (clipIdInput) {
-                    clipIdInput.value = clipId;
-                }
-                
-                // Auto-retrieve after a short delay to ensure DOM is ready
-                setTimeout(() => {
+            if (clipId) {
+                // Validate clip ID format
+                if (/^[A-Z0-9]{4}$|^[A-Z0-9]{10}$/.test(clipId)) {
+                    this.switchTab('retrieve');
+                    document.getElementById('clip-id-input').value = clipId;
                     this.autoRetrieveClip(clipId);
-                }, 300);
-                
-            } else if (path === '/retrieve') {
-                // Handle /retrieve URL by redirecting to home and switching to retrieve tab
-                history.replaceState(null, '', '/');
-                this.switchTab('retrieve');
-            } else {
-                // Default to share tab for root path
-                this.switchTab('share');
+                }
             }
         } catch (error) {
-            console.error('❌ Error in setupRouting:', error);
+            console.error('Routing error:', error);
         }
     }
 
     // Auto-retrieve clip from URL
     async autoRetrieveClip(clipId) {
         try {
+            // Validate clip ID format
+            if (!/^[A-Z0-9]{4}$|^[A-Z0-9]{10}$/.test(clipId)) {
+                return;
+            }
+
+            this.showLoading('retrieve-loading');
+            
             // Extract URL secret from current URL if available
             const urlSecret = this.extractUrlSecret();
             
@@ -245,47 +248,33 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
-                // Check if clip has password first
-                if (data.hasPassword) {
-                    this.switchTab('retrieve');
-                    document.getElementById('clip-id-input').value = clipId;
-                    
-                    // Ensure password section is visible
-                    const passwordSection = document.getElementById('password-section');
-                    if (passwordSection) {
-                        passwordSection.classList.remove('hidden');
-                    }
-                    
-                    // Focus password input
-                    const passwordInput = document.getElementById('retrieve-password-input');
-                    if (passwordInput) {
-                        passwordInput.focus();
-                    }
-                    
-                    // Show hint about URL secret if available
-                    if (urlSecret) {
-                        this.showToast('URL secret detected. Enter your password to decrypt.', 'info');
-                    } else {
-                        this.showToast('This clip is password protected. Enter the password to decrypt.', 'info');
-                    }
-                    return; // Don't try to decrypt without password
-                }
-                
-                // No password required, try to decrypt with URL secret only
+                // Decrypt the content before showing
                 try {
-                    const decryptedContent = await this.decryptContent(data.content, null, urlSecret);
+                    let decryptedContent;
+                    
+                    // Check if this is a Quick Share (4-digit ID) or normal clip
+                    if (clipId.length === 4) {
+                        // Quick Share: Content is stored as plain text
+                        decryptedContent = new TextDecoder().decode(new Uint8Array(data.content));
+                    } else {
+                        // Normal mode: Decrypt the content
+                        decryptedContent = await this.decryptContent(data.content, null, urlSecret);
+                    }
+                    
                     data.content = decryptedContent;
                     this.showRetrieveResult(data);
                 } catch (decryptError) {
-                    console.log('Decryption failed for non-password clip:', decryptError.message);
-                    this.showToast('Failed to decrypt content. The content may be corrupted.', 'error');
+                    console.error('Auto-retrieve decryption failed:', decryptError);
+                    // For auto-retrieve, don't show error - let user manually retrieve
                 }
             } else {
-                this.showToast(data.error || 'Clip not found', 'error');
+                // For auto-retrieve, don't show error - let user manually retrieve
             }
         } catch (error) {
             console.error('Auto-retrieve error:', error);
-            this.showToast('Failed to retrieve clip', 'error');
+            // For auto-retrieve, don't show error - let user manually retrieve
+        } finally {
+            this.hideLoading('retrieve-loading');
         }
     }
 
@@ -374,27 +363,35 @@ class ClipboardApp {
     // Check Clip ID and show password field if needed
     async checkClipId() {
         const clipId = document.getElementById('clip-id-input').value.trim();
-        const passwordSection = document.getElementById('password-section');
         
-        if (clipId.length === 6) {
+        if (clipId.length === 4 || clipId.length === 10) {
             try {
                 const response = await fetch(`/api/clip/${clipId}/info`);
+                const data = await response.json();
+                
                 if (response.ok) {
-                    const data = await response.json();
+                    // Show password section if clip has password
+                    const passwordSection = document.getElementById('password-section');
+                    const passwordInput = document.getElementById('retrieve-password-input');
+                    
                     if (data.hasPassword) {
                         passwordSection.classList.remove('hidden');
-                        document.getElementById('retrieve-password-input').focus();
+                        passwordInput.focus();
                     } else {
                         passwordSection.classList.add('hidden');
+                        passwordInput.value = '';
                     }
                 } else {
-                    passwordSection.classList.add('hidden');
+                    // Hide password section if clip not found
+                    document.getElementById('password-section').classList.add('hidden');
                 }
             } catch (error) {
-                passwordSection.classList.add('hidden');
+                // Hide password section on error
+                document.getElementById('password-section').classList.add('hidden');
             }
         } else {
-            passwordSection.classList.add('hidden');
+            // Hide password section if clip ID is not complete
+            document.getElementById('password-section').classList.add('hidden');
         }
     }
 
@@ -404,6 +401,7 @@ class ClipboardApp {
         const password = document.getElementById('password-input').value.trim();
         const expiration = document.getElementById('expiration-select').value;
         const oneTime = document.getElementById('one-time-checkbox').checked;
+        const quickShare = document.getElementById('quick-share-checkbox').checked;
 
         // Validation
         if (!content) {
@@ -422,10 +420,17 @@ class ClipboardApp {
         shareButton.disabled = true;
 
         try {
-            // Generate URL secret for enhanced security
-            const urlSecret = this.generateUrlSecret();
+            let encryptedContent;
+            let urlSecret = null;
             
-            const encryptedContent = await this.encryptContent(content, password, urlSecret);
+            if (quickShare) {
+                // Quick Share: No encryption, send plain text
+                encryptedContent = new TextEncoder().encode(content);
+            } else {
+                // Normal mode: Use encryption
+                urlSecret = this.generateUrlSecret();
+                encryptedContent = await this.encryptContent(content, password, urlSecret);
+            }
             
             // Convert Uint8Array to regular array for JSON serialization
             const contentArray = Array.from(encryptedContent);
@@ -440,15 +445,16 @@ class ClipboardApp {
                     content: contentArray,
                     expiration,
                     oneTime,
-                    hasPassword: !!password // Just indicate if password protection is used
+                    hasPassword: !!password, // Just indicate if password protection is used
+                    quickShare
                 })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                // Include URL secret in the share URL for enhanced security
-                const shareUrl = password ? `${data.url}#${urlSecret}` : data.url;
+                // Include URL secret in the share URL for enhanced security (only for normal mode)
+                const shareUrl = (password && !quickShare) ? `${data.url}#${urlSecret}` : data.url;
                 data.url = shareUrl;
                 this.showShareResult(data);
             } else {
@@ -491,8 +497,8 @@ class ClipboardApp {
             return;
         }
 
-        if (clipId.length !== 6) {
-            this.showToast('Clip ID must be exactly 6 characters', 'error');
+        if (clipId.length !== 4 && clipId.length !== 10) {
+            this.showToast('Clip ID must be exactly 4 or 10 characters', 'error');
             return;
         }
 
@@ -518,7 +524,17 @@ class ClipboardApp {
             if (response.ok) {
                 // Decrypt the content before showing
                 try {
-                    const decryptedContent = await this.decryptContent(data.content, password, urlSecret);
+                    let decryptedContent;
+                    
+                    // Check if this is a Quick Share (4-digit ID) or normal clip
+                    if (clipId.length === 4) {
+                        // Quick Share: Content is stored as plain text
+                        decryptedContent = new TextDecoder().decode(new Uint8Array(data.content));
+                    } else {
+                        // Normal mode: Decrypt the content
+                        decryptedContent = await this.decryptContent(data.content, password, urlSecret);
+                    }
+                    
                     data.content = decryptedContent;
                     this.showRetrieveResult(data);
                 } catch (decryptError) {
@@ -563,6 +579,7 @@ class ClipboardApp {
         document.getElementById('content-input').value = '';
         document.getElementById('password-input').value = '';
         document.getElementById('one-time-checkbox').checked = false;
+        document.getElementById('quick-share-checkbox').checked = false;
         this.updateCharCounter();
     }
 
@@ -1020,6 +1037,13 @@ class ClipboardApp {
                 throw new Error('Invalid encrypted content format');
             }
             
+            // Extract IV (first 12 bytes)
+            if (bytes.length < 12) {
+                throw new Error('Invalid encrypted data: too short');
+            }
+            const iv = bytes.slice(0, 12);
+            const encryptedData = bytes.slice(12);
+            
             let key;
             if (password) {
                 // Password-protected: derive key from password + URL secret
@@ -1064,6 +1088,32 @@ class ClipboardApp {
         } catch (error) {
             console.error('Decryption error:', error);
             throw new Error('Failed to decrypt content. The content may be corrupted or the password is incorrect.');
+        }
+    }
+
+    // Handle Quick Share checkbox change
+    handleQuickShareChange() {
+        const quickShare = document.getElementById('quick-share-checkbox').checked;
+        const expirationSelect = document.getElementById('expiration-select');
+        const oneTimeCheckbox = document.getElementById('one-time-checkbox');
+        const passwordInput = document.getElementById('password-input');
+        const passwordGroup = passwordInput.closest('.form-row');
+        
+        if (quickShare) {
+            // Quick Share mode: Set to 5min, disable other options
+            expirationSelect.value = '5min';
+            expirationSelect.disabled = true;
+            oneTimeCheckbox.checked = false;
+            oneTimeCheckbox.disabled = true;
+            passwordInput.value = '';
+            passwordGroup.style.opacity = '0.5';
+            passwordInput.disabled = true;
+        } else {
+            // Normal mode: Re-enable all options
+            expirationSelect.disabled = false;
+            oneTimeCheckbox.disabled = false;
+            passwordGroup.style.opacity = '1';
+            passwordInput.disabled = false;
         }
     }
 }

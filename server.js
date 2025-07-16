@@ -346,10 +346,12 @@ app.get('/apple-touch-icon.png', (req, res) => {
 });
 
 // Clip ID generation
-function generateClipId() {
+function generateClipId(quickShare = false) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
-  for (let i = 0; i < 6; i++) {
+  const length = quickShare ? 4 : 10; // 4 für Quick Share, 10 für normale Shares
+  
+  for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
@@ -435,7 +437,8 @@ app.post('/api/share', [
   }),
   body('expiration').isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
   body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
-  body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean')
+  body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
+  body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -446,7 +449,14 @@ app.post('/api/share', [
       });
     }
 
-    let { content, expiration, hasPassword, oneTime } = req.body;
+    let { content, expiration, hasPassword, oneTime, quickShare } = req.body;
+
+    // Quick Share Mode: Override settings
+    if (quickShare) {
+      expiration = '5min';
+      oneTime = false;
+      hasPassword = false;
+    }
 
     // Validate content
     if (!content || (typeof content === 'string' && content.trim().length === 0)) {
@@ -490,7 +500,7 @@ app.post('/api/share', [
     };
 
     const expirationTime = Date.now() + expirationTimes[expiration];
-    const clipId = generateClipId();
+    const clipId = generateClipId(quickShare);
 
     // No password hashing needed - content is already encrypted client-side
     // hasPassword is just a flag for UI purposes
@@ -508,7 +518,8 @@ app.post('/api/share', [
       clipId: clipId,
       url: `${req.protocol}://${req.get('host')}/clip/${clipId}`,
       expiresAt: expirationTime,
-      oneTime: oneTime || false
+      oneTime: oneTime || false,
+      quickShare: quickShare || false
     });
 
   } catch (error) {
@@ -522,7 +533,16 @@ app.post('/api/share', [
 
 // Get clip info
 app.get('/api/clip/:clipId/info', [
-  param('clipId').isLength({ min: 6, max: 6 }).withMessage('Clip ID must be 6 characters')
+  param('clipId').custom((value) => {
+    // Support both 4-character (Quick Share) and 10-character (normal) IDs
+    if (value.length !== 4 && value.length !== 10) {
+      throw new Error('Clip ID must be 4 or 10 characters');
+    }
+    if (!/^[A-Z0-9]+$/.test(value)) {
+      throw new Error('Clip ID must contain only uppercase letters and numbers');
+    }
+    return true;
+  })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -568,7 +588,16 @@ app.get('/api/clip/:clipId/info', [
 
 // Get clip (no password authentication needed - content is encrypted client-side)
 app.get('/api/clip/:clipId', [
-  param('clipId').isLength({ min: 6, max: 6 }).withMessage('Clip ID must be 6 characters')
+  param('clipId').custom((value) => {
+    // Support both 4-character (Quick Share) and 10-character (normal) IDs
+    if (value.length !== 4 && value.length !== 10) {
+      throw new Error('Clip ID must be 4 or 10 characters');
+    }
+    if (!/^[A-Z0-9]+$/.test(value)) {
+      throw new Error('Clip ID must contain only uppercase letters and numbers');
+    }
+    return true;
+  })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);

@@ -182,6 +182,16 @@
                 </div>
 
                 <div class="form-row">
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="quick-share-checkbox">
+                            <span class="checkmark"></span>
+                            Quick Share Mode (4-digit code, 5min expiry, no encryption)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-row">
                     <div class="input-group">
                         <label for="password-input" class="label">Password (optional):</label>
                         <input 
@@ -250,12 +260,13 @@
                             <li>📝 <strong>Paste your text</strong> - Enter up to 100,000 characters</li>
                             <li>⏰ <strong>Choose expiration</strong> - From 5 minutes to 24 hours</li>
                             <li>🔐 <strong>Add protection</strong> - Optional password and one-time access</li>
-                            <li>🔗 <strong>Get your link</strong> - Share the generated URL or 6-character ID</li>
+                            <li>🔗 <strong>Get your link</strong> - Share the generated URL or 10-character ID</li>
+                            <li>⚡ <strong>Quick Share</strong> - Use 4-digit codes for fast sharing (5min expiry)</li>
                             <li>📱 <strong>QR code</strong> - Easy mobile sharing with generated QR code</li>
                             <li>🔒 <strong>Client-side QR generation</strong> - QR codes generated locally, no external API calls</li>
                             <li>📱 <strong>Mobile-optimized</strong> - Responsive design for easy sharing</li>
                         </ol>
-                        <p>Recipients can access your content using either the full URL or just the 6-character clip ID.</p>
+                        <p>Recipients can access your content using either the full URL or just the clip ID.</p>
                     </div>
                 </div>
 
@@ -314,7 +325,7 @@
                             <li>🚦 <strong>Rate limiting</strong> - Multi-layered strategy with burst protection, API limits, and content-specific restrictions</li>
                             <li>🔍 <strong>Temporary IP processing</strong> - IP addresses are only processed in memory for rate limiting, not stored permanently</li>
                             <li>🔐 <strong>Password length</strong> - Maximum 128 characters</li>
-                            <li>🆔 <strong>Clip ID</strong> - 6 characters (auto-generated)</li>
+                            <li>🆔 <strong>Clip ID</strong> - 10 characters (normal) or 4 characters (Quick Share)</li>
                         </ul>
                         <p>These limits help us maintain service quality and prevent abuse while ensuring fair usage for all users.</p>
                     </div>
@@ -499,7 +510,7 @@
                             <li>🛡️ <strong>Zero-knowledge architecture</strong> - We literally cannot read your content</li>
                             <li>📱 <strong>Mobile-optimized</strong> - QR codes and responsive design for easy sharing</li>
                             <li>🚫 <strong>Zero distractions</strong> - No ads, no tracking, no bloat</li>
-                            <li>⚡ <strong>Lightning fast</strong> - Instant sharing with 6-character IDs</li>
+                            <li>⚡ <strong>Lightning fast</strong> - Instant sharing with 10-character IDs or 4-character Quick Share</li>
                         </ul>
                     </div>
                 </div>
@@ -580,8 +591,8 @@
                     <input 
                         type="text" 
                         id="clip-id-input" 
-                        placeholder="Enter 6-character clip ID (e.g. X8K2M9)"
-                        maxlength="6"
+                        placeholder="Enter clip ID (4 or 10 characters, e.g. X8K2 or X8K2M9N4P7)"
+                        maxlength="10"
                         style="text-transform: uppercase;"
                         pattern="[A-Z0-9]*"
                         autocomplete="off"
