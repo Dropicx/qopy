@@ -20,37 +20,33 @@
 
 const { Pool } = require('pg');
 
-console.log('🗄️  Initializing PostgreSQL Database for Railway...');
+console.log('🗄️ Initializing PostgreSQL Database...');
 
 // PostgreSQL Configuration
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error('❌ DATABASE_URL environment variable is required');
-  console.error('   Please add PostgreSQL plugin in Railway dashboard');
-  process.exit(1);
+    console.error('❌ DATABASE_URL environment variable is required');
+    console.error('   Please add PostgreSQL plugin in Railway dashboard');
+    process.exit(1);
 }
-
-console.log(`📂 Database URL: ${DATABASE_URL.replace(/:[^:@]*@/, ':****@')}`);
-console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`🚂 Railway: ${process.env.RAILWAY_ENVIRONMENT || 'local'}`);
 
 // Create PostgreSQL connection pool
 const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 1, // Use single connection for initialization
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
+    connectionString: DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 1, // Use single connection for initialization
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000
 });
 
 // Test connection
 pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
+    console.log('✅ Connected to PostgreSQL database');
 });
 
 pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle client', err);
-  process.exit(-1);
+    console.error('❌ Unexpected error on idle client', err);
+    process.exit(-1);
 });
 
 // Create clips table (privacy-first: no IP/user-agent tracking)
@@ -129,52 +125,42 @@ const tables = [
 ];
 
 async function initializeDatabase() {
-  try {
-    let completedTables = 0;
-    const totalTables = tables.length;
+    try {
+        let completedTables = 0;
+        const totalTables = tables.length;
 
-    for (const table of tables) {
-      try {
-        await pool.query(table.sql);
-        console.log(`✅ Created ${table.name} table`);
-        completedTables++;
-      } catch (error) {
-        console.error(`❌ Error creating ${table.name} table:`, error.message);
-      }
-    }
-
-    if (completedTables === totalTables) {
-      // Create indexes after all tables are created
-      console.log('🔍 Creating indexes...');
-      for (let i = 0; i < createIndexes.length; i++) {
-        try {
-          await pool.query(createIndexes[i]);
-          console.log(`✅ Created index ${i + 1}`);
-        } catch (error) {
-          console.error(`❌ Error creating index ${i + 1}:`, error.message);
+        for (const table of tables) {
+            try {
+                await pool.query(table.sql);
+                completedTables++;
+            } catch (error) {
+                console.error(`❌ Error creating ${table.name} table:`, error.message);
+            }
         }
-      }
 
-      console.log('🎉 PostgreSQL database initialization completed successfully!');
-      console.log('📊 Database: PostgreSQL (Railway)');
-      console.log('📋 Tables created: clips, users, user_clips, access_logs');
-      console.log('🔍 Indexes created for optimal performance');
-      console.log('⚡ Optimized for Railway PostgreSQL');
+        if (completedTables === totalTables) {
+            // Create indexes after all tables are created
+            for (let i = 0; i < createIndexes.length; i++) {
+                try {
+                    await pool.query(createIndexes[i]);
+                } catch (error) {
+                    console.error(`❌ Error creating index ${i + 1}:`, error.message);
+                }
+            }
 
-    } else {
-      console.warn(`⚠️ Only ${completedTables}/${totalTables} tables created successfully`);
-      console.log('🔄 Continuing with partial initialization...');
+            console.log('✅ Database initialization completed successfully');
+        } else {
+            console.warn(`⚠️ Only ${completedTables}/${totalTables} tables created successfully`);
+        }
+
+    } catch (error) {
+        console.error('❌ Database initialization failed:', error.message);
+    } finally {
+        // Close database connection pool
+        await pool.end();
+        console.log('🔒 Database connection pool closed');
+        process.exit(0);
     }
-
-  } catch (error) {
-    console.error('❌ Database initialization failed:', error.message);
-    console.log('🔄 Continuing anyway - tables might already exist...');
-  } finally {
-    // Close database connection pool
-    await pool.end();
-    console.log('🔒 Database connection pool closed');
-    process.exit(0);
-  }
 }
 
 // Run initialization

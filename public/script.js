@@ -164,7 +164,6 @@ class ClipboardApp {
     setupRouting() {
         try {
             const path = window.location.pathname;
-            console.log('🔗 Current path:', path);
             
             // More robust pattern matching for clip URLs
             let clipId = null;
@@ -172,17 +171,13 @@ class ClipboardApp {
             // Check for /clip/ABC123 pattern
             if (path.startsWith('/clip/') && path.length === 12) {
                 clipId = path.substring(6);
-                console.log('🔗 Detected /clip/ pattern:', clipId);
             }
             // Check for /ABC123 pattern (direct 6-char ID)
             else if (path.length === 7 && path.startsWith('/') && /^[A-Z0-9]{6}$/.test(path.substring(1))) {
                 clipId = path.substring(1);
-                console.log('🔗 Detected direct ID pattern:', clipId);
             }
             
             if (clipId && /^[A-Z0-9]{6}$/.test(clipId)) {
-                console.log('🔗 Valid clip ID detected:', clipId);
-                
                 // Force switch to retrieve tab immediately
                 this.switchTab('retrieve');
                 
@@ -190,23 +185,19 @@ class ClipboardApp {
                 const clipIdInput = document.getElementById('clip-id-input');
                 if (clipIdInput) {
                     clipIdInput.value = clipId;
-                    console.log('✅ Clip ID set in input field');
                 }
                 
                 // Auto-retrieve after a short delay to ensure DOM is ready
                 setTimeout(() => {
-                    console.log('🔄 Auto-retrieving clip:', clipId);
                     this.autoRetrieveClip(clipId);
                 }, 300);
                 
             } else if (path === '/retrieve') {
                 // Handle /retrieve URL by redirecting to home and switching to retrieve tab
-                console.log('🔄 Redirecting /retrieve to home with retrieve tab');
                 history.replaceState(null, '', '/');
                 this.switchTab('retrieve');
             } else {
                 // Default to share tab for root path
-                console.log('🏠 Defaulting to share tab');
                 this.switchTab('share');
             }
         } catch (error) {
@@ -217,36 +208,27 @@ class ClipboardApp {
     // Auto-retrieve clip with password handling
     async autoRetrieveClip(clipId) {
         try {
-            console.log('🔍 Checking clip info for:', clipId);
-            
             // First check if clip needs password
             const infoResponse = await fetch(`/api/clip/${clipId}/info`);
-            console.log('📋 Info response status:', infoResponse.status);
             
             if (infoResponse.ok) {
                 const info = await infoResponse.json();
-                console.log('📋 Clip info:', info);
                 
                 if (info.hasPassword) {
                     // Show password field and focus on it
-                    console.log('🔐 Password required, showing password field');
                     const passwordSection = document.getElementById('password-section');
                     if (passwordSection) {
                         passwordSection.classList.remove('hidden');
-                        console.log('✅ Password section shown');
                     }
                     
                     const passwordInput = document.getElementById('retrieve-password-input');
                     if (passwordInput) {
                         passwordInput.focus();
-                        console.log('✅ Password input focused');
                     }
                     
                     this.showToast('This clip is password protected', 'info');
                 } else {
                     // No password needed, retrieve immediately
-                    console.log('✅ No password required, retrieving content');
-                    
                     // Ensure we're on the retrieve tab
                     this.switchTab('retrieve');
                     
@@ -254,7 +236,6 @@ class ClipboardApp {
                     const clipIdInput = document.getElementById('clip-id-input');
                     if (clipIdInput && !clipIdInput.value) {
                         clipIdInput.value = clipId;
-                        console.log('✅ Clip ID set in input field');
                     }
                     
                     // Call retrieve content
@@ -262,7 +243,6 @@ class ClipboardApp {
                 }
             } else {
                 // Clip not found or other error
-                console.log('❌ Clip not found or error:', infoResponse.status);
                 this.showToast('Clip not found or has expired', 'error');
             }
         } catch (error) {
@@ -274,8 +254,6 @@ class ClipboardApp {
     // Tab Management
     switchTab(tab) {
         try {
-            console.log('🔄 Switching to tab:', tab);
-            
             // Update tab buttons
             const tabButtons = document.querySelectorAll('.tab-button');
             tabButtons.forEach(btn => btn.classList.remove('active'));
@@ -283,9 +261,6 @@ class ClipboardApp {
             const targetTabButton = document.getElementById(`${tab}-tab`);
             if (targetTabButton) {
                 targetTabButton.classList.add('active');
-                console.log('✅ Tab button updated');
-            } else {
-                console.error('❌ Tab button not found:', `${tab}-tab`);
             }
             
             // Update sections
@@ -295,9 +270,6 @@ class ClipboardApp {
             const targetSection = document.getElementById(`${tab}-section`);
             if (targetSection) {
                 targetSection.classList.add('active');
-                console.log('✅ Section updated');
-            } else {
-                console.error('❌ Section not found:', `${tab}-section`);
             }
 
             // Update URL without reloading (only for share tab)
@@ -311,18 +283,14 @@ class ClipboardApp {
                     const contentInput = document.getElementById('content-input');
                     if (contentInput) {
                         contentInput.focus();
-                        console.log('✅ Content input focused');
                     }
                 } else if (tab === 'retrieve') {
                     const clipIdInput = document.getElementById('clip-id-input');
                     if (clipIdInput) {
                         clipIdInput.focus();
-                        console.log('✅ Clip ID input focused');
                     }
                 }
             }, 200);
-            
-            console.log('✅ Tab switched successfully');
         } catch (error) {
             console.error('❌ Error in switchTab:', error);
         }
@@ -397,6 +365,8 @@ class ClipboardApp {
 
         try {
             const encryptedContent = await this.encryptContent(content, password);
+            
+            // No password sent to server - content is already encrypted!
             const response = await fetch('/api/share', {
                 method: 'POST',
                 headers: {
@@ -406,7 +376,7 @@ class ClipboardApp {
                     content: encryptedContent,
                     expiration,
                     oneTime,
-                    password: password || undefined
+                    hasPassword: !!password // Just indicate if password protection is used
                 })
             });
 
@@ -415,7 +385,6 @@ class ClipboardApp {
             if (response.ok) {
                 this.showShareResult(data);
             } else {
-                console.error('Server response:', data);
                 if (data.details && data.details.length > 0) {
                     const errorMessages = data.details.map(detail => detail.msg).join(', ');
                     throw new Error(`Validation failed: ${errorMessages}`);
@@ -454,25 +423,14 @@ class ClipboardApp {
         retrieveButton.disabled = true;
 
         try {
-            let response;
-            if (password) {
-                // Use POST for password-protected clips
-                response = await fetch(`/api/clip/${clipId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ password })
-                });
-            } else {
-                // Use GET for non-password-protected clips
-                response = await fetch(`/api/clip/${clipId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-            }
+            // Always use GET - no password needed for server authentication
+            // Content is already encrypted client-side
+            const response = await fetch(`/api/clip/${clipId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
 
             const data = await response.json();
 
@@ -522,8 +480,6 @@ class ClipboardApp {
 
     // Show Retrieve Result
     showRetrieveResult(data) {
-        console.log('📋 Retrieve result data:', data);
-        
         document.getElementById('retrieved-content').textContent = data.content;
         
         // Use current time as created time since API doesn't provide it
@@ -532,32 +488,24 @@ class ClipboardApp {
         // Format expiration time with better error handling
         try {
             const expiresAt = data.expiresAt;
-            console.log('⏰ Raw expiresAt:', expiresAt, 'Type:', typeof expiresAt);
             
             if (expiresAt) {
                 // Convert to number if it's a string
                 const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
-                console.log('🔢 Converted expiresAt:', expiresAtNumber);
                 
                 const expiryDate = new Date(expiresAtNumber);
-                console.log('📅 Parsed expiry date:', expiryDate);
-                console.log('📅 Date.getTime():', expiryDate.getTime());
-                console.log('📅 Is valid:', !isNaN(expiryDate.getTime()));
                 
                 if (!isNaN(expiryDate.getTime())) {
                     const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
                     const formattedDate = expiryDate.toLocaleString();
                     document.getElementById('expires-time').textContent = `${formattedDate} (${timeRemaining} remaining)`;
                 } else {
-                    console.error('❌ Invalid expiry date:', expiresAt, 'Converted:', expiresAtNumber);
                     document.getElementById('expires-time').textContent = 'Invalid date';
                 }
             } else {
-                console.error('❌ No expiresAt field in response');
                 document.getElementById('expires-time').textContent = 'Not available';
             }
         } catch (error) {
-            console.error('❌ Error formatting expiry date:', error);
             document.getElementById('expires-time').textContent = 'Error formatting date';
         }
         
@@ -577,25 +525,21 @@ class ClipboardApp {
     // Copy to Clipboard
     async copyToClipboard(text, successMessage = 'Copied to clipboard!') {
         try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                // Fallback for older browsers or non-secure contexts
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                textArea.style.position = 'fixed';
-                textArea.style.left = '-999999px';
-                textArea.style.top = '-999999px';
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                document.execCommand('copy');
-                textArea.remove();
-            }
+            await navigator.clipboard.writeText(text);
             this.showToast(successMessage, 'success');
         } catch (error) {
-            console.error('Copy failed:', error);
-            this.showToast('Failed to copy to clipboard', 'error');
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                this.showToast(successMessage, 'success');
+            } catch (fallbackError) {
+                this.showToast('Failed to copy to clipboard', 'error');
+            }
+            document.body.removeChild(textArea);
         }
     }
 
@@ -722,7 +666,6 @@ class ClipboardApp {
             localStorage.setItem('privacy-notice-dismissed', 'true');
         } catch (e) {
             // If localStorage is not available, just hide the notice
-            console.log('localStorage not available, notice hidden for this session only');
         }
     }
 
