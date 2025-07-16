@@ -515,8 +515,9 @@ class ClipboardApp {
         try {
             const qrCodeImg = document.getElementById('qr-code');
             
-            // Generate QR code as data URL
-            const qrCodeDataUrl = await QRCode.toDataURL(url, {
+            // Create QR code instance and generate data URL
+            const qr = new QRCode();
+            const qrCodeDataUrl = await qr.toDataURL(url, {
                 width: 200,
                 height: 200,
                 margin: 2,
