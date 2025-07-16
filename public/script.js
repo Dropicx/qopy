@@ -254,6 +254,7 @@ class ClipboardApp {
                     return; // Successfully decrypted, no need for password
                 } catch (decryptError) {
                     console.log('Initial decryption failed, checking if password is needed:', decryptError.message);
+                    console.log('Clip has password:', data.hasPassword);
                 }
                 
                 // If initial decryption failed and clip has password, show password input
@@ -536,10 +537,12 @@ class ClipboardApp {
             if (response.ok) {
                 // Decrypt the content before showing
                 try {
+                    console.log('Retrieving with password:', !!password, 'urlSecret:', !!urlSecret);
                     const decryptedContent = await this.decryptContent(data.content, password, urlSecret);
                     data.content = decryptedContent;
                     this.showRetrieveResult(data);
                 } catch (decryptError) {
+                    console.error('Decryption failed in retrieveContent:', decryptError);
                     throw new Error(decryptError.message);
                 }
             } else {
@@ -1037,22 +1040,41 @@ class ClipboardApp {
                 throw new Error('Invalid encrypted content format');
             }
             
+            console.log('Decrypting content with password:', !!password, 'urlSecret:', !!urlSecret);
+            console.log('Content length:', bytes.length);
+            
             // Extract IV (first 12 bytes)
             const iv = bytes.slice(0, 12);
             const encryptedData = bytes.slice(12);
             
+            console.log('IV length:', iv.length, 'Encrypted data length:', encryptedData.length);
+            
             let key;
             if (password) {
                 // Password-protected: derive key from password + URL secret
+                console.log('Using password-based decryption');
                 key = await this.generateKey(password, urlSecret);
+                
+                // Decrypt password-protected content
+                const decryptedData = await window.crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    encryptedData
+                );
+                
+                const decoder = new TextDecoder();
+                return decoder.decode(decryptedData);
             } else {
                 // Non-password: extract key from encrypted data
+                console.log('Using key-based decryption');
                 if (encryptedData.length < 32) {
                     throw new Error('Invalid encrypted data: missing key');
                 }
                 
                 const keyBytes = encryptedData.slice(-32);
                 const actualEncryptedData = encryptedData.slice(0, -32);
+                
+                console.log('Key bytes length:', keyBytes.length, 'Actual encrypted data length:', actualEncryptedData.length);
                 
                 key = await window.crypto.subtle.importKey(
                     'raw',
@@ -1072,16 +1094,6 @@ class ClipboardApp {
                 const decoder = new TextDecoder();
                 return decoder.decode(decryptedData);
             }
-            
-            // Decrypt password-protected content
-            const decryptedData = await window.crypto.subtle.decrypt(
-                { name: 'AES-GCM', iv: iv },
-                key,
-                encryptedData
-            );
-            
-            const decoder = new TextDecoder();
-            return decoder.decode(decryptedData);
         } catch (error) {
             console.error('Decryption error:', error);
             throw new Error('Failed to decrypt content. The content may be corrupted or the password is incorrect.');
