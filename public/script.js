@@ -797,7 +797,7 @@ class ClipboardApp {
         // Re-enable expiration select
         expirationSelect.disabled = false;
         
-        // Re-enable one-time checkbox
+        // Re-enable one-time checkbox (always enabled now)
         oneTimeCheckbox.disabled = false;
         
         // Re-enable password input and restore opacity
@@ -1256,11 +1256,11 @@ class ClipboardApp {
         const passwordGroup = passwordInput.closest('.form-row');
         
         if (quickShare) {
-            // Quick Share mode: Set to 5min, disable other options
+            // Quick Share mode: Set to 5min, disable expiration and password, but keep one-time option
             expirationSelect.value = '5min';
             expirationSelect.disabled = true;
-            oneTimeCheckbox.checked = false;
-            oneTimeCheckbox.disabled = true;
+            // Keep one-time checkbox enabled for Quick Share
+            oneTimeCheckbox.disabled = false;
             passwordInput.value = '';
             passwordGroup.style.opacity = '0.5';
             passwordInput.disabled = true;
