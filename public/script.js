@@ -246,19 +246,9 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
-                // Always try to decrypt first with available secrets
-                try {
-                    const decryptedContent = await this.decryptContent(data.content, null, urlSecret);
-                    data.content = decryptedContent;
-                    this.showRetrieveResult(data);
-                    return; // Successfully decrypted, no need for password
-                } catch (decryptError) {
-                    console.log('Initial decryption failed, checking if password is needed:', decryptError.message);
-                    console.log('Clip has password:', data.hasPassword);
-                }
-                
-                // If initial decryption failed and clip has password, show password input
+                // Check if clip has password first
                 if (data.hasPassword) {
+                    console.log('Clip has password, showing password input');
                     this.switchTab('retrieve');
                     document.getElementById('clip-id-input').value = clipId;
                     
@@ -282,8 +272,17 @@ class ClipboardApp {
                     } else {
                         this.showToast('This clip is password protected. Enter the password to decrypt.', 'info');
                     }
-                } else {
-                    // No password and decryption failed - this shouldn't happen
+                    return; // Don't try to decrypt without password
+                }
+                
+                // No password required, try to decrypt with URL secret only
+                try {
+                    console.log('No password required, trying to decrypt with URL secret only');
+                    const decryptedContent = await this.decryptContent(data.content, null, urlSecret);
+                    data.content = decryptedContent;
+                    this.showRetrieveResult(data);
+                } catch (decryptError) {
+                    console.log('Decryption failed for non-password clip:', decryptError.message);
                     this.showToast('Failed to decrypt content. The content may be corrupted.', 'error');
                 }
             } else {
