@@ -476,8 +476,8 @@ app.post('/api/share', [
     // Quick Share Mode: Override settings
     if (quickShare) {
       expiration = '5min';
-      oneTime = false;
       hasPassword = false;
+      // Keep oneTime setting from user (don't override)
     }
 
     // Validate content
