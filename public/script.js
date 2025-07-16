@@ -205,49 +205,52 @@ class ClipboardApp {
         }
     }
 
-    // Auto-retrieve clip with password handling
+    // Auto-retrieve clip from URL
     async autoRetrieveClip(clipId) {
         try {
-            // First check if clip needs password
-            const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+            // Extract URL secret from current URL if available
+            const urlSecret = this.extractUrlSecret();
             
-            if (infoResponse.ok) {
-                const info = await infoResponse.json();
-                
-                if (info.hasPassword) {
-                    // Show password field and focus on it
-                    const passwordSection = document.getElementById('password-section');
-                    if (passwordSection) {
-                        passwordSection.classList.remove('hidden');
-                    }
-                    
-                    const passwordInput = document.getElementById('retrieve-password-input');
-                    if (passwordInput) {
-                        passwordInput.focus();
-                    }
-                    
-                    this.showToast('This clip is password protected', 'info');
-                } else {
-                    // No password needed, retrieve immediately
-                    // Ensure we're on the retrieve tab
+            const response = await fetch(`/api/clip/${clipId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Check if clip requires password
+                if (data.hasPassword) {
+                    // Show password input for password-protected clips
                     this.switchTab('retrieve');
+                    document.getElementById('clip-id-input').value = clipId;
+                    document.getElementById('retrieve-password-input').focus();
                     
-                    // Set the clip ID if not already set
-                    const clipIdInput = document.getElementById('clip-id-input');
-                    if (clipIdInput && !clipIdInput.value) {
-                        clipIdInput.value = clipId;
+                    // Show hint about URL secret if available
+                    if (urlSecret) {
+                        this.showToast('URL secret detected. Enter your password to decrypt.', 'info');
+                    } else {
+                        this.showToast('This clip is password protected. Enter the password to decrypt.', 'info');
                     }
-                    
-                    // Call retrieve content
-                    this.retrieveContent();
+                } else {
+                    // No password required, decrypt directly
+                    try {
+                        const decryptedContent = await this.decryptContent(data.content, null, urlSecret);
+                        data.content = decryptedContent;
+                        this.showRetrieveResult(data);
+                    } catch (decryptError) {
+                        console.error('Decryption error:', decryptError);
+                        this.showToast('Failed to decrypt content', 'error');
+                    }
                 }
             } else {
-                // Clip not found or other error
-                this.showToast('Clip not found or has expired', 'error');
+                this.showToast(data.error || 'Clip not found', 'error');
             }
         } catch (error) {
-            console.error('❌ Auto-retrieve error:', error);
-            this.showToast('Failed to check clip status', 'error');
+            console.error('Auto-retrieve error:', error);
+            this.showToast('Failed to retrieve clip', 'error');
         }
     }
 
@@ -343,19 +346,19 @@ class ClipboardApp {
     // Share Content
     async shareContent() {
         const content = document.getElementById('content-input').value.trim();
+        const password = document.getElementById('password-input').value.trim();
         const expiration = document.getElementById('expiration-select').value;
         const oneTime = document.getElementById('one-time-checkbox').checked;
-        const password = document.getElementById('password-input').value.trim();
 
         // Validation
         if (!content) {
-            this.showToast('Please enter some content to share', 'error');
+            this.showToast('Please enter content to share', 'error');
             document.getElementById('content-input').focus();
             return;
         }
 
-        if (content.length > 100000) {
-            this.showToast('Content is too long (max 100,000 characters)', 'error');
+        if (content.length > 400000) {
+            this.showToast('Content is too long (max 400,000 characters)', 'error');
             return;
         }
 
@@ -364,7 +367,10 @@ class ClipboardApp {
         shareButton.disabled = true;
 
         try {
-            const encryptedContent = await this.encryptContent(content, password);
+            // Generate URL secret for enhanced security
+            const urlSecret = this.generateUrlSecret();
+            
+            const encryptedContent = await this.encryptContent(content, password, urlSecret);
             
             // No password sent to server - content is already encrypted!
             const response = await fetch('/api/share', {
@@ -383,6 +389,9 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
+                // Include URL secret in the share URL for enhanced security
+                const shareUrl = password ? `${data.url}#${urlSecret}` : data.url;
+                data.url = shareUrl;
                 this.showShareResult(data);
             } else {
                 if (data.details && data.details.length > 0) {
@@ -399,6 +408,17 @@ class ClipboardApp {
             this.hideLoading('loading');
             shareButton.disabled = false;
         }
+    }
+
+    // Generate URL secret for enhanced security
+    generateUrlSecret() {
+        // Generate a random 16-character secret for URL fragment
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 16; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
     }
 
     // Retrieve Content
@@ -423,6 +443,9 @@ class ClipboardApp {
         retrieveButton.disabled = true;
 
         try {
+            // Extract URL secret from current URL if available
+            const urlSecret = this.extractUrlSecret();
+            
             // Always use GET - no password needed for server authentication
             // Content is already encrypted client-side
             const response = await fetch(`/api/clip/${clipId}`, {
@@ -437,7 +460,7 @@ class ClipboardApp {
             if (response.ok) {
                 // Decrypt the content before showing
                 try {
-                    const decryptedContent = await this.decryptContent(data.content, password);
+                    const decryptedContent = await this.decryptContent(data.content, password, urlSecret);
                     data.content = decryptedContent;
                     this.showRetrieveResult(data);
                 } catch (decryptError) {
@@ -456,16 +479,22 @@ class ClipboardApp {
         }
     }
 
+    // Extract URL secret from current URL fragment
+    extractUrlSecret() {
+        const hash = window.location.hash;
+        if (hash && hash.length > 1) {
+            return hash.substring(1); // Remove the # symbol
+        }
+        return null;
+    }
+
     // Show Share Result Modal
     showShareResult(data) {
         document.getElementById('share-url').value = data.url;
         document.getElementById('clip-id').value = data.clipId;
         
-        // Generate QR code using external service
-        const qrCodeImg = document.getElementById('qr-code');
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.url)}`;
-        qrCodeImg.src = qrCodeUrl;
-        qrCodeImg.style.display = 'block';
+        // Generate QR code client-side
+        this.generateQRCode(data.url);
         
         document.getElementById('expiry-time').textContent = new Date(data.expiresAt).toLocaleString();
         
@@ -476,6 +505,34 @@ class ClipboardApp {
         document.getElementById('password-input').value = '';
         document.getElementById('one-time-checkbox').checked = false;
         this.updateCharCounter();
+    }
+
+    // Generate QR code client-side
+    async generateQRCode(url) {
+        try {
+            const qrCodeImg = document.getElementById('qr-code');
+            
+            // Generate QR code as data URL
+            const qrCodeDataUrl = await QRCode.toDataURL(url, {
+                width: 200,
+                height: 200,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                },
+                errorCorrectionLevel: 'M'
+            });
+            
+            qrCodeImg.src = qrCodeDataUrl;
+            qrCodeImg.style.display = 'block';
+        } catch (error) {
+            console.error('QR code generation error:', error);
+            // Fallback to text if QR generation fails
+            const qrCodeImg = document.getElementById('qr-code');
+            qrCodeImg.style.display = 'none';
+            this.showToast('QR code generation failed, but URL is available', 'info');
+        }
     }
 
     // Show Retrieve Result
@@ -684,19 +741,26 @@ class ClipboardApp {
         }
     }
 
-    // Crypto utilities for client-side encryption
-    async generateKey(password = null) {
+    // Enhanced key derivation with URL secret + password
+    async generateKey(password = null, urlSecret = null) {
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.subtle) {
             throw new Error('Web Crypto API not available. Please use HTTPS.');
         }
+        
         if (password) {
-            // Derive key from password using PBKDF2
+            // Combine URL secret with password for enhanced security
+            let combinedSecret = password;
+            if (urlSecret) {
+                combinedSecret = urlSecret + ':' + password;
+            }
+            
+            // Derive key from combined secret using PBKDF2
             const encoder = new TextEncoder();
             const salt = encoder.encode('qopy-salt-v1');
             const keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
-                encoder.encode(password),
+                encoder.encode(combinedSecret),
                 { name: 'PBKDF2' },
                 false,
                 ['deriveBits', 'deriveKey']
@@ -723,16 +787,22 @@ class ClipboardApp {
         }
     }
 
-    // Derive IV deterministically from password (for password-protected clips)
-    async deriveIV(password, salt = 'qopy-iv-salt-v1') {
+    // Enhanced IV derivation with URL secret + password
+    async deriveIV(password, urlSecret = null, salt = 'qopy-iv-salt-v1') {
+        // Combine URL secret with password for enhanced security
+        let combinedSecret = password;
+        if (urlSecret) {
+            combinedSecret = urlSecret + ':' + password;
+        }
+        
         const encoder = new TextEncoder();
         const saltBytes = encoder.encode(salt);
-        const passwordBytes = encoder.encode(password);
+        const secretBytes = encoder.encode(combinedSecret);
         
         // Use PBKDF2 to derive IV bytes
         const keyMaterial = await window.crypto.subtle.importKey(
             'raw',
-            passwordBytes,
+            secretBytes,
             { name: 'PBKDF2' },
             false,
             ['deriveBits']
@@ -752,21 +822,21 @@ class ClipboardApp {
         return new Uint8Array(ivBytes);
     }
 
-    async encryptContent(content, password = null) {
+    async encryptContent(content, password = null, urlSecret = null) {
         try {
             // Check if content is already encrypted
             if (this.isEncrypted(content)) {
                 return content; // Already encrypted, return as-is
             }
             
-            const key = await this.generateKey(password);
+            const key = await this.generateKey(password, urlSecret);
             const encoder = new TextEncoder();
             const data = encoder.encode(content);
             
             // Generate IV: deterministic for password clips, random for others
             let iv;
             if (password) {
-                iv = await this.deriveIV(password);
+                iv = await this.deriveIV(password, urlSecret);
             } else {
                 iv = window.crypto.getRandomValues(new Uint8Array(12));
             }
@@ -803,8 +873,8 @@ class ClipboardApp {
                 combined.set(encryptedBytes, ivBytes.length);
             }
             
-            // Convert to base64 for storage
-            return btoa(String.fromCharCode(...combined));
+            // Return raw bytes instead of base64
+            return combined;
         } catch (error) {
             console.error('Encryption error:', error);
             throw new Error('Failed to encrypt content');
@@ -813,38 +883,55 @@ class ClipboardApp {
 
     isEncrypted(content) {
         try {
-            // Check if content looks like base64
-            if (typeof content !== 'string' || content.length < 20) {
-                return false;
+            // Check if content is a Uint8Array (new format) or base64 string (old format)
+            if (content instanceof Uint8Array) {
+                // New format: raw bytes
+                return content.length >= 20; // Minimum size: IV (12 bytes) + some encrypted data
+            } else if (typeof content === 'string') {
+                // Old format: base64 string
+                if (content.length < 20) {
+                    return false;
+                }
+                
+                // Try to decode as base64
+                const decoded = atob(content);
+                const bytes = new Uint8Array(decoded.length);
+                for (let i = 0; i < decoded.length; i++) {
+                    bytes[i] = decoded.charCodeAt(i);
+                }
+                
+                return bytes.length >= 20;
             }
             
-            // Try to decode as base64
-            const decoded = atob(content);
-            const bytes = new Uint8Array(decoded.length);
-            for (let i = 0; i < decoded.length; i++) {
-                bytes[i] = decoded.charCodeAt(i);
-            }
-            
-            // Check minimum size: IV (12 bytes) + some encrypted data
-            return bytes.length >= 20;
+            return false;
         } catch {
             // If decoding fails, it's not encrypted
             return false;
         }
     }
 
-    async decryptContent(encryptedContent, password = null) {
+    async decryptContent(encryptedContent, password = null, urlSecret = null) {
         try {
             // Check if content is actually encrypted
             if (!this.isEncrypted(encryptedContent)) {
                 return encryptedContent;
             }
             
-            // Decode base64 to bytes
-            const decoded = atob(encryptedContent);
-            const bytes = new Uint8Array(decoded.length);
-            for (let i = 0; i < decoded.length; i++) {
-                bytes[i] = decoded.charCodeAt(i);
+            let bytes;
+            
+            // Handle both new (Uint8Array) and old (base64 string) formats
+            if (encryptedContent instanceof Uint8Array) {
+                // New format: raw bytes
+                bytes = encryptedContent;
+            } else if (typeof encryptedContent === 'string') {
+                // Old format: base64 string
+                const decoded = atob(encryptedContent);
+                bytes = new Uint8Array(decoded.length);
+                for (let i = 0; i < decoded.length; i++) {
+                    bytes[i] = decoded.charCodeAt(i);
+                }
+            } else {
+                throw new Error('Invalid encrypted content format');
             }
             
             // Extract IV (first 12 bytes)
@@ -853,8 +940,8 @@ class ClipboardApp {
             
             let key;
             if (password) {
-                // Password-protected: derive key from password
-                key = await this.generateKey(password);
+                // Password-protected: derive key from password + URL secret
+                key = await this.generateKey(password, urlSecret);
             } else {
                 // Non-password: extract key from encrypted data
                 if (encryptedData.length < 32) {

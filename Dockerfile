@@ -71,6 +71,7 @@ RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo 'set -e' >> /app/startup.sh && \
     echo 'node scripts/db-init.js || true' >> /app/startup.sh && \
     echo 'node scripts/migrate-passwords.js || true' >> /app/startup.sh && \
+    echo 'node scripts/migrate-to-binary.js || true' >> /app/startup.sh && \
     echo 'exec node server.js' >> /app/startup.sh && \
     chmod +x /app/startup.sh
 

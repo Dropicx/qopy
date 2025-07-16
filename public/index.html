@@ -33,8 +33,11 @@
     <meta name="theme-color" content="#1DB954">
     <meta name="msapplication-TileColor" content="#1DB954">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Qopy">
+    
+    <!-- QR Code library for client-side generation -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <title>Qopy - Secure Temporary Text Sharing</title>
     
     <!-- Canonical URL -->
     <link rel="canonical" href="https://qopy.app/">
@@ -249,6 +252,8 @@
                             <li>🔐 <strong>Add protection</strong> - Optional password and one-time access</li>
                             <li>🔗 <strong>Get your link</strong> - Share the generated URL or 6-character ID</li>
                             <li>📱 <strong>QR code</strong> - Easy mobile sharing with generated QR code</li>
+                            <li>🔒 <strong>Client-side QR generation</strong> - QR codes generated locally, no external API calls</li>
+                            <li>📱 <strong>Mobile-optimized</strong> - Responsive design for easy sharing</li>
                         </ol>
                         <p>Recipients can access your content using either the full URL or just the 6-character clip ID.</p>
                     </div>
@@ -321,35 +326,47 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-encryption">
-                        <p><strong>Qopy uses state-of-the-art client-side encryption:</strong></p>
+                        <p><strong>Qopy uses state-of-the-art client-side encryption with hybrid security:</strong></p>
                         <ul>
                             <li>🔐 <strong>AES-256-GCM</strong> - Military-grade encryption algorithm</li>
                             <li>🌐 <strong>Client-side processing</strong> - Encryption happens in your browser, not on our servers</li>
-                            <li>🔑 <strong>Two key strategies</strong>:
+                            <li>🔑 <strong>Hybrid security approach</strong>:
                                 <ul>
-                                    <li><strong>Random keys</strong> - For clips without passwords, we generate a random key and store it with the encrypted content</li>
-                                    <li><strong>Password-derived keys</strong> - For password-protected clips, we derive the key from your password using PBKDF2 (100,000 iterations)</li>
+                                    <li><strong>URL secrets</strong> - 16-character random secret in URL fragment (e.g., #x7y9z2...)</li>
+                                    <li><strong>User passwords</strong> - Your chosen password for additional protection</li>
+                                    <li><strong>Combined secrets</strong> - Both secrets combined for maximum security</li>
                                 </ul>
                             </li>
                             <li>🛡️ <strong>Zero-knowledge</strong> - We never see your plain text content</li>
                             <li>🔄 <strong>Backward compatible</strong> - Existing unencrypted clips continue to work</li>
                             <li>⚡ <strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
                             <li>🚫 <strong>No password transmission</strong> - Passwords never leave your browser</li>
-                            <li>🔒 <strong>Deterministic IV</strong> - For password-protected clips, IV is derived from password (not transmitted)</li>
+                            <li>🔒 <strong>Deterministic IV</strong> - For password-protected clips, IV is derived from combined secret (not transmitted)</li>
                             <li>📦 <strong>Optimized storage</strong> - Direct byte concatenation reduces data overhead by 40%</li>
+                            <li>🛡️ <strong>Defense in depth</strong> - Even weak passwords are protected by URL secret</li>
                         </ul>
                         <p><strong>How it works:</strong></p>
                         <ol>
                             <li>You type your content in the browser</li>
-                            <li>Content is encrypted with AES-256-GCM before being sent to our servers</li>
-                            <li>For password-protected clips, IV is derived deterministically from your password</li>
+                            <li>Qopy generates a random 16-character URL secret</li>
+                            <li>Your password + URL secret are combined for encryption</li>
+                            <li>Content is encrypted with AES-256-GCM using the combined secret</li>
+                            <li>For password-protected clips, IV is derived deterministically from combined secret</li>
                             <li>For non-password clips, a random IV is generated</li>
                             <li>Encrypted data is stored using optimized byte concatenation (40% less overhead)</li>
+                            <li>Share URL includes the URL secret as fragment (e.g., /clip/abc123#x7y9z2...)</li>
                             <li>Only encrypted data is stored in our database</li>
-                            <li>When someone retrieves the content, it's decrypted in their browser</li>
+                            <li>When someone retrieves the content, they need both URL secret + password</li>
                             <li>We never see the plain text at any point</li>
-                            <li>Passwords are used only for encryption, never sent to our servers</li>
+                            <li>Passwords and URL secrets are used only for encryption, never sent to our servers</li>
                         </ol>
+                        <p><strong>🔒 Enhanced Security Benefits:</strong></p>
+                        <ul>
+                            <li><strong>Brute force protection</strong> - Even simple passwords are protected by the URL secret</li>
+                            <li><strong>URL-based access control</strong> - Only those with the complete URL can access the content</li>
+                            <li><strong>Defense in depth</strong> - Two-factor security: something you know (password) + something you have (URL)</li>
+                            <li><strong>Automatic generation</strong> - URL secrets are generated automatically, no user action required</li>
+                        </ul>
                         <p><strong>⚠️ Important:</strong> Client-side encryption is only available through the web interface. API calls send content as plaintext to the server.</p>
                     </div>
                 </div>

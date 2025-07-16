@@ -11,6 +11,9 @@ Qopy is a privacy-first, secure temporary text sharing web application with clie
 - **No password transmission** - passwords never leave the client
 - **Deterministic IV derivation** - IV derived from password, not transmitted
 - **Optimized storage format** - direct byte concatenation, 40% less overhead
+- **Hybrid security** - URL secrets + passwords for enhanced protection
+- **Binary database storage** - encrypted content stored as BYTEA for efficiency and security
+- **Direct binary transmission** - no base64 overhead, raw bytes sent to server
 
 ### Password Security
 - **Client-only encryption** - passwords used only for content encryption
@@ -18,6 +21,7 @@ Qopy is a privacy-first, secure temporary text sharing web application with clie
 - **PBKDF2 with 100,000 iterations** for key derivation
 - **Deterministic IV derivation** with 50,000 iterations for password-protected clips
 - **Zero password transmission** to server
+- **URL secret enhancement** - 16-character random secret in URL fragment adds extra security layer
 
 ### Privacy Protection
 - **No IP tracking** or user-agent logging
@@ -25,6 +29,7 @@ Qopy is a privacy-first, secure temporary text sharing web application with clie
 - **Automatic expiration** with cleanup
 - **One-time access** option
 - **HTTPS-only** operation
+- **Client-side QR generation** - QR codes generated locally, no external API calls
 
 ## 🚀 Quick Start
 
@@ -64,6 +69,9 @@ railway variables set ADMIN_TOKEN=your-secure-admin-token
 
 # Initialize production database
 railway run npm run db:init
+
+# Migrate existing data to binary storage (if upgrading)
+railway run npm run db:migrate-binary
 ```
 
 ## 📋 API Endpoints
@@ -113,7 +121,7 @@ For maximum security, always use the web interface at `https://qopy.app` for cli
 CREATE TABLE clips (
   id SERIAL PRIMARY KEY,
   clip_id VARCHAR(6) UNIQUE NOT NULL,
-  content TEXT NOT NULL,
+  content BYTEA NOT NULL,
   password_hash VARCHAR(60),
   expiration_time BIGINT NOT NULL,
   created_at BIGINT NOT NULL,
@@ -128,28 +136,34 @@ CREATE TABLE clips (
 
 ### Password Flow
 1. **User enters password** in browser
-2. **Password used for encryption** only (client-side)
-3. **Content encrypted** with AES-256-GCM + PBKDF2-derived key
-4. **IV derived deterministically** from password (not transmitted)
-5. **Encrypted content sent** to server (no password transmitted)
-6. **Server stores encrypted content** without ability to decrypt
+2. **URL secret generated** automatically (16-character random string)
+3. **Combined secret created** from URL secret + password
+4. **Content encrypted** with AES-256-GCM + PBKDF2-derived key from combined secret
+5. **IV derived deterministically** from combined secret (not transmitted)
+6. **Share URL includes secret** as fragment (e.g., `/clip/abc123#x7y9z2...`)
+7. **Encrypted content sent** to server (no password transmitted)
+8. **Server stores encrypted content** without ability to decrypt
 
 ### Content Encryption
 1. **Content encrypted** client-side with AES-256-GCM
-2. **IV derived from password** for password-protected clips (deterministic)
-3. **Random IV** for non-password clips
-4. **Direct byte concatenation** (IV + encrypted data + key if needed)
-5. **Base64 encoding** for storage (40% less overhead than JSON)
-6. **Client decrypts** content when retrieved
+2. **URL secret + password combined** for enhanced security
+3. **IV derived from combined secret** for password-protected clips (deterministic)
+4. **Random IV** for non-password clips
+5. **Direct byte concatenation** (IV + encrypted data + key if needed)
+6. **Raw binary transmission** to server (no base64 encoding overhead)
+7. **BYTEA storage** in database for maximum efficiency
+8. **Client decrypts** content when retrieved using URL secret + password
 
 ### Zero-Knowledge Guarantees
 - ✅ Server never sees plaintext content
 - ✅ Server never sees passwords (not even hashed)
+- ✅ Server never sees URL secrets
 - ✅ Server cannot decrypt content
 - ✅ No content analysis or logging
 - ✅ Automatic data expiration
 - ✅ No password authentication needed
 - ✅ IV not transmitted (derived deterministically)
+- ✅ Hybrid security: URL secret + password provides defense in depth
 
 ## 📊 Monitoring
 

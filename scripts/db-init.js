@@ -54,7 +54,7 @@ const createClipsTable = `
 CREATE TABLE IF NOT EXISTS clips (
   id SERIAL PRIMARY KEY,
   clip_id VARCHAR(6) UNIQUE NOT NULL,
-  content TEXT NOT NULL,
+  content BYTEA NOT NULL,
   password_hash VARCHAR(60),
   expiration_time BIGINT NOT NULL,
   created_at BIGINT NOT NULL,

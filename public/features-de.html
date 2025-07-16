@@ -163,7 +163,7 @@
                 <div class="feature-card">
                     <span class="feature-icon">📱</span>
                     <h3>QR-Code Sharing</h3>
-                    <p>Generieren Sie QR-Codes für einfaches mobiles Teilen. Scannen Sie einfach den Code mit jedem Smartphone, um sofort auf Ihren geteilten Inhalt zuzugreifen.</p>
+                    <p>Generieren Sie QR-Codes für einfaches mobiles Teilen. Scannen Sie einfach den Code mit jedem Smartphone, um sofort auf Ihren geteilten Inhalt zuzugreifen. QR-Codes werden client-seitig generiert für maximale Privatsphäre - keine externen API-Aufrufe erforderlich.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -192,10 +192,22 @@
             <ul>
                 <li><strong>AES-256-GCM Verschlüsselung</strong> - Militärischer Standard, weltweit von Regierungen verwendet</li>
                 <li><strong>PBKDF2 Schlüsselableitung</strong> - 100.000 Iterationen für passwortgeschützte Inhalte</li>
-                <li><strong>Deterministische IV-Ableitung</strong> - IV wird aus Passwort abgeleitet, nicht übertragen (50.000 Iterationen)</li>
+                <li><strong>Deterministische IV-Ableitung</strong> - IV wird aus kombiniertem Secret abgeleitet, nicht übertragen (50.000 Iterationen)</li>
                 <li><strong>Optimiertes Speicherformat</strong> - Direkte Byte-Konkatenation reduziert Overhead um 40%</li>
                 <li><strong>Zufällige Schlüsselgenerierung</strong> - Kryptographisch sichere Zufallsschlüssel für nicht-passwortgeschützte Clips</li>
                 <li><strong>Authentifizierte Verschlüsselung</strong> - GCM-Modus bietet sowohl Vertraulichkeit als auch Integrität</li>
+                <li><strong>Hybrid-Sicherheit</strong> - URL-Secrets + Passwörter für Defense in Depth</li>
+            </ul>
+            
+            <h3>Hybrid-Sicherheitsarchitektur</h3>
+            <p>Qopys innovative Hybrid-Sicherheit kombiniert mehrere Schutzebenen:</p>
+            <ul>
+                <li><strong>URL-Secrets</strong> - 16-Zeichen-Zufallssecrets automatisch generiert und in Share-URLs enthalten</li>
+                <li><strong>Benutzerpasswörter</strong> - Traditioneller Passwortschutz, gewählt von Benutzern</li>
+                <li><strong>Kombinierte Secrets</strong> - Beide Secrets kombiniert für maximale Sicherheit (URL_secret:passwort)</li>
+                <li><strong>Defense in Depth</strong> - Auch schwache Passwörter sind durch URL-Secret geschützt</li>
+                <li><strong>URL-basierte Zugriffskontrolle</strong> - Nur wer die vollständige URL hat, kann Entschlüsselung versuchen</li>
+                <li><strong>Zwei-Faktor-Sicherheit</strong> - Etwas das Sie wissen (Passwort) + etwas das Sie haben (URL)</li>
             </ul>
             
             <h3>Zero-Knowledge Architektur</h3>
@@ -205,8 +217,9 @@
                 <li>Alle Verschlüsselung findet in Ihrem Browser statt</li>
                 <li>Nur verschlüsselte Daten werden auf unseren Servern gespeichert</li>
                 <li>Passwörter verlassen niemals Ihren Browser</li>
+                <li>URL-Secrets verlassen niemals Ihren Browser</li>
                 <li>Selbst wenn unsere Server kompromittiert würden, blieben Ihre Daten sicher</li>
-                <li>Keine IV-Übertragung - wird deterministisch aus Passwort abgeleitet</li>
+                <li>Keine IV-Übertragung - wird deterministisch aus kombiniertem Secret abgeleitet</li>
             </ul>
             
             <h3>Rate Limiting & Missbrauch-Prävention</h3>

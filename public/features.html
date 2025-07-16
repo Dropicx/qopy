@@ -163,7 +163,7 @@
                 <div class="feature-card">
                     <span class="feature-icon">📱</span>
                     <h3>QR Code Sharing</h3>
-                    <p>Generate QR codes for easy mobile sharing. Simply scan the code with any smartphone to access your shared content instantly.</p>
+                    <p>Generate QR codes for easy mobile sharing. Simply scan the code with any smartphone to access your shared content instantly. QR codes are generated client-side for maximum privacy - no external API calls required.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -192,10 +192,22 @@
             <ul>
                 <li><strong>AES-256-GCM encryption</strong> - Military-grade algorithm used by governments worldwide</li>
                 <li><strong>PBKDF2 key derivation</strong> - 100,000 iterations for password-protected content</li>
-                <li><strong>Deterministic IV derivation</strong> - IV derived from password, not transmitted (50,000 iterations)</li>
+                <li><strong>Deterministic IV derivation</strong> - IV derived from combined secret, not transmitted (50,000 iterations)</li>
                 <li><strong>Optimized storage format</strong> - Direct byte concatenation reduces overhead by 40%</li>
                 <li><strong>Random key generation</strong> - Cryptographically secure random keys for non-password clips</li>
                 <li><strong>Authenticated encryption</strong> - GCM mode provides both confidentiality and integrity</li>
+                <li><strong>Hybrid security</strong> - URL secrets + passwords for defense in depth</li>
+            </ul>
+            
+            <h3>Hybrid Security Architecture</h3>
+            <p>Qopy's innovative hybrid security combines multiple protection layers:</p>
+            <ul>
+                <li><strong>URL secrets</strong> - 16-character random secrets automatically generated and included in share URLs</li>
+                <li><strong>User passwords</strong> - Traditional password protection chosen by users</li>
+                <li><strong>Combined secrets</strong> - Both secrets combined for maximum security (URL_secret:password)</li>
+                <li><strong>Defense in depth</strong> - Even weak passwords are protected by the URL secret</li>
+                <li><strong>URL-based access control</strong> - Only those with the complete URL can attempt decryption</li>
+                <li><strong>Two-factor security</strong> - Something you know (password) + something you have (URL)</li>
             </ul>
             
             <h3>Zero-Knowledge Architecture</h3>
@@ -205,8 +217,9 @@
                 <li>All encryption happens in your browser</li>
                 <li>Only encrypted data is stored on our servers</li>
                 <li>Passwords never leave your browser</li>
+                <li>URL secrets never leave your browser</li>
                 <li>Even if our servers were compromised, your data would remain secure</li>
-                <li>No IV transmission - derived deterministically from password</li>
+                <li>No IV transmission - derived deterministically from combined secret</li>
             </ul>
             
             <h3>Rate Limiting & Abuse Prevention</h3>

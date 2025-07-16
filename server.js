@@ -23,12 +23,9 @@ const cors = require('cors');
 const compression = require('compression');
 const { body, param, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
-const QRCode = require('qrcode');
 const path = require('path');
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
-const xss = require('xss');
-const sanitizeHtml = require('sanitize-html');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -395,17 +392,7 @@ async function cleanupExpiredClips() {
 }
 
 // Content-Sanitization-Funktion
-function sanitizeContent(content) {
-  // Für alle Inhalte: HTML-Tags entfernen und als reinen Text behandeln
-  // Das ist die sicherste Option - Code wird nur als Text angezeigt
-  return xss(content, {
-    whiteList: {}, // Keine HTML-Tags erlauben
-    stripIgnoreTag: true,
-    stripIgnoreTagBody: ['script', 'style', 'iframe', 'object', 'embed'],
-    // Erlaubt nur sichere Zeichen
-    allowCommentTag: false
-  });
-}
+
 
 // Create share
 app.post('/api/share', [
@@ -425,12 +412,30 @@ app.post('/api/share', [
 
     let { content, expiration, hasPassword, oneTime } = req.body;
 
-    // Content-Sanitization
-    content = sanitizeContent(content);
-    if (!content || content.trim().length === 0) {
+    // Validate content
+    if (!content || (typeof content === 'string' && content.trim().length === 0)) {
       return res.status(400).json({
         error: 'Invalid content',
-        message: 'Content is already encrypted and sanitized client-side.'
+        message: 'Content is required.'
+      });
+    }
+
+    // Convert content to binary for storage
+    let binaryContent;
+    try {
+      if (Array.isArray(content)) {
+        // New format: raw bytes array from client
+        binaryContent = Buffer.from(content);
+      } else if (typeof content === 'string') {
+        // Old format: base64 string (for backward compatibility)
+        binaryContent = Buffer.from(content, 'base64');
+      } else {
+        throw new Error('Invalid content format');
+      }
+    } catch (error) {
+      return res.status(400).json({
+        error: 'Invalid content format',
+        message: 'Content must be valid binary data.'
       });
     }
 
@@ -454,7 +459,7 @@ app.post('/api/share', [
     await pool.query(`
       INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [clipId, content, expirationTime, hasPassword ? 'client-encrypted' : null, oneTime || false, Date.now()]);
+    `, [clipId, binaryContent, expirationTime, hasPassword ? 'client-encrypted' : null, oneTime || false, Date.now()]);
 
     res.json({
       success: true,
@@ -564,9 +569,12 @@ app.get('/api/clip/:clipId', [
       );
     }
 
+    // Convert binary content back to array for response
+    const contentArray = Array.from(clip.content);
+
     res.json({
       success: true,
-      content: clip.content,
+      content: contentArray,
       expiresAt: clip.expiration_time,
       oneTime: clip.one_time,
       hasPassword: clip.password_hash !== null

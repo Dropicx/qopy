@@ -10,6 +10,7 @@
     "db:init": "node scripts/db-init.js",
     "db:check": "node scripts/db-check.js",
     "db:migrate-passwords": "node scripts/migrate-passwords.js",
+    "db:migrate-binary": "node scripts/migrate-to-binary.js",
     "test": "node scripts/test.js",
     "monitor": "node scripts/monitor.js",
     "health": "node scripts/health.js"
@@ -33,13 +34,10 @@
     "helmet": "^7.1.0",
     "cors": "^2.8.5",
     "uuid": "^9.0.1",
-    "qrcode": "^1.5.3",
     "compression": "^1.7.4",
     "express-validator": "^7.0.1",
     "pg": "^8.11.3",
-    "bcrypt": "^5.1.1",
-    "xss": "^1.0.14",
-    "sanitize-html": "^2.12.1"
+    "bcrypt": "^5.1.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
