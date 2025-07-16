@@ -215,7 +215,7 @@ CREATE TABLE statistics (
 2. **URL secret generated** automatically (16-character random string)
 3. **Combined secret created** from URL secret + password (if provided)
 4. **Content encrypted** with AES-256-GCM + PBKDF2-derived key from combined secret
-5. **IV derived deterministically** from combined secret (not transmitted)
+5. **IV generated** (deterministic for password clips, random for others) and prepended to encrypted data
 6. **Share URL includes secret** as fragment (e.g., `/clip/abc123#x7y9z2...`)
 7. **Encrypted content sent** to server (no password transmitted)
 8. **Server stores encrypted content** without ability to decrypt
@@ -235,7 +235,7 @@ CREATE TABLE statistics (
 - ✅ No content analysis or logging
 - ✅ Automatic data expiration
 - ✅ No password authentication needed
-- ✅ IV not transmitted (derived deterministically)
+- ✅ Deterministic IV derivation (for password-protected clips)
 - ✅ Hybrid security: URL secret + password provides defense in depth
 
 ## 📊 Monitoring & Analytics
@@ -299,16 +299,9 @@ This project is dual-licensed:
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📞 Support
-
-- **Email**: qopy@lit.services
-- **Issues**: [GitHub Issues](https://github.com/your-username/qopy/issues)
-- **Documentation**: [Wiki](https://github.com/your-username/qopy/wiki)
-
 ## 🏢 Company Information
 
 **LIT Services**
-- **Address**: Am Edelspfad 6, 61169 Friedberg, Germany
 - **Website**: https://lit.services
 - **Contact**: qopy@lit.services
 
@@ -316,4 +309,4 @@ This project is dual-licensed:
 
 **Qopy** - Secure, private, temporary text sharing. Built with ❤️ by [LIT Services](https://lit.services).
 
-*Version: minimal-1.0.0 | Last Updated: December 2024*
+*Version: minimal-1.0.0 | Last Updated: July 2025*
