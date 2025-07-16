@@ -150,16 +150,37 @@ const corsOptions = {
         
         const allowedOrigins = [];
         
-        // Production origins
-        if (process.env.NODE_ENV === 'production') {
+        // Development origins
+        if (process.env.NODE_ENV !== 'production') {
             allowedOrigins.push(
-                'https://qopy.app'
+                'http://localhost:8080',
+                'http://localhost:3000',
+                'http://127.0.0.1:8080',
+                'http://127.0.0.1:3000'
             );
         }
         
+        // Production origins
+        if (process.env.NODE_ENV === 'production') {
+            allowedOrigins.push(
+                'https://qopy.app',
+                'https://qopy-production.up.railway.app',
+                'https://qopy-staging.up.railway.app'
+            );
+            
+            // Allow any Railway.app subdomain for flexibility
+            if (origin.includes('.railway.app')) {
+                console.log(`✅ Allowing Railway.app origin: ${origin}`);
+                return callback(null, true);
+            }
+        }
+        
         if (allowedOrigins.includes(origin)) {
+            console.log(`✅ Allowing origin: ${origin}`);
             callback(null, true);
         } else {
+            console.warn(`🚫 CORS blocked origin: ${origin}`);
+            console.warn(`🚫 Allowed origins: ${allowedOrigins.join(', ')}`);
             callback(new Error('Not allowed by CORS'));
         }
     },
