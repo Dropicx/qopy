@@ -778,19 +778,15 @@ app.get('/admin', (req, res) => {
 // Protected Admin statistics
 app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
   try {
-    // Get total clips
+    // Get total clips (all time created)
     const totalResult = await pool.query('SELECT COUNT(*) as count FROM clips');
     const totalClips = parseInt(totalResult.rows[0].count);
 
-    // Get active clips
+    // Get active clips (not expired)
     const activeResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE is_expired = false');
     const activeClips = parseInt(activeResult.rows[0].count);
 
-    // Get expired clips
-    const expiredResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE is_expired = true');
-    const expiredClips = parseInt(expiredResult.rows[0].count);
-
-    // Get total accesses
+    // Get total accesses (all time views)
     const accessResult = await pool.query('SELECT COALESCE(SUM(access_count), 0) as total FROM clips');
     const totalAccesses = parseInt(accessResult.rows[0].total);
 
@@ -798,17 +794,22 @@ app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
     const passwordResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE password_hash IS NOT NULL');
     const passwordClips = parseInt(passwordResult.rows[0].count);
 
-    // Get one-time clips
-    const oneTimeResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE one_time = true');
-    const oneTimeClips = parseInt(oneTimeResult.rows[0].count);
+    // Get Quick Share clips (4-character IDs)
+    const quickShareResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE LENGTH(clip_id) = 4');
+    const quickShareClips = parseInt(quickShareResult.rows[0].count);
+
+    // Calculate percentages
+    const passwordPercentage = totalClips > 0 ? Math.round((passwordClips / totalClips) * 100) : 0;
+    const quickSharePercentage = totalClips > 0 ? Math.round((quickShareClips / totalClips) * 100) : 0;
 
     res.json({
       totalClips,
       activeClips,
-      expiredClips,
       totalAccesses,
       passwordClips,
-      oneTimeClips
+      passwordPercentage,
+      quickShareClips,
+      quickSharePercentage
     });
   } catch (error) {
     console.error('❌ Error getting admin stats:', error.message);
@@ -848,7 +849,6 @@ app.get('/api/admin/system', requireAdminAuth, async (req, res) => {
     
     res.json({
       status: 'OK',
-      uptime: `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m`,
       version: 'minimal-1.0.0',
       environment: process.env.NODE_ENV || 'production',
       database: 'Connected',

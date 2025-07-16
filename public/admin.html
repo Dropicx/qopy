@@ -219,51 +219,6 @@
             margin-bottom: 20px;
         }
 
-        .clip-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .clip-item {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border-left: 4px solid #667eea;
-        }
-
-        .clip-id {
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .clip-content {
-            color: #666;
-            margin: 5px 0;
-            word-break: break-all;
-        }
-
-        .clip-meta {
-            font-size: 12px;
-            color: #999;
-        }
-
-        .status-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-
-        .status-active {
-            background: #00b894;
-        }
-
-        .status-expired {
-            background: #d63031;
-        }
-
         .timestamp {
             color: #999;
             font-size: 12px;
@@ -309,11 +264,6 @@
                     <div class="stat-description">Not expired</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" id="expiredClips">-</div>
-                    <div class="stat-label">Expired Clips</div>
-                    <div class="stat-description">Auto-deleted</div>
-                </div>
-                <div class="stat-card">
                     <div class="stat-number" id="totalAccesses">-</div>
                     <div class="stat-label">Total Accesses</div>
                     <div class="stat-description">All time views</div>
@@ -321,20 +271,12 @@
                 <div class="stat-card">
                     <div class="stat-number" id="passwordClips">-</div>
                     <div class="stat-label">Password Protected</div>
-                    <div class="stat-description">Secure clips</div>
+                    <div class="stat-description" id="passwordPercentage">-</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" id="oneTimeClips">-</div>
-                    <div class="stat-label">One-Time Clips</div>
-                    <div class="stat-description">Self-destructing</div>
-                </div>
-            </div>
-
-            <!-- Recent Clips -->
-            <div class="section">
-                <h2>📋 Recent Clips</h2>
-                <div id="recentClips" class="clip-list">
-                    <div class="loading">Loading recent clips...</div>
+                    <div class="stat-number" id="quickShareClips">-</div>
+                    <div class="stat-label">Quick Share Clips</div>
+                    <div class="stat-description" id="quickSharePercentage">-</div>
                 </div>
             </div>
 
@@ -419,14 +361,12 @@
                     }
                     
                     // Show loading indicators
-                    document.getElementById('recentClips').innerHTML = '<div class="loading">Refreshing recent clips...</div>';
                     document.getElementById('systemInfo').innerHTML = '<div class="loading">Refreshing system info...</div>';
                 }
 
                 // Load all data in parallel for better performance
-                const [statsResult, clipsResult, systemResult] = await Promise.allSettled([
+                const [statsResult, systemResult] = await Promise.allSettled([
                     loadStatistics(),
-                    loadRecentClips(),
                     loadSystemInfo()
                 ]);
 
@@ -434,11 +374,6 @@
                 if (statsResult.status === 'rejected') {
                     console.error('Statistics failed:', statsResult.reason);
                     showError('Failed to load statistics');
-                }
-                
-                if (clipsResult.status === 'rejected') {
-                    console.error('Recent clips failed:', clipsResult.reason);
-                    showError('Failed to load recent clips');
                 }
                 
                 if (systemResult.status === 'rejected') {
@@ -491,10 +426,11 @@
                 const elements = {
                     'totalClips': stats.totalClips || 0,
                     'activeClips': stats.activeClips || 0,
-                    'expiredClips': stats.expiredClips || 0,
                     'totalAccesses': stats.totalAccesses || 0,
                     'passwordClips': stats.passwordClips || 0,
-                    'oneTimeClips': stats.oneTimeClips || 0
+                    'passwordPercentage': `${stats.passwordPercentage || 0}% of total`,
+                    'quickShareClips': stats.quickShareClips || 0,
+                    'quickSharePercentage': `${stats.quickSharePercentage || 0}% of total`
                 };
                 
                 Object.entries(elements).forEach(([id, value]) => {
@@ -509,80 +445,13 @@
             } catch (error) {
                 console.error('❌ Statistics error:', error);
                 // Set fallback values
-                const fallbackIds = ['totalClips', 'activeClips', 'expiredClips', 'totalAccesses', 'passwordClips', 'oneTimeClips'];
+                const fallbackIds = ['totalClips', 'activeClips', 'totalAccesses', 'passwordClips', 'passwordPercentage', 'quickShareClips', 'quickSharePercentage'];
                 fallbackIds.forEach(id => {
                     const element = document.getElementById(id);
                     if (element) {
                         element.textContent = '?';
                     }
                 });
-                throw error; // Re-throw for Promise.allSettled handling
-            }
-        }
-
-        // Load recent clips
-        async function loadRecentClips() {
-            if (!checkAuth()) return;
-            
-            try {
-                const response = await fetch('/api/admin/clips', {
-                    headers: {
-                        'Authorization': `Bearer ${adminToken}`
-                    }
-                });
-                if (response.status === 401) {
-                    logout();
-                    throw new Error('Authentication expired. Please login again.');
-                }
-                if (!response.ok) {
-                    throw new Error(`Clips API failed: ${response.status} ${response.statusText}`);
-                }
-                
-                const clips = await response.json();
-                const container = document.getElementById('recentClips');
-                
-                if (!container) {
-                    throw new Error('Recent clips container not found');
-                }
-                
-                if (clips.length === 0) {
-                    container.innerHTML = '<div class="loading">No clips found</div>';
-                    console.log('✅ Recent clips loaded (empty)');
-                    return;
-                }
-                
-                // Sanitize content to prevent XSS
-                const sanitizeHtml = (text) => {
-                    const div = document.createElement('div');
-                    div.textContent = text;
-                    return div.innerHTML;
-                };
-                
-                container.innerHTML = clips.map(clip => `
-                    <div class="clip-item">
-                        <div class="clip-id">${sanitizeHtml(clip.clip_id)}</div>
-                        <div class="clip-content">
-                            ${clip.content.length > 50 ? '🔒 [Encrypted Content]' : sanitizeHtml(clip.content.substring(0, 100))}${clip.content.length > 100 ? '...' : ''}
-                        </div>
-                        <div class="clip-meta">
-                            <span class="status-indicator ${clip.is_expired ? 'status-expired' : 'status-active'}"></span>
-                            ${clip.is_expired ? 'Expired' : 'Active'} • 
-                            Created: ${new Date(clip.created_at).toLocaleString()} • 
-                            Accesses: ${clip.access_count || 0}
-                            ${clip.has_password ? ' • 🔐 Protected' : ''}
-                            ${clip.one_time ? ' • ⚡ One-time' : ''}
-                        </div>
-                    </div>
-                `).join('');
-                
-                console.log(`✅ Recent clips loaded (${clips.length} clips)`);
-                
-            } catch (error) {
-                console.error('❌ Recent clips error:', error);
-                const container = document.getElementById('recentClips');
-                if (container) {
-                    container.innerHTML = '<div class="error">Failed to load recent clips</div>';
-                }
                 throw error; // Re-throw for Promise.allSettled handling
             }
         }
@@ -624,9 +493,6 @@
                         <div>
                             <strong>Server Status:</strong> 
                             <span style="color: #00b894;">🟢 Online</span>
-                        </div>
-                        <div>
-                            <strong>Uptime:</strong> ${sanitizeHtml(system.uptime)}
                         </div>
                         <div>
                             <strong>Version:</strong> ${sanitizeHtml(system.version)}
