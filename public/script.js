@@ -517,21 +517,41 @@ class ClipboardApp {
         try {
             const qrCodeImg = document.getElementById('qr-code');
             
-            // Create QR code instance and generate data URL
-            const qr = new QRCode();
-            const qrCodeDataUrl = await qr.toDataURL(url, {
+            // Clear any existing QR code
+            qrCodeImg.style.display = 'none';
+            
+            // Create a temporary container for QR code generation
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.top = '-9999px';
+            document.body.appendChild(tempContainer);
+            
+            // Generate QR code using the qrcode.js library
+            new QRCode(tempContainer, {
+                text: url,
                 width: 200,
                 height: 200,
-                margin: 2,
-                color: {
-                    dark: '#000000',
-                    light: '#FFFFFF'
-                },
-                errorCorrectionLevel: 'M'
+                colorDark: '#000000',
+                colorLight: '#FFFFFF',
+                correctLevel: QRCode.CorrectLevel.M
             });
             
-            qrCodeImg.src = qrCodeDataUrl;
-            qrCodeImg.style.display = 'block';
+            // Wait a moment for the QR code to be generated
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Get the generated image
+            const generatedImg = tempContainer.querySelector('img');
+            if (generatedImg) {
+                qrCodeImg.src = generatedImg.src;
+                qrCodeImg.style.display = 'block';
+            } else {
+                throw new Error('QR code image not generated');
+            }
+            
+            // Clean up temporary container
+            document.body.removeChild(tempContainer);
+            
         } catch (error) {
             console.error('QR code generation error:', error);
             // Fallback to text if QR generation fails
