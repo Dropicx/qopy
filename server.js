@@ -462,13 +462,17 @@ app.post('/api/share', [
       if (Array.isArray(content)) {
         // New format: raw bytes array from client
         binaryContent = Buffer.from(content);
+        console.log(`📦 Converting array of ${content.length} bytes to Buffer`);
       } else if (typeof content === 'string') {
         // Old format: base64 string (for backward compatibility)
         binaryContent = Buffer.from(content, 'base64');
+        console.log(`📦 Converting base64 string of ${content.length} chars to Buffer`);
       } else {
         throw new Error('Invalid content format');
       }
+      console.log(`📦 Buffer created: ${binaryContent.length} bytes, type: ${typeof binaryContent}`);
     } catch (error) {
+      console.error('❌ Error converting content to binary:', error);
       return res.status(400).json({
         error: 'Invalid content format',
         message: 'Content must be valid binary data.'
@@ -492,10 +496,13 @@ app.post('/api/share', [
     // hasPassword is just a flag for UI purposes
 
     // Insert clip into database (privacy-first: no IP/user-agent tracking)
+    // Use hex format for binary data to avoid encoding issues
+    const hexContent = binaryContent.toString('hex');
+    console.log(`📦 Converting ${binaryContent.length} bytes to hex: ${hexContent.substring(0, 32)}...`);
     await pool.query(`
       INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [clipId, binaryContent, expirationTime, hasPassword ? 'client-encrypted' : null, oneTime || false, Date.now()]);
+      VALUES ($1, decode($2, 'hex'), $3, $4, $5, $6)
+    `, [clipId, hexContent, expirationTime, hasPassword ? 'client-encrypted' : null, oneTime || false, Date.now()]);
 
     res.json({
       success: true,
