@@ -716,12 +716,15 @@ app.get('/api/clip/:clipId', [
       content: contentArray,
       expiresAt: clip.expiration_time,
       oneTime: clip.one_time,
-      hasPassword: clip.password_hash !== null
+      hasPassword: false // Quick Share clips never have passwords
     };
 
     // For Quick Share clips (4-digit ID), include the secret for decryption
     if (clipId.length === 4 && clip.password_hash && clip.password_hash !== 'client-encrypted') {
       response.quickShareSecret = clip.password_hash;
+    } else if (clipId.length === 10) {
+      // For normal clips, check if they have password protection
+      response.hasPassword = clip.password_hash !== null && clip.password_hash !== 'client-encrypted';
     }
 
     res.json(response);
