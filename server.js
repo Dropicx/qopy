@@ -620,7 +620,7 @@ app.get('/api/clip/:clipId/info', [
     const { clipId } = req.params;
 
     const result = await pool.query(
-      'SELECT clip_id, expiration_time, one_time, password_hash IS NOT NULL as has_password FROM clips WHERE clip_id = $1 AND is_expired = false',
+      'SELECT clip_id, expiration_time, one_time, password_hash FROM clips WHERE clip_id = $1 AND is_expired = false',
       [clipId]
     );
 
@@ -633,12 +633,22 @@ app.get('/api/clip/:clipId/info', [
 
     const clip = result.rows[0];
 
+    // Determine if clip has password based on ID length and password_hash content
+    let hasPassword = false;
+    if (clipId.length === 10) {
+      // For normal clips (10-digit), check if password_hash exists and is not 'client-encrypted'
+      hasPassword = clip.password_hash !== null && clip.password_hash !== 'client-encrypted';
+    } else {
+      // For Quick Share clips (4-digit), never have passwords
+      hasPassword = false;
+    }
+
     res.json({
       success: true,
       clipId: clip.clip_id,
       expiresAt: clip.expiration_time,
       oneTime: clip.one_time,
-      hasPassword: clip.has_password
+      hasPassword: hasPassword
     });
 
   } catch (error) {
