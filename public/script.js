@@ -993,8 +993,29 @@ class ClipboardApp {
                 ['encrypt', 'decrypt']
             );
         } else {
-            // Generate random key for non-password clips
-            return await window.crypto.subtle.generateKey(
+            // For non-password clips, derive key from URL secret for enhanced security
+            if (!urlSecret) {
+                throw new Error('URL secret is required for non-password clips');
+            }
+            
+            // Derive key from URL secret using PBKDF2
+            const encoder = new TextEncoder();
+            const salt = encoder.encode('qopy-salt-v1');
+            const keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(urlSecret),
+                { name: 'PBKDF2' },
+                false,
+                ['deriveBits', 'deriveKey']
+            );
+            return await window.crypto.subtle.deriveKey(
+                {
+                    name: 'PBKDF2',
+                    salt: salt,
+                    iterations: 100000,
+                    hash: 'SHA-256'
+                },
+                keyMaterial,
                 { name: 'AES-GCM', length: 256 },
                 true,
                 ['encrypt', 'decrypt']
@@ -1002,25 +1023,25 @@ class ClipboardApp {
         }
     }
 
-    // Enhanced IV derivation with URL secret + password
-    async deriveIV(password, urlSecret = null, salt = 'qopy-iv-salt-v1') {
+    // Enhanced IV derivation with URL secret + password or URL secret only
+    async deriveIV(primarySecret, secondarySecret = null, salt = 'qopy-iv-salt-v1') {
         // Input validation
-        if (typeof password !== 'string' || password.length === 0) {
-            throw new Error('Password must be a non-empty string');
+        if (typeof primarySecret !== 'string' || primarySecret.length === 0) {
+            throw new Error('Primary secret must be a non-empty string');
         }
         
-        if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
-            throw new Error('URL secret must be a non-empty string or null');
+        if (secondarySecret !== null && (typeof secondarySecret !== 'string' || secondarySecret.length === 0)) {
+            throw new Error('Secondary secret must be a non-empty string or null');
         }
         
         if (typeof salt !== 'string' || salt.length === 0) {
             throw new Error('Salt must be a non-empty string');
         }
         
-        // Combine URL secret with password for enhanced security
-        let combinedSecret = password;
-        if (urlSecret) {
-            combinedSecret = urlSecret + ':' + password;
+        // Combine secrets for enhanced security
+        let combinedSecret = primarySecret;
+        if (secondarySecret) {
+            combinedSecret = secondarySecret + ':' + primarySecret;
         }
         
         const encoder = new TextEncoder();
@@ -1078,12 +1099,13 @@ class ClipboardApp {
             const encoder = new TextEncoder();
             const data = encoder.encode(content);
             
-            // Generate IV: deterministic for password clips, random for others
+            // Generate IV: deterministic for all clips using URL secret
             let iv;
             if (password) {
                 iv = await this.deriveIV(password, urlSecret);
             } else {
-                iv = window.crypto.getRandomValues(new Uint8Array(12));
+                // For non-password clips, derive IV from URL secret
+                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-nopass-v1');
             }
             
             // Encrypt the content
@@ -1093,30 +1115,14 @@ class ClipboardApp {
                 data
             );
             
-            // Export key if it was randomly generated (for non-password clips)
-            let keyData = null;
-            if (!password) {
-                keyData = await window.crypto.subtle.exportKey('raw', key);
-            }
-            
-            // Direct byte concatenation instead of JSON
+            // Direct byte concatenation: IV + encrypted data (no key storage needed)
             const encryptedBytes = new Uint8Array(encryptedData);
             const ivBytes = new Uint8Array(iv);
             
-            let combined;
-            if (keyData) {
-                // Non-password clip: IV + encrypted data + key
-                const keyBytes = new Uint8Array(keyData);
-                combined = new Uint8Array(ivBytes.length + encryptedBytes.length + keyBytes.length);
-                combined.set(ivBytes, 0);
-                combined.set(encryptedBytes, ivBytes.length);
-                combined.set(keyBytes, ivBytes.length + encryptedBytes.length);
-            } else {
-                // Password-protected clip: IV + encrypted data (no key needed)
-                combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
-                combined.set(ivBytes, 0);
-                combined.set(encryptedBytes, ivBytes.length);
-            }
+            // All clips: IV + encrypted data (key derived from URL secret/password)
+            const combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
+            combined.set(ivBytes, 0);
+            combined.set(encryptedBytes, ivBytes.length);
             
             // Return raw bytes instead of base64
             return combined;
@@ -1219,27 +1225,18 @@ class ClipboardApp {
                 const decoder = new TextDecoder();
                 return decoder.decode(decryptedData);
             } else {
-                // Non-password: extract key from encrypted data
-                if (encryptedData.length < 32) {
-                    throw new Error('Invalid encrypted data: missing key');
+                // Non-password: derive key from URL secret
+                if (!urlSecret) {
+                    throw new Error('URL secret is required for non-password clips');
                 }
                 
-                const keyBytes = encryptedData.slice(-32);
-                const actualEncryptedData = encryptedData.slice(0, -32);
-                
-                key = await window.crypto.subtle.importKey(
-                    'raw',
-                    keyBytes,
-                    { name: 'AES-GCM', length: 256 },
-                    false,
-                    ['decrypt']
-                );
+                key = await this.generateKey(null, urlSecret);
                 
                 // Decrypt the content
                 const decryptedData = await window.crypto.subtle.decrypt(
                     { name: 'AES-GCM', iv: iv },
                     key,
-                    actualEncryptedData
+                    encryptedData
                 );
                 
                 const decoder = new TextDecoder();
