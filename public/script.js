@@ -221,9 +221,18 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
-                // Check if clip requires password
+                // Always try to decrypt first with available secrets
+                try {
+                    const decryptedContent = await this.decryptContent(data.content, null, urlSecret);
+                    data.content = decryptedContent;
+                    this.showRetrieveResult(data);
+                    return; // Successfully decrypted, no need for password
+                } catch (decryptError) {
+                    console.log('Initial decryption failed, checking if password is needed:', decryptError.message);
+                }
+                
+                // If initial decryption failed and clip has password, show password input
                 if (data.hasPassword) {
-                    // Show password input for password-protected clips
                     this.switchTab('retrieve');
                     document.getElementById('clip-id-input').value = clipId;
                     document.getElementById('retrieve-password-input').focus();
@@ -235,15 +244,8 @@ class ClipboardApp {
                         this.showToast('This clip is password protected. Enter the password to decrypt.', 'info');
                     }
                 } else {
-                    // No password required, decrypt directly
-                    try {
-                        const decryptedContent = await this.decryptContent(data.content, null, urlSecret);
-                        data.content = decryptedContent;
-                        this.showRetrieveResult(data);
-                    } catch (decryptError) {
-                        console.error('Decryption error:', decryptError);
-                        this.showToast('Failed to decrypt content', 'error');
-                    }
+                    // No password and decryption failed - this shouldn't happen
+                    this.showToast('Failed to decrypt content. The content may be corrupted.', 'error');
                 }
             } else {
                 this.showToast(data.error || 'Clip not found', 'error');
