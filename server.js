@@ -946,50 +946,66 @@ async function startServer() {
         // Run database migration for clip_id column length
         console.log('🔄 Checking clip_id column migration...');
         try {
-            const currentDef = await client.query(`
-                SELECT column_name, data_type, character_maximum_length 
-                FROM information_schema.columns 
-                WHERE table_name = 'clips' AND column_name = 'clip_id'
+            // Check if clips table exists first
+            const tableExists = await client.query(`
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'clips'
+                );
             `);
             
-            if (currentDef.rows.length > 0) {
-                const currentLength = currentDef.rows[0].character_maximum_length;
-                console.log(`📋 Current clip_id length: ${currentLength}`);
+            if (!tableExists.rows[0].exists) {
+                console.log('⚠️ clips table does not exist, skipping migration');
+            } else {
+                const currentDef = await client.query(`
+                    SELECT column_name, data_type, character_maximum_length 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'clips' AND column_name = 'clip_id'
+                `);
                 
-                if (currentLength < 10) {
-                    console.log('🔄 Migrating clip_id column to VARCHAR(10)...');
-                    await client.query('ALTER TABLE clips ALTER COLUMN clip_id TYPE VARCHAR(10)');
+                if (currentDef.rows.length > 0) {
+                    const currentLength = currentDef.rows[0].character_maximum_length;
+                    console.log(`📋 Current clip_id length: ${currentLength}`);
                     
-                    // Verify migration
-                    const newDef = await client.query(`
-                        SELECT column_name, data_type, character_maximum_length 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'clips' AND column_name = 'clip_id'
-                    `);
-                    
-                    const newLength = newDef.rows[0].character_maximum_length;
-                    console.log(`📋 New clip_id length: ${newLength}`);
-                    
-                    if (newLength >= 10) {
-                        console.log('✅ clip_id migration successful!');
+                    if (currentLength < 10) {
+                        console.log('🔄 Migrating clip_id column to VARCHAR(10)...');
+                        await client.query('ALTER TABLE clips ALTER COLUMN clip_id TYPE VARCHAR(10)');
                         
-                        // Add comment
-                        await client.query(`
-                            COMMENT ON COLUMN clips.clip_id IS 'Clip ID: 4 characters for Quick Share, 10 characters for normal clips'
+                        // Verify migration
+                        const newDef = await client.query(`
+                            SELECT column_name, data_type, character_maximum_length 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'clips' AND column_name = 'clip_id'
                         `);
-                        console.log('✅ Added column comment');
+                        
+                        const newLength = newDef.rows[0].character_maximum_length;
+                        console.log(`📋 New clip_id length: ${newLength}`);
+                        
+                        if (newLength >= 10) {
+                            console.log('✅ clip_id migration successful!');
+                            
+                            // Add comment (ignore errors)
+                            try {
+                                await client.query(`
+                                    COMMENT ON COLUMN clips.clip_id IS 'Clip ID: 4 characters for Quick Share, 10 characters for normal clips'
+                                `);
+                                console.log('✅ Added column comment');
+                            } catch (commentError) {
+                                console.log('⚠️ Could not add column comment (non-critical)');
+                            }
+                        } else {
+                            console.error('❌ Migration failed - column length not updated');
+                        }
                     } else {
-                        console.error('❌ Migration failed - column length not updated');
+                        console.log('✅ clip_id column already supports 10 characters');
                     }
                 } else {
-                    console.log('✅ clip_id column already supports 10 characters');
+                    console.log('⚠️ clip_id column not found in clips table');
                 }
-            } else {
-                console.error('❌ clip_id column not found in clips table');
             }
         } catch (migrationError) {
             console.error('❌ Migration error:', migrationError.message);
-            // Don't fail server start for migration errors
+            console.log('⚠️ Continuing server start despite migration error');
         }
         
         client.release();
