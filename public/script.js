@@ -905,6 +905,15 @@ class ClipboardApp {
 
     // Enhanced key derivation with URL secret + password
     async generateKey(password = null, urlSecret = null) {
+        // Input validation
+        if (password !== null && (typeof password !== 'string' || password.length === 0)) {
+            throw new Error('Password must be a non-empty string or null');
+        }
+        
+        if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+            throw new Error('URL secret must be a non-empty string or null');
+        }
+        
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.subtle) {
             throw new Error('Web Crypto API not available. Please use HTTPS.');
@@ -951,6 +960,19 @@ class ClipboardApp {
 
     // Enhanced IV derivation with URL secret + password
     async deriveIV(password, urlSecret = null, salt = 'qopy-iv-salt-v1') {
+        // Input validation
+        if (typeof password !== 'string' || password.length === 0) {
+            throw new Error('Password must be a non-empty string');
+        }
+        
+        if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+            throw new Error('URL secret must be a non-empty string or null');
+        }
+        
+        if (typeof salt !== 'string' || salt.length === 0) {
+            throw new Error('Salt must be a non-empty string');
+        }
+        
         // Combine URL secret with password for enhanced security
         let combinedSecret = password;
         if (urlSecret) {
@@ -986,6 +1008,23 @@ class ClipboardApp {
 
     async encryptContent(content, password = null, urlSecret = null) {
         try {
+            // Input validation
+            if (typeof content !== 'string' || content.length === 0) {
+                throw new Error('Content must be a non-empty string');
+            }
+            
+            if (content.length > 400000) {
+                throw new Error('Content too large (max 400,000 characters)');
+            }
+            
+            if (password !== null && (typeof password !== 'string' || password.length === 0)) {
+                throw new Error('Password must be a non-empty string or null');
+            }
+            
+            if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+                throw new Error('URL secret must be a non-empty string or null');
+            }
+            
             // Check if content is already encrypted
             if (this.isEncrypted(content)) {
                 return content; // Already encrypted, return as-is
@@ -1076,6 +1115,19 @@ class ClipboardApp {
 
     async decryptContent(encryptedContent, password = null, urlSecret = null) {
         try {
+            // Input validation
+            if (encryptedContent === null || encryptedContent === undefined) {
+                throw new Error('Encrypted content cannot be null or undefined');
+            }
+            
+            if (password !== null && (typeof password !== 'string' || password.length === 0)) {
+                throw new Error('Password must be a non-empty string or null');
+            }
+            
+            if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+                throw new Error('URL secret must be a non-empty string or null');
+            }
+            
             // Check if content is actually encrypted
             if (!this.isEncrypted(encryptedContent)) {
                 return encryptedContent;
