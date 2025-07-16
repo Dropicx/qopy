@@ -942,6 +942,56 @@ async function startServer() {
         // Test database connection
         const client = await pool.connect();
         await client.query('SELECT NOW() as current_time');
+        
+        // Run database migration for clip_id column length
+        console.log('🔄 Checking clip_id column migration...');
+        try {
+            const currentDef = await client.query(`
+                SELECT column_name, data_type, character_maximum_length 
+                FROM information_schema.columns 
+                WHERE table_name = 'clips' AND column_name = 'clip_id'
+            `);
+            
+            if (currentDef.rows.length > 0) {
+                const currentLength = currentDef.rows[0].character_maximum_length;
+                console.log(`📋 Current clip_id length: ${currentLength}`);
+                
+                if (currentLength < 10) {
+                    console.log('🔄 Migrating clip_id column to VARCHAR(10)...');
+                    await client.query('ALTER TABLE clips ALTER COLUMN clip_id TYPE VARCHAR(10)');
+                    
+                    // Verify migration
+                    const newDef = await client.query(`
+                        SELECT column_name, data_type, character_maximum_length 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'clips' AND column_name = 'clip_id'
+                    `);
+                    
+                    const newLength = newDef.rows[0].character_maximum_length;
+                    console.log(`📋 New clip_id length: ${newLength}`);
+                    
+                    if (newLength >= 10) {
+                        console.log('✅ clip_id migration successful!');
+                        
+                        // Add comment
+                        await client.query(`
+                            COMMENT ON COLUMN clips.clip_id IS 'Clip ID: 4 characters for Quick Share, 10 characters for normal clips'
+                        `);
+                        console.log('✅ Added column comment');
+                    } else {
+                        console.error('❌ Migration failed - column length not updated');
+                    }
+                } else {
+                    console.log('✅ clip_id column already supports 10 characters');
+                }
+            } else {
+                console.error('❌ clip_id column not found in clips table');
+            }
+        } catch (migrationError) {
+            console.error('❌ Migration error:', migrationError.message);
+            // Don't fail server start for migration errors
+        }
+        
         client.release();
         
         app.listen(PORT, () => {
