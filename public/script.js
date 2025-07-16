@@ -788,6 +788,22 @@ class ClipboardApp {
         // Reset expiration to default (30 minutes)
         document.getElementById('expiration-select').value = '30min';
         
+        // Re-enable all form controls that might have been disabled by Quick Share
+        const expirationSelect = document.getElementById('expiration-select');
+        const oneTimeCheckbox = document.getElementById('one-time-checkbox');
+        const passwordInput = document.getElementById('password-input');
+        const passwordGroup = passwordInput.closest('.form-row');
+        
+        // Re-enable expiration select
+        expirationSelect.disabled = false;
+        
+        // Re-enable one-time checkbox
+        oneTimeCheckbox.disabled = false;
+        
+        // Re-enable password input and restore opacity
+        passwordInput.disabled = false;
+        passwordGroup.style.opacity = '1';
+        
         // Update character counter
         this.updateCharCounter();
         
