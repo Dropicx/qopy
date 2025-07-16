@@ -372,6 +372,9 @@ class ClipboardApp {
             
             const encryptedContent = await this.encryptContent(content, password, urlSecret);
             
+            // Convert Uint8Array to regular array for JSON serialization
+            const contentArray = Array.from(encryptedContent);
+            
             // No password sent to server - content is already encrypted!
             const response = await fetch('/api/share', {
                 method: 'POST',
@@ -379,7 +382,7 @@ class ClipboardApp {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    content: encryptedContent,
+                    content: contentArray,
                     expiration,
                     oneTime,
                     hasPassword: !!password // Just indicate if password protection is used
@@ -883,10 +886,13 @@ class ClipboardApp {
 
     isEncrypted(content) {
         try {
-            // Check if content is a Uint8Array (new format) or base64 string (old format)
+            // Check if content is a Uint8Array, Array, or base64 string
             if (content instanceof Uint8Array) {
                 // New format: raw bytes
                 return content.length >= 20; // Minimum size: IV (12 bytes) + some encrypted data
+            } else if (Array.isArray(content)) {
+                // Array format from server
+                return content.length >= 20;
             } else if (typeof content === 'string') {
                 // Old format: base64 string
                 if (content.length < 20) {
@@ -919,10 +925,13 @@ class ClipboardApp {
             
             let bytes;
             
-            // Handle both new (Uint8Array) and old (base64 string) formats
+            // Handle multiple formats: Uint8Array, Array, and base64 string
             if (encryptedContent instanceof Uint8Array) {
                 // New format: raw bytes
                 bytes = encryptedContent;
+            } else if (Array.isArray(encryptedContent)) {
+                // Array format from server
+                bytes = new Uint8Array(encryptedContent);
             } else if (typeof encryptedContent === 'string') {
                 // Old format: base64 string
                 const decoded = atob(encryptedContent);
