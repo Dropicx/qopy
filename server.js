@@ -25,7 +25,6 @@ const { body, param, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const { Pool } = require('pg');
-const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -385,34 +384,7 @@ function generateClipId(quickShare = false) {
 }
 
 // Password hashing functions
-async function hashPassword(password) {
-  if (!password) return null;
-  const saltRounds = 12; // High security level
-  try {
-    return await bcrypt.hash(password, saltRounds);
-  } catch (error) {
-    console.error('❌ Error hashing password:', error.message);
-    throw new Error('Failed to hash password');
-  }
-}
 
-async function verifyPassword(password, hash) {
-  if (!password || !hash) return false;
-  
-  // Check if hash is already bcrypt format
-  if (hash.startsWith('$2b$')) {
-    try {
-      return await bcrypt.compare(password, hash);
-    } catch (error) {
-      console.error('❌ Error verifying bcrypt password:', error.message);
-      return false;
-    }
-  } else {
-    // Legacy plaintext comparison (for migration period)
-    console.warn('⚠️ Using legacy plaintext password comparison for migration');
-    return password === hash;
-  }
-}
 
 // Cleanup expired clips
 async function cleanupExpiredClips() {
