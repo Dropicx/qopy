@@ -13,14 +13,12 @@ RUN npm install -g npm@latest
 # Copy package files first to leverage Docker layer caching
 COPY package*.json ./
 COPY .npmrc ./
-COPY scripts/npm-check.js ./scripts/
 
 # Install dependencies (without package-lock.json)
-RUN node scripts/npm-check.js && \
-    rm -f package-lock.json && \
+RUN rm -f package-lock.json && \
     npm install
 
-# Copy all scripts needed for setup
+# Copy scripts directory (only add-headers.sh remains)
 COPY scripts/ ./scripts/
 
 # Create data directory for spam IP lists
@@ -69,9 +67,6 @@ USER qopy
 # Create startup script
 RUN echo '#!/bin/sh' > /app/startup.sh && \
     echo 'set -e' >> /app/startup.sh && \
-    echo 'node scripts/db-init.js || true' >> /app/startup.sh && \
-    echo 'node scripts/migrate-passwords.js || true' >> /app/startup.sh && \
-    echo 'node scripts/migrate-to-binary.js || true' >> /app/startup.sh && \
     echo 'exec node server.js' >> /app/startup.sh && \
     chmod +x /app/startup.sh
 
