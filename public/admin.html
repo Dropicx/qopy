@@ -278,6 +278,16 @@
                     <div class="stat-label">Quick Share Clips</div>
                     <div class="stat-description" id="quickSharePercentage">-</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="oneTimeClips">-</div>
+                    <div class="stat-label">One-Time Clips</div>
+                    <div class="stat-description">Self-destruct</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="normalClips">-</div>
+                    <div class="stat-label">Normal Clips</div>
+                    <div class="stat-description">Standard sharing</div>
+                </div>
             </div>
 
             <!-- System Info -->
@@ -430,7 +440,9 @@
                     'passwordClips': stats.passwordClips || 0,
                     'passwordPercentage': `${stats.passwordPercentage || 0}% of total`,
                     'quickShareClips': stats.quickShareClips || 0,
-                    'quickSharePercentage': `${stats.quickSharePercentage || 0}% of total`
+                    'quickSharePercentage': `${stats.quickSharePercentage || 0}% of total`,
+                    'oneTimeClips': stats.oneTimeClips || 0,
+                    'normalClips': stats.normalClips || 0
                 };
                 
                 Object.entries(elements).forEach(([id, value]) => {
@@ -445,7 +457,7 @@
             } catch (error) {
                 console.error('❌ Statistics error:', error);
                 // Set fallback values
-                const fallbackIds = ['totalClips', 'activeClips', 'totalAccesses', 'passwordClips', 'passwordPercentage', 'quickShareClips', 'quickSharePercentage'];
+                const fallbackIds = ['totalClips', 'activeClips', 'totalAccesses', 'passwordClips', 'passwordPercentage', 'quickShareClips', 'quickSharePercentage', 'oneTimeClips', 'normalClips'];
                 fallbackIds.forEach(id => {
                     const element = document.getElementById(id);
                     if (element) {

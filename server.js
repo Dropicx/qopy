@@ -417,12 +417,34 @@ async function verifyPassword(password, hash) {
 // Cleanup expired clips
 async function cleanupExpiredClips() {
   try {
+    // Delete expired clips
     const result = await pool.query(
       'DELETE FROM clips WHERE expiration_time < $1',
       [Date.now()]
     );
+    
+    // Check if we need to reset the sequence (if we're approaching the limit)
+    const sequenceCheck = await pool.query(
+      'SELECT last_value FROM clips_id_seq'
+    );
+    const currentSequence = parseInt(sequenceCheck.rows[0].last_value);
+    
+    // If we're above 2 billion (approaching SERIAL limit), reset to safe value
+    if (currentSequence > 2000000000) {
+      const maxIdResult = await pool.query('SELECT COALESCE(MAX(id), 0) as max_id FROM clips');
+      const maxId = parseInt(maxIdResult.rows[0].max_id);
+      const newStartValue = Math.max(1, maxId + 1000); // Start 1000 above current max
+      
+      await pool.query(
+        'ALTER SEQUENCE clips_id_seq RESTART WITH $1',
+        [newStartValue]
+      );
+      
+      console.log(`🔄 Reset SERIAL sequence to ${newStartValue} (was ${currentSequence})`);
+    }
+    
     if (result.rowCount > 0) {
-  
+      console.log(`🧹 Cleaned up ${result.rowCount} expired clips`);
     }
   } catch (error) {
     console.error('❌ Error cleaning up expired clips:', error.message);
@@ -539,6 +561,21 @@ app.post('/api/share', [
       INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [clipId, binaryContent, expirationTime, hasPassword ? 'client-encrypted' : null, oneTime || false, Date.now()]);
+
+    // Update statistics
+    await updateStatistics('clip_created');
+    
+    if (quickShare) {
+        await updateStatistics('quick_share_created');
+    } else if (hasPassword) {
+        await updateStatistics('password_protected_created');
+    } else {
+        await updateStatistics('normal_created');
+    }
+    
+    if (oneTime) {
+        await updateStatistics('one_time_created');
+    }
 
     res.json({
       success: true,
@@ -658,6 +695,9 @@ app.get('/api/clip/:clipId', [
       SET access_count = access_count + 1, accessed_at = $1 
       WHERE clip_id = $2
     `, [Date.now(), clipId]);
+    
+    // Update statistics
+    await updateStatistics('clip_accessed');
 
     // Handle one-time access - immediately delete from database
     if (clip.one_time) {
@@ -778,38 +818,30 @@ app.get('/admin', (req, res) => {
 // Protected Admin statistics
 app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
   try {
-    // Get total clips (all time created)
-    const totalResult = await pool.query('SELECT COUNT(*) as count FROM clips');
-    const totalClips = parseInt(totalResult.rows[0].count);
-
-    // Get active clips (not expired)
+    // Get statistics from dedicated table (much faster than COUNT queries)
+    const statsResult = await pool.query('SELECT * FROM statistics ORDER BY id DESC LIMIT 1');
+    const stats = statsResult.rows[0];
+    
+    // Get active clips (not expired) - still need to query clips table for this
     const activeResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE is_expired = false');
     const activeClips = parseInt(activeResult.rows[0].count);
 
-    // Get total accesses (all time views)
-    const accessResult = await pool.query('SELECT COALESCE(SUM(access_count), 0) as total FROM clips');
-    const totalAccesses = parseInt(accessResult.rows[0].total);
-
-    // Get password protected clips
-    const passwordResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE password_hash IS NOT NULL');
-    const passwordClips = parseInt(passwordResult.rows[0].count);
-
-    // Get Quick Share clips (4-character IDs)
-    const quickShareResult = await pool.query('SELECT COUNT(*) as count FROM clips WHERE LENGTH(clip_id) = 4');
-    const quickShareClips = parseInt(quickShareResult.rows[0].count);
-
     // Calculate percentages
-    const passwordPercentage = totalClips > 0 ? Math.round((passwordClips / totalClips) * 100) : 0;
-    const quickSharePercentage = totalClips > 0 ? Math.round((quickShareClips / totalClips) * 100) : 0;
+    const totalClips = parseInt(stats.total_clips);
+    const passwordPercentage = totalClips > 0 ? Math.round((parseInt(stats.password_protected_clips) / totalClips) * 100) : 0;
+    const quickSharePercentage = totalClips > 0 ? Math.round((parseInt(stats.quick_share_clips) / totalClips) * 100) : 0;
 
     res.json({
       totalClips,
       activeClips,
-      totalAccesses,
-      passwordClips,
+      totalAccesses: parseInt(stats.total_accesses),
+      passwordClips: parseInt(stats.password_protected_clips),
       passwordPercentage,
-      quickShareClips,
-      quickSharePercentage
+      quickShareClips: parseInt(stats.quick_share_clips),
+      quickSharePercentage,
+      oneTimeClips: parseInt(stats.one_time_clips),
+      normalClips: parseInt(stats.normal_clips),
+      lastUpdated: stats.last_updated
     });
   } catch (error) {
     console.error('❌ Error getting admin stats:', error.message);
@@ -904,9 +936,60 @@ process.on('SIGINT', () => {
     gracefulShutdown();
 });
 
+// Statistics update functions
+async function updateStatistics(type, increment = 1) {
+    try {
+        let updateQuery;
+        switch (type) {
+            case 'clip_created':
+                updateQuery = `
+                    UPDATE statistics 
+                    SET total_clips = total_clips + $1, last_updated = $2
+                `;
+                break;
+            case 'clip_accessed':
+                updateQuery = `
+                    UPDATE statistics 
+                    SET total_accesses = total_accesses + $1, last_updated = $2
+                `;
+                break;
+            case 'quick_share_created':
+                updateQuery = `
+                    UPDATE statistics 
+                    SET quick_share_clips = quick_share_clips + $1, last_updated = $2
+                `;
+                break;
+            case 'password_protected_created':
+                updateQuery = `
+                    UPDATE statistics 
+                    SET password_protected_clips = password_protected_clips + $1, last_updated = $2
+                `;
+                break;
+            case 'one_time_created':
+                updateQuery = `
+                    UPDATE statistics 
+                    SET one_time_clips = one_time_clips + $1, last_updated = $2
+                `;
+                break;
+            case 'normal_created':
+                updateQuery = `
+                    UPDATE statistics 
+                    SET normal_clips = normal_clips + $1, last_updated = $2
+                `;
+                break;
+            default:
+                return;
+        }
+        
+        await pool.query(updateQuery, [increment, Date.now()]);
+    } catch (error) {
+        console.error('❌ Error updating statistics:', error.message);
+    }
+}
+
 // Graceful shutdown
 function gracefulShutdown() {
-            console.log('🛑 Graceful shutdown initiated');
+    console.log('🛑 Graceful shutdown initiated');
     
     // Clear cleanup interval
     if (cleanupInterval) {
@@ -937,6 +1020,31 @@ async function startServer() {
         // Test database connection
         const client = await pool.connect();
         await client.query('SELECT NOW() as current_time');
+        
+        // Create statistics table if it doesn't exist
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS statistics (
+                id SERIAL PRIMARY KEY,
+                total_clips BIGINT DEFAULT 0,
+                total_accesses BIGINT DEFAULT 0,
+                quick_share_clips BIGINT DEFAULT 0,
+                password_protected_clips BIGINT DEFAULT 0,
+                one_time_clips BIGINT DEFAULT 0,
+                normal_clips BIGINT DEFAULT 0,
+                last_updated BIGINT DEFAULT 0
+            )
+        `);
+        
+        // Initialize statistics if table is empty
+        const statsCheck = await client.query('SELECT COUNT(*) as count FROM statistics');
+        if (parseInt(statsCheck.rows[0].count) === 0) {
+            await client.query(`
+                INSERT INTO statistics (total_clips, total_accesses, quick_share_clips, 
+                                      password_protected_clips, one_time_clips, normal_clips, last_updated)
+                VALUES (0, 0, 0, 0, 0, 0, $1)
+            `, [Date.now()]);
+            console.log('📊 Statistics table initialized');
+        }
         
         // Run database migration for clip_id column length
         try {
