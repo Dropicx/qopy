@@ -301,7 +301,11 @@ class ClipboardApp {
                         decryptedContent = await this.decryptContent(data.content, null, urlSecret);
                     }
                     
-                    data.content = decryptedContent;
+                    // Create a new data object with decrypted content but preserve other properties
+                    const resultData = {
+                        ...data,
+                        content: decryptedContent
+                    };
                     
                     // Hide password section since content was successfully retrieved without password
                     const passwordSection = document.getElementById('password-section');
@@ -309,7 +313,7 @@ class ClipboardApp {
                         passwordSection.classList.add('hidden');
                     }
                     
-                    this.showRetrieveResult(data);
+                    this.showRetrieveResult(resultData);
                 } catch (decryptError) {
                     // For auto-retrieve, don't show error - let user manually retrieve
                 }
@@ -702,8 +706,12 @@ class ClipboardApp {
                         decryptedContent = await this.decryptContent(data.content, password, urlSecret);
                     }
                     
-                    data.content = decryptedContent;
-                    this.showRetrieveResult(data);
+                    // Create a new data object with decrypted content but preserve other properties
+                    const resultData = {
+                        ...data,
+                        content: decryptedContent
+                    };
+                    this.showRetrieveResult(resultData);
                 } catch (decryptError) {
                     if (decryptError.message.includes('password is incorrect')) {
                         throw new Error('❌ Wrong password or URL secret');
