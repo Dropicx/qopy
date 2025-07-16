@@ -36,7 +36,6 @@ class ClipboardApp {
             if (passwordField) {
                 passwordField.style.display = 'block';
                 passwordField.classList.remove('hidden');
-                console.log('Password field visibility ensured on page load');
             }
         }, 500);
     }
@@ -248,7 +247,6 @@ class ClipboardApp {
             if (response.ok) {
                 // Check if clip has password first
                 if (data.hasPassword) {
-                    console.log('Clip has password, showing password input');
                     this.switchTab('retrieve');
                     document.getElementById('clip-id-input').value = clipId;
                     
@@ -256,14 +254,12 @@ class ClipboardApp {
                     const passwordSection = document.getElementById('password-section');
                     if (passwordSection) {
                         passwordSection.classList.remove('hidden');
-                        console.log('Password section made visible for password-protected clip');
                     }
                     
                     // Focus password input
                     const passwordInput = document.getElementById('retrieve-password-input');
                     if (passwordInput) {
                         passwordInput.focus();
-                        console.log('Password input focused');
                     }
                     
                     // Show hint about URL secret if available
@@ -277,7 +273,6 @@ class ClipboardApp {
                 
                 // No password required, try to decrypt with URL secret only
                 try {
-                    console.log('No password required, trying to decrypt with URL secret only');
                     const decryptedContent = await this.decryptContent(data.content, null, urlSecret);
                     data.content = decryptedContent;
                     this.showRetrieveResult(data);
@@ -326,7 +321,6 @@ class ClipboardApp {
                 if (passwordField) {
                     passwordField.style.display = 'block';
                     passwordField.classList.remove('hidden');
-                    console.log('Ensured password field is visible in share tab');
                 }
             }
             
@@ -337,7 +331,6 @@ class ClipboardApp {
                     const passwordSection = document.getElementById('password-section');
                     if (passwordSection) {
                         passwordSection.classList.remove('hidden');
-                        console.log('Password section made visible in retrieve tab due to URL secret');
                     }
                 }
             }
@@ -391,18 +384,14 @@ class ClipboardApp {
                     if (data.hasPassword) {
                         passwordSection.classList.remove('hidden');
                         document.getElementById('retrieve-password-input').focus();
-                        console.log('Password section shown for clip with password');
                     } else {
                         passwordSection.classList.add('hidden');
-                        console.log('Password section hidden for clip without password');
                     }
                 } else {
                     passwordSection.classList.add('hidden');
-                    console.log('Password section hidden - clip not found');
                 }
             } catch (error) {
                 passwordSection.classList.add('hidden');
-                console.log('Password section hidden due to error:', error);
             }
         } else {
             passwordSection.classList.add('hidden');
@@ -427,13 +416,6 @@ class ClipboardApp {
             this.showToast('Content is too long (max 400,000 characters)', 'error');
             return;
         }
-
-        // Debug: Log password field status
-        const passwordField = document.getElementById('password-input');
-        console.log('Password field found:', !!passwordField);
-        console.log('Password field visible:', passwordField && !passwordField.classList.contains('hidden'));
-        console.log('Password field value:', password);
-        console.log('Password field style display:', passwordField ? passwordField.style.display : 'N/A');
 
         this.showLoading('loading');
         const shareButton = document.getElementById('share-button');
@@ -536,7 +518,6 @@ class ClipboardApp {
             if (response.ok) {
                 // Decrypt the content before showing
                 try {
-                    console.log('Retrieving with password:', !!password, 'urlSecret:', !!urlSecret);
                     const decryptedContent = await this.decryptContent(data.content, password, urlSecret);
                     data.content = decryptedContent;
                     this.showRetrieveResult(data);
@@ -1039,19 +1020,9 @@ class ClipboardApp {
                 throw new Error('Invalid encrypted content format');
             }
             
-            console.log('Decrypting content with password:', !!password, 'urlSecret:', !!urlSecret);
-            console.log('Content length:', bytes.length);
-            
-            // Extract IV (first 12 bytes)
-            const iv = bytes.slice(0, 12);
-            const encryptedData = bytes.slice(12);
-            
-            console.log('IV length:', iv.length, 'Encrypted data length:', encryptedData.length);
-            
             let key;
             if (password) {
                 // Password-protected: derive key from password + URL secret
-                console.log('Using password-based decryption');
                 key = await this.generateKey(password, urlSecret);
                 
                 // Decrypt password-protected content
@@ -1065,15 +1036,12 @@ class ClipboardApp {
                 return decoder.decode(decryptedData);
             } else {
                 // Non-password: extract key from encrypted data
-                console.log('Using key-based decryption');
                 if (encryptedData.length < 32) {
                     throw new Error('Invalid encrypted data: missing key');
                 }
                 
                 const keyBytes = encryptedData.slice(-32);
                 const actualEncryptedData = encryptedData.slice(0, -32);
-                
-                console.log('Key bytes length:', keyBytes.length, 'Actual encrypted data length:', actualEncryptedData.length);
                 
                 key = await window.crypto.subtle.importKey(
                     'raw',
