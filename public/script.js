@@ -163,6 +163,21 @@ class ClipboardApp {
         document.getElementById('privacy-dismiss').addEventListener('click', () => {
             this.dismissPrivacyNotice();
         });
+
+        // New Paste button
+        document.getElementById('new-paste-button').addEventListener('click', () => {
+            this.goToHome();
+        });
+
+        // Logo/Title click to return to home
+        const typingElement = document.getElementById('typing-text');
+        if (typingElement) {
+            typingElement.addEventListener('click', () => {
+                this.goToHome();
+            });
+            // Add cursor pointer to indicate it's clickable
+            typingElement.style.cursor = 'pointer';
+        }
     }
 
     // Keyboard Shortcuts
@@ -288,6 +303,13 @@ class ClipboardApp {
                     }
                     
                     data.content = decryptedContent;
+                    
+                    // Hide password section since content was successfully retrieved without password
+                    const passwordSection = document.getElementById('password-section');
+                    if (passwordSection) {
+                        passwordSection.classList.add('hidden');
+                    }
+                    
                     this.showRetrieveResult(data);
                 } catch (decryptError) {
                     console.error('Auto-retrieve decryption failed:', decryptError);
@@ -365,8 +387,16 @@ class ClipboardApp {
                         contentInput.focus();
                     }
                 } else if (tab === 'retrieve') {
+                    // Check if we're in an auto-retrieve scenario with a password-protected clip
                     const clipIdInput = document.getElementById('clip-id-input');
-                    if (clipIdInput) {
+                    const passwordInput = document.getElementById('retrieve-password-input');
+                    const passwordSection = document.getElementById('password-section');
+                    
+                    // If password section is visible (indicating password-protected clip), focus password input
+                    if (passwordSection && !passwordSection.classList.contains('hidden') && passwordInput) {
+                        passwordInput.focus();
+                    } else if (clipIdInput) {
+                        // Otherwise focus the clip ID input
                         clipIdInput.focus();
                     }
                 }
@@ -1158,6 +1188,47 @@ class ClipboardApp {
             passwordGroup.style.opacity = '1';
             passwordInput.disabled = false;
         }
+    }
+
+    // Go to home page (share tab)
+    goToHome() {
+        // Update URL to home page
+        history.replaceState(null, '', '/');
+        
+        // Switch to share tab
+        this.switchTab('share');
+        
+        // Clear any retrieved content
+        const contentResult = document.getElementById('content-result');
+        if (contentResult) {
+            contentResult.classList.add('hidden');
+        }
+        
+        // Clear clip ID input
+        const clipIdInput = document.getElementById('clip-id-input');
+        if (clipIdInput) {
+            clipIdInput.value = '';
+        }
+        
+        // Hide password section
+        const passwordSection = document.getElementById('password-section');
+        if (passwordSection) {
+            passwordSection.classList.add('hidden');
+        }
+        
+        // Clear password input
+        const passwordInput = document.getElementById('retrieve-password-input');
+        if (passwordInput) {
+            passwordInput.value = '';
+        }
+        
+        // Focus on content input
+        setTimeout(() => {
+            const contentInput = document.getElementById('content-input');
+            if (contentInput) {
+                contentInput.focus();
+            }
+        }, 100);
     }
 }
 
