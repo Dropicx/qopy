@@ -425,10 +425,13 @@ class ClipboardApp {
             
             if (quickShare) {
                 // Quick Share: Use normal encryption without URL secret (like clips without password)
-                // This provides database security while keeping URLs simple
                 encryptedContent = await this.encryptContent(content, null, null);
+            } else if (!password) {
+                // Normal clip without password: generate and use URL secret
+                urlSecret = this.generateUrlSecret();
+                encryptedContent = await this.encryptContent(content, null, urlSecret);
             } else {
-                // Normal mode: Use encryption with URL secret
+                // Normal mode: Use encryption with password and URL secret
                 urlSecret = this.generateUrlSecret();
                 encryptedContent = await this.encryptContent(content, password, urlSecret);
             }
@@ -454,7 +457,7 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
-                // Include URL secret in the share URL for enhanced security
+                // For all normal clips (not Quick Share), always add the URL secret as fragment
                 const shareUrl = (!quickShare) ? `${data.url}#${urlSecret}` : data.url;
                 data.url = shareUrl;
                 this.showShareResult(data);
