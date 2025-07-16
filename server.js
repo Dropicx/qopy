@@ -528,6 +528,14 @@ app.post('/api/share', [
     let passwordHash = null;
     if (quickShare && quickShareSecret) {
       // Quick Share: Store the secret in password_hash column
+      // Ensure the secret fits in the column (max 60 chars for bcrypt)
+      if (quickShareSecret.length > 60) {
+        console.error('❌ Quick Share secret too long:', quickShareSecret.length);
+        return res.status(400).json({
+          error: 'Secret too long',
+          message: 'Generated secret is too long for storage'
+        });
+      }
       passwordHash = quickShareSecret;
     } else if (hasPassword) {
       // Password-protected: Mark as client-encrypted
@@ -538,10 +546,21 @@ app.post('/api/share', [
     // Insert clip into database (privacy-first: no IP/user-agent tracking)
     // Store binary data directly as BYTEA
     
-    await pool.query(`
-      INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [clipId, binaryContent, expirationTime, passwordHash, oneTime || false, Date.now()]);
+    try {
+      await pool.query(`
+        INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [clipId, binaryContent, expirationTime, passwordHash, oneTime || false, Date.now()]);
+    } catch (dbError) {
+      console.error('❌ Database error:', dbError.message);
+      if (dbError.message.includes('password_hash')) {
+        return res.status(500).json({
+          error: 'Database schema issue',
+          message: 'Password hash column too small for Quick Share secrets'
+        });
+      }
+      throw dbError;
+    }
 
     // Update statistics
     await updateStatistics('clip_created');

@@ -566,8 +566,8 @@ class ClipboardApp {
 
     // Generate random secret for Quick Share encryption
     generateRandomSecret() {
-        // Generate a cryptographically secure random secret
-        const array = new Uint8Array(32); // 256 bits
+        // Generate a cryptographically secure random secret (128 bits = 32 hex chars)
+        const array = new Uint8Array(16); // 128 bits
         window.crypto.getRandomValues(array);
         return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
     }
