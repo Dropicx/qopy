@@ -235,6 +235,32 @@ class ClipboardApp {
 
             this.showLoading('retrieve-loading');
             
+            // First, get clip info to check if it has password
+            const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+            const infoData = await infoResponse.json();
+            
+            if (!infoResponse.ok) {
+                // Clip not found or expired, don't try to decrypt
+                this.hideLoading('retrieve-loading');
+                return;
+            }
+            
+            // If clip has password, don't auto-decrypt - just prepare UI
+            if (infoData.hasPassword) {
+                console.log('🔐 Password-protected clip detected, requiring manual password entry');
+                this.hideLoading('retrieve-loading');
+                
+                // Show password section and focus password input
+                const passwordSection = document.getElementById('password-section');
+                const passwordInput = document.getElementById('retrieve-password-input');
+                
+                if (passwordSection && passwordInput) {
+                    passwordSection.classList.remove('hidden');
+                    passwordInput.focus();
+                }
+                return;
+            }
+            
             // Extract URL secret from current URL if available
             const urlSecret = this.extractUrlSecret();
             
@@ -316,8 +342,15 @@ class ClipboardApp {
             // Ensure password field is visible in retrieve tab if URL secret is present
             if (tab === 'retrieve') {
                 const urlSecret = this.extractUrlSecret();
+                const passwordSection = document.getElementById('password-section');
+                
+                // Hide password section by default
+                if (passwordSection) {
+                    passwordSection.classList.add('hidden');
+                }
+                
+                // Only show if URL secret is present (indicates password-protected clip)
                 if (urlSecret) {
-                    const passwordSection = document.getElementById('password-section');
                     if (passwordSection) {
                         passwordSection.classList.remove('hidden');
                     }
@@ -363,6 +396,16 @@ class ClipboardApp {
     // Check Clip ID and show password field if needed
     async checkClipId() {
         const clipId = document.getElementById('clip-id-input').value.trim();
+        const passwordSection = document.getElementById('password-section');
+        const passwordInput = document.getElementById('retrieve-password-input');
+        
+        // Always hide password section by default
+        if (passwordSection) {
+            passwordSection.classList.add('hidden');
+        }
+        if (passwordInput) {
+            passwordInput.value = '';
+        }
         
         if (clipId.length === 4 || clipId.length === 10) {
             try {
@@ -370,29 +413,25 @@ class ClipboardApp {
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Show password section if clip has password
-                    const passwordSection = document.getElementById('password-section');
-                    const passwordInput = document.getElementById('retrieve-password-input');
-                    
+                    // Show password section ONLY if clip has password
                     if (data.hasPassword) {
-                        passwordSection.classList.remove('hidden');
-                        passwordInput.focus();
-                    } else {
-                        passwordSection.classList.add('hidden');
-                        passwordInput.value = '';
+                        if (passwordSection) {
+                            passwordSection.classList.remove('hidden');
+                        }
+                        if (passwordInput) {
+                            passwordInput.focus();
+                        }
                     }
+                    // If no password, password section stays hidden (default behavior)
                 } else {
-                    // Hide password section if clip not found
-                    document.getElementById('password-section').classList.add('hidden');
+                    // Clip not found or expired - password section stays hidden
                 }
             } catch (error) {
-                // Hide password section on error
-                document.getElementById('password-section').classList.add('hidden');
+                // On error, password section stays hidden
+                console.log('Could not check clip info:', error.message);
             }
-        } else {
-            // Hide password section if clip ID is not complete
-            document.getElementById('password-section').classList.add('hidden');
         }
+        // If clip ID is not complete, password section stays hidden (default behavior)
     }
 
     // Share Content
