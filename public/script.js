@@ -125,6 +125,21 @@ class ClipboardApp {
             if (e.key === 'Enter') this.retrieveContent();
         });
 
+        // Enter key handling for share form
+        document.getElementById('content-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                this.shareContent();
+            }
+        });
+
+        document.getElementById('password-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                this.shareContent();
+            }
+        });
+
         // FAQ Accordion
         document.querySelectorAll('.faq-question').forEach(button => {
             button.addEventListener('click', () => {
