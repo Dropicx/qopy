@@ -459,7 +459,8 @@ app.post('/api/share', [
   body('expiration').isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
   body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
   body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
-  body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean')
+  body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean'),
+  body('quickShareSecret').optional().isString().withMessage('quickShareSecret must be a string')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -470,7 +471,7 @@ app.post('/api/share', [
       });
     }
 
-    let { content, expiration, hasPassword, oneTime, quickShare } = req.body;
+    let { content, expiration, hasPassword, oneTime, quickShare, quickShareSecret } = req.body;
 
     // Quick Share Mode: Override settings
     if (quickShare) {
@@ -523,8 +524,16 @@ app.post('/api/share', [
     const expirationTime = Date.now() + expirationTimes[expiration];
     const clipId = generateClipId(quickShare);
 
-    // No password hashing needed - content is already encrypted client-side
-    // hasPassword is just a flag for UI purposes
+    // Handle password_hash column based on clip type
+    let passwordHash = null;
+    if (quickShare && quickShareSecret) {
+      // Quick Share: Store the secret in password_hash column
+      passwordHash = quickShareSecret;
+    } else if (hasPassword) {
+      // Password-protected: Mark as client-encrypted
+      passwordHash = 'client-encrypted';
+    }
+    // Normal clips without password: passwordHash remains null
 
     // Insert clip into database (privacy-first: no IP/user-agent tracking)
     // Store binary data directly as BYTEA
@@ -532,7 +541,7 @@ app.post('/api/share', [
     await pool.query(`
       INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [clipId, binaryContent, expirationTime, hasPassword ? 'client-encrypted' : null, oneTime || false, Date.now()]);
+    `, [clipId, binaryContent, expirationTime, passwordHash, oneTime || false, Date.now()]);
 
     // Update statistics
     await updateStatistics('clip_created');
@@ -682,13 +691,21 @@ app.get('/api/clip/:clipId', [
     // Convert binary content back to array for response
     const contentArray = Array.from(clip.content);
 
-    res.json({
+    // Prepare response
+    const response = {
       success: true,
       content: contentArray,
       expiresAt: clip.expiration_time,
       oneTime: clip.one_time,
       hasPassword: clip.password_hash !== null
-    });
+    };
+
+    // For Quick Share clips (4-digit ID), include the secret for decryption
+    if (clipId.length === 4 && clip.password_hash && clip.password_hash !== 'client-encrypted') {
+      response.quickShareSecret = clip.password_hash;
+    }
+
+    res.json(response);
 
   } catch (error) {
     console.error('❌ Error retrieving clip:', error.message);

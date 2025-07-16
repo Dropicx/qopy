@@ -489,8 +489,12 @@ class ClipboardApp {
             let urlSecret = null;
             
             if (quickShare) {
-                // Quick Share: Use normal encryption without URL secret (like clips without password)
-                encryptedContent = await this.encryptContent(content, null, null);
+                // Quick Share: Generate random secret, encrypt content, and send secret to server
+                const quickShareSecret = this.generateRandomSecret();
+                encryptedContent = await this.encryptContent(content, null, quickShareSecret);
+                // Store the secret to send to server (will be stored in password_hash column)
+                this.currentQuickShareSecret = quickShareSecret;
+                urlSecret = null;
             } else if (!password) {
                 // Normal clip without password: generate and use URL secret
                 urlSecret = this.generateUrlSecret();
@@ -504,19 +508,26 @@ class ClipboardApp {
             // Convert Uint8Array to regular array for JSON serialization
             const contentArray = Array.from(encryptedContent);
             
-            // No password sent to server - content is already encrypted!
+            // Prepare request body
+            const requestBody = {
+                content: contentArray,
+                expiration,
+                oneTime,
+                hasPassword: !!password, // Just indicate if password protection is used
+                quickShare
+            };
+
+            // For Quick Share, include the secret to be stored in password_hash column
+            if (quickShare && this.currentQuickShareSecret) {
+                requestBody.quickShareSecret = this.currentQuickShareSecret;
+            }
+
             const response = await fetch('/api/share', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    content: contentArray,
-                    expiration,
-                    oneTime,
-                    hasPassword: !!password, // Just indicate if password protection is used
-                    quickShare
-                })
+                body: JSON.stringify(requestBody)
             });
 
             const data = await response.json();
@@ -551,6 +562,43 @@ class ClipboardApp {
             result += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         return result;
+    }
+
+    // Generate random secret for Quick Share encryption
+    generateRandomSecret() {
+        // Generate a cryptographically secure random secret
+        const array = new Uint8Array(32); // 256 bits
+        window.crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Hash a secret for use in encryption
+    async hashSecret(secret) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(secret);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Generate clip ID (4 characters for Quick Share, 10 for normal)
+    generateClipId(quickShare = false) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const length = quickShare ? 4 : 10;
+        let result = '';
+        for (let i = 0; i < length; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    // Derive Quick Share secret from clip ID
+    async deriveQuickShareSecret(clipId) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(`quick-share-${clipId}-secret`);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
     // Retrieve Content
@@ -596,8 +644,12 @@ class ClipboardApp {
                     
                     // Check if this is a Quick Share (4-digit ID) or normal clip
                     if (clipId.length === 4) {
-                        // Quick Share: Decrypt without URL secret (like normal clips without password)
-                        decryptedContent = await this.decryptContent(data.content, null, null);
+                        // Quick Share: Use the secret from server response
+                        const quickShareSecret = data.quickShareSecret || data.password_hash;
+                        if (!quickShareSecret) {
+                            throw new Error('Quick Share secret not found');
+                        }
+                        decryptedContent = await this.decryptContent(data.content, null, quickShareSecret);
                     } else {
                         // Normal mode: Decrypt the content
                         decryptedContent = await this.decryptContent(data.content, password, urlSecret);
