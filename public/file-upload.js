@@ -391,7 +391,7 @@ class FileUploadManager {
             if (password) {
                 iv = await this.deriveIV(password, urlSecret);
             } else {
-                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-nopass-v1');
+                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1'); // Use same salt as download
             }
             console.log('✅ IV generated, length:', iv.length);
             
