@@ -62,6 +62,7 @@
 DATABASE_URL=postgresql://...     # Automatisch
 REDIS_URL=redis://...            # Automatisch
 RAILWAY_VOLUME_MOUNT_PATH=/var/lib/containers/railwayapp/bind-mounts/[VOLUME_ID]
+RAILWAY_RUN_UID=0                # Wichtig für mkdir-Berechtigungen
 NODE_ENV=production
 PORT=8080                        # Automatisch
 ```
@@ -247,13 +248,18 @@ railway logs
    - Add "Volume" plugin
    - Note the mount path (e.g., `/var/lib/containers/railwayapp/bind-mounts/f6e63938-971d-40bc-995a-ea148886f6fb/vol_tmztwgoe8c4ndu43`)
 
-2. ✅ **Environment Variable**:
+2. ✅ **Environment Variables**:
    - Set `RAILWAY_VOLUME_MOUNT_PATH` to the exact mount path from step 1
-   - Example: `RAILWAY_VOLUME_MOUNT_PATH=/var/lib/containers/railwayapp/bind-mounts/f6e63938-971d-40bc-995a-ea148886f6fb/vol_tmztwgoe8c4ndu43`
+   - Set `RAILWAY_RUN_UID=0` for mkdir permissions
+   - Example: 
+     ```
+     RAILWAY_VOLUME_MOUNT_PATH=/var/lib/containers/railwayapp/bind-mounts/f6e63938-971d-40bc-995a-ea148886f6fb/vol_tmztwgoe8c4ndu43
+     RAILWAY_RUN_UID=0
+     ```
 
 3. ✅ **Restart Deployment**:
-   - After setting the environment variable, restart the deployment
-   - The server will now use the correct volume path
+   - After setting the environment variables, restart the deployment
+   - The server will now use the correct volume path with proper permissions
 
 4. ✅ **Verify Setup**:
    - Check logs for: `✅ Storage directories initialized at: [VOLUME_PATH]`

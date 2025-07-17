@@ -2409,7 +2409,7 @@ async function startServer() {
         await client.query('SELECT NOW() as current_time');
         
         // Ensure storage directory exists
-        await ensureStorageDirectory();
+        await initializeStorage();
 
         // Create statistics table if it doesn't exist
         await client.query(`
