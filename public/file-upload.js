@@ -463,7 +463,7 @@ class FileUploadManager {
                 encoder.encode(combined),
                 'PBKDF2',
                 false,
-                ['deriveKey']
+                ['deriveBits']
             );
         } else if (password || urlSecret) {
             keyMaterial = await window.crypto.subtle.importKey(
@@ -471,7 +471,7 @@ class FileUploadManager {
                 encoder.encode(password || urlSecret),
                 'PBKDF2',
                 false,
-                ['deriveKey']
+                ['deriveBits']
             );
         } else {
             throw new Error('Either password or URL secret must be provided for IV derivation');
