@@ -1045,7 +1045,11 @@ class ClipboardApp {
             oneTimeNotice.classList.add('hidden');
         }
         
+        // Show text-related elements
+        this.showTextElements();
+        
         document.getElementById('content-result').classList.remove('hidden');
+        document.getElementById('content-result').style.display = 'block';
         
         // Scroll to result
         document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
@@ -1080,17 +1084,16 @@ class ClipboardApp {
 
     // Helper function to hide all text-related elements
     hideAllTextElements() {
+        console.log('🗂️ Hiding all text-related elements');
+        
+        // Hide individual text-related elements
         const retrievedContent = document.getElementById('retrieved-content');
         const copyContentButton = document.getElementById('copy-content-button');
-        const createdTimeSection = document.getElementById('created-time-section');
-        const expiresTimeSection = document.getElementById('expires-time-section');
         const oneTimeNotice = document.getElementById('one-time-notice');
         const resultHeader = document.querySelector('.result-header');
         const contentDisplay = document.querySelector('.content-display');
         const contentInfo = document.querySelector('.content-info');
         const newPasteSection = document.querySelector('.new-paste-section');
-        
-        console.log('🗂️ Hiding all text-related elements');
         
         // Hide text content display
         if (retrievedContent) {
@@ -1122,14 +1125,6 @@ class ClipboardApp {
             newPasteSection.style.display = 'none';
         }
         
-        // Hide time sections (if they exist as separate elements)
-        if (createdTimeSection) {
-            createdTimeSection.style.display = 'none';
-        }
-        if (expiresTimeSection) {
-            expiresTimeSection.style.display = 'none';
-        }
-        
         // Hide one-time notice
         if (oneTimeNotice) {
             oneTimeNotice.style.display = 'none';
@@ -1137,6 +1132,55 @@ class ClipboardApp {
 
         // Note: Password section visibility is handled by checkClipId function
         // which shows it only for text content with passwords, not for files
+    }
+
+    // Helper function to show all text-related elements
+    showTextElements() {
+        console.log('📝 Showing all text-related elements');
+        
+        // Show individual text-related elements
+        const retrievedContent = document.getElementById('retrieved-content');
+        const copyContentButton = document.getElementById('copy-content-button');
+        const oneTimeNotice = document.getElementById('one-time-notice');
+        const resultHeader = document.querySelector('.result-header');
+        const contentDisplay = document.querySelector('.content-display');
+        const contentInfo = document.querySelector('.content-info');
+        const newPasteSection = document.querySelector('.new-paste-section');
+        
+        // Show text content display
+        if (retrievedContent) {
+            retrievedContent.style.display = 'block';
+        }
+        
+        // Show copy content button
+        if (copyContentButton) {
+            copyContentButton.style.display = 'block';
+        }
+        
+        // Show result header (contains "Retrieved Content:" label and copy button)
+        if (resultHeader) {
+            resultHeader.style.display = 'block';
+        }
+        
+        // Show content display container
+        if (contentDisplay) {
+            contentDisplay.style.display = 'block';
+        }
+        
+        // Show content info (Created/Expires times)
+        if (contentInfo) {
+            contentInfo.style.display = 'block';
+        }
+        
+        // Show new paste section
+        if (newPasteSection) {
+            newPasteSection.style.display = 'block';
+        }
+        
+        // Show one-time notice (will be controlled by data.oneTime)
+        if (oneTimeNotice) {
+            oneTimeNotice.style.display = 'block';
+        }
     }
 
     // Copy to Clipboard
@@ -1706,6 +1750,9 @@ class ClipboardApp {
             keys: Object.keys(data)
         });
         
+        // Hide all text-related elements first
+        this.hideAllTextElements();
+        
         // Create file download UI
         const contentResult = document.getElementById('content-result');
         
@@ -1789,6 +1836,7 @@ class ClipboardApp {
         
         // Show the content result
         contentResult.classList.remove('hidden');
+        contentResult.style.display = 'block';
         console.log('🗂️ File download UI setup complete');
     }
 
