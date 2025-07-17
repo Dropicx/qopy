@@ -2515,7 +2515,7 @@ async function startServer() {
         const CLIPS_SCHEMA_COLUMNS = [
             'id', 'clip_id', 'content', 'password_hash', 'one_time', 'quick_share', 
             'expiration_time', 'access_count', 'max_accesses', 'client_ip', 
-            'created_at', 'last_accessed', 'content_type', 'file_metadata', 
+            'created_at', 'last_accessed', 'accessed_at', 'content_type', 'file_metadata', 
             'file_path', 'original_filename', 'mime_type', 'filesize', 'upload_id', 'is_file', 'is_expired'
         ];
 
@@ -2626,6 +2626,7 @@ async function startServer() {
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS upload_id VARCHAR(50)`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_file BOOLEAN DEFAULT false`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT false`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS accessed_at BIGINT`);
             
             // Update existing expired clips to have is_expired = true
             await client.query(`
