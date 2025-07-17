@@ -31,6 +31,11 @@ const crypto = require('crypto');
 const mime = require('mime-types');
 const sharp = require('sharp');
 
+// File storage configuration (define before multer config)
+const STORAGE_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || './uploads';
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
 // Configure multer for file uploads
 const upload = multer({
     storage: multer.diskStorage({
@@ -71,10 +76,7 @@ const PORT = process.env.PORT || 8080;
 
 console.log('🚀 Qopy Server starting...');
 
-// File storage configuration
-const STORAGE_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || './uploads';
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+// File storage configuration (already defined above)
 
 // Ensure storage directories exist
 async function initializeStorage() {
