@@ -600,14 +600,14 @@ class ClipboardApp {
                 throw new Error(sessionData.message || 'Failed to create upload session');
             }
 
-            const { uploadId, chunks } = sessionData;
-            console.log(`[TextUpload] Starting text upload: ${chunks} chunks, ${file.size} bytes, uploadId=${uploadId}`);
+            const { uploadId, totalChunks } = sessionData;
+            console.log(`[TextUpload] Starting text upload: ${totalChunks} chunks, ${file.size} bytes, uploadId=${uploadId}`);
 
             // Upload chunks
             const chunkSize = 5 * 1024 * 1024; // 5MB chunks
             let uploadedChunks = 0;
 
-            for (let i = 0; i < chunks; i++) {
+            for (let i = 0; i < totalChunks; i++) {
                 const start = i * chunkSize;
                 const end = Math.min(start + chunkSize, file.size);
                 const chunk = file.slice(start, end);
@@ -644,7 +644,7 @@ class ClipboardApp {
                 }
 
                 uploadedChunks++;
-                console.log(`[TextUpload] Uploaded chunk ${uploadedChunks}/${chunks}`);
+                console.log(`[TextUpload] Uploaded chunk ${uploadedChunks}/${totalChunks}`);
             }
 
             // Complete upload
