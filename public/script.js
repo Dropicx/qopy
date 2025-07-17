@@ -887,6 +887,8 @@ class ClipboardApp {
         // Check if this is a file redirect
         if (data.contentType === 'file' && data.redirectTo) {
             console.log('📁 Detected file content, calling handleFileDownload');
+            // Immediately hide all text elements before calling handleFileDownload
+            this.hideAllTextElements();
             this.handleFileDownload(data);
             return;
         }
@@ -894,6 +896,8 @@ class ClipboardApp {
         // Check if this is a file by checking for file_path
         if (data.file_path) {
             console.log('📁 Detected file by file_path, calling handleFileDownload');
+            // Immediately hide all text elements before calling handleFileDownload
+            this.hideAllTextElements();
             this.handleFileDownload(data);
             return;
         }
@@ -956,6 +960,40 @@ class ClipboardApp {
         
         // Scroll to result
         document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Helper function to hide all text-related elements
+    hideAllTextElements() {
+        const retrievedContent = document.getElementById('retrieved-content');
+        const copyContentButton = document.getElementById('copy-content-button');
+        const createdTimeSection = document.getElementById('created-time-section');
+        const expiresTimeSection = document.getElementById('expires-time-section');
+        const oneTimeNotice = document.getElementById('one-time-notice');
+        
+        console.log('🗂️ Hiding all text-related elements');
+        
+        // Hide text content display
+        if (retrievedContent) {
+            retrievedContent.style.display = 'none';
+        }
+        
+        // Hide copy content button
+        if (copyContentButton) {
+            copyContentButton.style.display = 'none';
+        }
+        
+        // Hide time sections
+        if (createdTimeSection) {
+            createdTimeSection.style.display = 'none';
+        }
+        if (expiresTimeSection) {
+            expiresTimeSection.style.display = 'none';
+        }
+        
+        // Hide one-time notice
+        if (oneTimeNotice) {
+            oneTimeNotice.style.display = 'none';
+        }
     }
 
     // Copy to Clipboard
@@ -1525,38 +1563,10 @@ class ClipboardApp {
             keys: Object.keys(data)
         });
         
-        // Hide all text-related elements
+        // Create file download UI
         const contentResult = document.getElementById('content-result');
-        const retrievedContent = document.getElementById('retrieved-content');
-        const copyContentButton = document.getElementById('copy-content-button');
-        const createdTimeSection = document.getElementById('created-time-section');
-        const expiresTimeSection = document.getElementById('expires-time-section');
-        const oneTimeNotice = document.getElementById('one-time-notice');
         
-        console.log('🗂️ Hiding text-related elements');
-        
-        // Hide text content display
-        if (retrievedContent) {
-            retrievedContent.style.display = 'none';
-        }
-        
-        // Hide copy content button
-        if (copyContentButton) {
-            copyContentButton.style.display = 'none';
-        }
-        
-        // Hide time sections
-        if (createdTimeSection) {
-            createdTimeSection.style.display = 'none';
-        }
-        if (expiresTimeSection) {
-            expiresTimeSection.style.display = 'none';
-        }
-        
-        // Hide one-time notice
-        if (oneTimeNotice) {
-            oneTimeNotice.style.display = 'none';
-        }
+        console.log('🗂️ Setting up file download UI');
         
         // Create file download section if it doesn't exist
         let fileSection = document.getElementById('file-download-section');
@@ -1750,7 +1760,10 @@ class ClipboardApp {
     // Get password from user input (if available)
     getPasswordFromUser() {
         const passwordInput = document.getElementById('retrieve-password-input');
-        return passwordInput ? passwordInput.value.trim() : null;
+        if (passwordInput && passwordInput.value.trim()) {
+            return passwordInput.value.trim();
+        }
+        return null;
     }
 
     // Decrypt file using same algorithm as chunks
