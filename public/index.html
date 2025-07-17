@@ -139,7 +139,8 @@
         </header>
 
         <nav class="tab-nav">
-            <button id="share-tab" class="tab-button active">Share</button>
+            <button id="share-tab" class="tab-button active">Share Text</button>
+            <button id="file-tab" class="tab-button">Share Files</button>
             <button id="retrieve-tab" class="tab-button">Retrieve</button>
         </nav>
 
@@ -611,6 +612,108 @@
             </div>
         </main>
 
+        <!-- File Sharing Tab -->
+        <main id="file-section" class="section">
+            <div class="form-container">
+                <!-- File Upload Zone -->
+                <div class="file-upload-zone" id="file-drop-zone">
+                    <div class="upload-icon">📁</div>
+                    <h3>Drop file here or click to select</h3>
+                    <p>Maximum file size: 100MB</p>
+                    <p>All file types supported</p>
+                    <input type="file" id="file-input" style="display: none;" accept="*/*">
+                </div>
+
+                <!-- File Info Display -->
+                <div class="file-info-container" id="file-info-container" style="display: none;">
+                    <div class="file-info-card">
+                        <div class="file-icon">📄</div>
+                        <div class="file-details">
+                            <div class="file-name" id="selected-file-name">document.pdf</div>
+                            <div class="file-size" id="selected-file-size">15.2 MB</div>
+                            <div class="file-type" id="selected-file-type">PDF Document</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Upload Controls -->
+                <div class="file-upload-controls" id="file-upload-controls" style="display: none;">
+                    <div class="form-row">
+                        <div class="input-group">
+                            <label for="file-expiration" class="label">Expires in:</label>
+                            <select id="file-expiration" class="select">
+                                <option value="5min">5 minutes</option>
+                                <option value="15min">15 minutes</option>
+                                <option value="30min" selected>30 minutes</option>
+                                <option value="1hr">1 hour</option>
+                                <option value="6hr">6 hours</option>
+                                <option value="24hr">24 hours</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="file-one-time-checkbox">
+                                <span class="checkmark"></span>
+                                Self-destruct after first download
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="file-password-checkbox">
+                                <span class="checkmark"></span>
+                                Password protect (client-side encryption)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-row" id="file-password-section" style="display: none;">
+                        <div class="input-group">
+                            <label for="file-password-input" class="label">Password:</label>
+                            <input 
+                                type="password" 
+                                id="file-password-input" 
+                                placeholder="Enter password for file encryption..."
+                                maxlength="128"
+                                autocomplete="new-password"
+                                class="input"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="file-upload-button" class="btn btn-primary">
+                            <span>🚀 Upload File</span>
+                        </button>
+                        <button id="cancel-upload-button" class="btn btn-secondary" style="display: none;">
+                            <span>❌ Cancel</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Upload Progress -->
+                <div class="upload-progress-container" id="upload-progress-container" style="display: none;">
+                    <div class="progress-info">
+                        <div class="progress-text" id="upload-progress-text">Preparing upload...</div>
+                        <div class="progress-percentage" id="upload-progress-percentage">0%</div>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="upload-progress-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="progress-actions">
+                        <button id="cancel-upload-button" class="btn btn-secondary">
+                            <span>❌ Cancel Upload</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
         <!-- Retrieve Tab -->
         <main id="retrieve-section" class="section">
             <div class="form-container">
@@ -708,6 +811,7 @@
     </footer>
 
     <script src="script.js"></script>
+    <script src="file-upload.js"></script>
 
     <!-- Privacy Notice Banner -->
     <div id="privacy-notice" class="privacy-notice">
@@ -726,6 +830,17 @@
                 <span>×</span>
             </button>
         </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="error-toast" class="hidden">
+        <button class="toast-close">×</button>
+        <p class="toast-message" id="error-message">Error message</p>
+    </div>
+
+    <div id="info-toast" class="hidden">
+        <button class="toast-close">×</button>
+        <p class="toast-message" id="info-message">Info message</p>
     </div>
 </body>
 </html> 

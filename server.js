@@ -25,11 +25,51 @@ const { body, param, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const { Pool } = require('pg');
+const fs = require('fs-extra');
+const multer = require('multer');
+const crypto = require('crypto');
+const mime = require('mime-types');
+const sharp = require('sharp');
+
+// Redis setup (optional, falls verfügbar)
+let redis = null;
+try {
+    const Redis = require('redis');
+    if (process.env.REDIS_URL) {
+        redis = Redis.createClient({
+            url: process.env.REDIS_URL
+        });
+        redis.connect();
+        console.log('✅ Redis connected');
+    }
+} catch (error) {
+    console.warn('⚠️ Redis not available, using in-memory cache');
+}
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 console.log('🚀 Qopy Server starting...');
+
+// File storage configuration
+const STORAGE_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || './uploads';
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+// Ensure storage directories exist
+async function initializeStorage() {
+    try {
+        await fs.ensureDir(path.join(STORAGE_PATH, 'chunks'));
+        await fs.ensureDir(path.join(STORAGE_PATH, 'files'));
+        console.log('✅ Storage directories initialized');
+    } catch (error) {
+        console.error('❌ Failed to initialize storage:', error);
+        process.exit(1);
+    }
+}
+
+// Initialize storage on startup
+initializeStorage();
 
 // PostgreSQL Configuration
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -386,7 +426,7 @@ function generateClipId(quickShare = false) {
 // Password hashing functions
 
 
-// Cleanup expired clips
+// Enhanced cleanup for expired clips and uploads
 async function cleanupExpiredClips() {
   try {
     // Delete expired clips
@@ -423,10 +463,1203 @@ async function cleanupExpiredClips() {
   }
 }
 
+// Cleanup expired uploads and orphaned files
+async function cleanupExpiredUploads() {
+  try {
+    const now = Date.now();
+    
+    // Get expired upload sessions
+    const expiredSessions = await pool.query(
+      'SELECT upload_id FROM upload_sessions WHERE expiration_time < $1 OR (status = $2 AND last_activity < $3)',
+      [now, 'uploading', now - (24 * 60 * 60 * 1000)] // 24 hours old
+    );
+    
+    for (const session of expiredSessions.rows) {
+      const uploadId = session.upload_id;
+      
+      try {
+        // Get and delete chunks
+        const chunks = await pool.query(
+          'SELECT storage_path FROM file_chunks WHERE upload_id = $1',
+          [uploadId]
+        );
+        
+        for (const chunk of chunks.rows) {
+          try {
+            await fs.unlink(chunk.storage_path);
+          } catch (error) {
+            console.warn(`⚠️ Failed to delete chunk file: ${chunk.storage_path}`);
+          }
+        }
+        
+        // Delete database records
+        await pool.query('DELETE FROM file_chunks WHERE upload_id = $1', [uploadId]);
+        await pool.query('DELETE FROM upload_sessions WHERE upload_id = $1', [uploadId]);
+        
+        // Clear cache
+        if (redis) {
+          await redis.del(`upload:${uploadId}`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error cleaning up upload ${uploadId}:`, error.message);
+      }
+    }
+    
+    if (expiredSessions.rows.length > 0) {
+      console.log(`🧹 Cleaned up ${expiredSessions.rows.length} expired upload sessions`);
+    }
+    
+    // Clean up orphaned files (files without corresponding clips)
+    const orphanedFiles = await pool.query(`
+      SELECT file_path FROM clips 
+      WHERE content_type = 'file' AND file_path IS NOT NULL 
+      AND NOT EXISTS (
+        SELECT 1 FROM clips c2 WHERE c2.file_path = clips.file_path AND c2.expiration_time >= $1
+      )
+    `, [now]);
+    
+    for (const file of orphanedFiles.rows) {
+      try {
+        await fs.unlink(file.file_path);
+      } catch (error) {
+        console.warn(`⚠️ Failed to delete orphaned file: ${file.file_path}`);
+      }
+    }
+    
+    if (orphanedFiles.rows.length > 0) {
+      console.log(`🧹 Cleaned up ${orphanedFiles.rows.length} orphaned files`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error cleaning up expired uploads:', error.message);
+  }
+}
+
+// Upload session management functions
+async function createUploadSession(sessionData) {
+    if (redis) {
+        await redis.setEx(`upload:${sessionData.uploadId}`, 3600, JSON.stringify(sessionData));
+    }
+    return sessionData;
+}
+
+async function getUploadSession(uploadId) {
+    if (redis) {
+        const cached = await redis.get(`upload:${uploadId}`);
+        if (cached) return JSON.parse(cached);
+    }
+    
+    // Fallback to database
+    const result = await pool.query(
+        'SELECT * FROM upload_sessions WHERE upload_id = $1',
+        [uploadId]
+    );
+    return result.rows[0] || null;
+}
+
+async function updateUploadSession(uploadId, updates) {
+    await pool.query(
+        'UPDATE upload_sessions SET uploaded_chunks = $1, last_activity = $2, status = $3 WHERE upload_id = $4',
+        [updates.uploaded_chunks, Date.now(), updates.status || 'uploading', uploadId]
+    );
+    
+    if (redis) {
+        const session = await getUploadSession(uploadId);
+        if (session) {
+            await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify({...session, ...updates}));
+        }
+    }
+}
+
+// File utility functions
+function generateUploadId() {
+    return crypto.randomBytes(16).toString('hex');
+}
+
+function calculateChunks(filesize) {
+    return Math.ceil(filesize / CHUNK_SIZE);
+}
+
+async function saveChunkToFile(uploadId, chunkNumber, chunkData) {
+    const chunkDir = path.join(STORAGE_PATH, 'chunks', uploadId);
+    await fs.mkdir(chunkDir, { recursive: true });
+    
+    const chunkPath = path.join(chunkDir, `chunk_${chunkNumber}`);
+    await fs.writeFile(chunkPath, chunkData);
+    
+    return chunkPath;
+}
+
+async function assembleFile(uploadId, session) {
+    const finalPath = path.join(STORAGE_PATH, 'files', `${uploadId}_${session.filename}`);
+    await fs.mkdir(path.dirname(finalPath), { recursive: true });
+    
+    const writeStream = require('fs').createWriteStream(finalPath);
+    
+    for (let i = 0; i < session.total_chunks; i++) {
+        const chunkPath = path.join(STORAGE_PATH, 'chunks', uploadId, `chunk_${i}`);
+        const chunkData = await fs.readFile(chunkPath);
+        writeStream.write(chunkData);
+    }
+    
+    writeStream.end();
+    
+    // Clean up chunks
+    const chunkDir = path.join(STORAGE_PATH, 'chunks', uploadId);
+    await fs.rm(chunkDir, { recursive: true, force: true });
+    
+    return finalPath;
+}
+
+// Multi-part upload endpoints
+
+// Initiate upload
+app.post('/api/upload/initiate', [
+    body('filename').isLength({ min: 1, max: 255 }).withMessage('Filename required'),
+    body('filesize').isInt({ min: 1, max: MAX_FILE_SIZE }).withMessage('Invalid filesize'),
+    body('mimeType').optional().isString().withMessage('Invalid mime type'),
+    body('expiration').isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration'),
+    body('hasPassword').optional().isBoolean(),
+    body('oneTime').optional().isBoolean(),
+    body('isTextContent').optional().isBoolean()
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: errors.array()
+            });
+        }
+
+        const { filename, filesize, mimeType, expiration, hasPassword, oneTime, isTextContent } = req.body;
+        
+        const uploadId = generateUploadId();
+        const totalChunks = calculateChunks(filesize);
+        
+        const expirationTimes = {
+            '5min': 5 * 60 * 1000,
+            '15min': 15 * 60 * 1000,
+            '30min': 30 * 60 * 1000,
+            '1hr': 60 * 60 * 1000,
+            '6hr': 6 * 60 * 60 * 1000,
+            '24hr': 24 * 60 * 60 * 1000
+        };
+        
+        const expirationTime = Date.now() + expirationTimes[expiration];
+        
+        const sessionData = {
+            uploadId,
+            filename: filename.replace(/[^a-zA-Z0-9._-]/g, '_'), // Sanitize filename
+            original_filename: filename,
+            filesize,
+            mime_type: mimeType || 'application/octet-stream',
+            chunk_size: CHUNK_SIZE,
+            total_chunks: totalChunks,
+            uploaded_chunks: 0,
+            status: 'uploading',
+            expiration,
+            has_password: hasPassword || false,
+            one_time: oneTime || false,
+            is_text_content: isTextContent || false,
+            expiration_time: expirationTime,
+            created_at: Date.now(),
+            last_activity: Date.now()
+        };
+
+        // Store in database
+        await pool.query(`
+            INSERT INTO upload_sessions 
+            (upload_id, filename, original_filename, filesize, mime_type, chunk_size, total_chunks, 
+             expiration, has_password, one_time, is_text_content, expiration_time, created_at, last_activity)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        `, [
+            uploadId, sessionData.filename, sessionData.original_filename, filesize, sessionData.mime_type,
+            CHUNK_SIZE, totalChunks, expiration, hasPassword || false, oneTime || false, 
+            isTextContent || false, expirationTime, Date.now(), Date.now()
+        ]);
+
+        // Cache in Redis
+        await createUploadSession(sessionData);
+
+        res.json({
+            success: true,
+            uploadId,
+            chunkSize: CHUNK_SIZE,
+            totalChunks,
+            uploadUrl: `/api/upload/chunk/${uploadId}`
+        });
+
+    } catch (error) {
+        console.error('❌ Error initiating upload:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to initiate upload'
+        });
+    }
+});
+
+// Upload chunk
+app.post('/api/upload/chunk/:uploadId/:chunkNumber', async (req, res) => {
+    try {
+        const { uploadId, chunkNumber } = req.params;
+        const chunkNum = parseInt(chunkNumber);
+        
+        const session = await getUploadSession(uploadId);
+        if (!session) {
+            return res.status(404).json({
+                error: 'Upload session not found',
+                message: 'Invalid upload ID or session expired'
+            });
+        }
+
+        if (chunkNum >= session.total_chunks) {
+            return res.status(400).json({
+                error: 'Invalid chunk number',
+                message: 'Chunk number exceeds total chunks'
+            });
+        }
+
+        // Check if chunk already uploaded
+        const existingChunk = await pool.query(
+            'SELECT * FROM file_chunks WHERE upload_id = $1 AND chunk_number = $2',
+            [uploadId, chunkNum]
+        );
+
+        if (existingChunk.rows.length > 0) {
+            return res.status(409).json({
+                error: 'Chunk already uploaded',
+                chunkNumber: chunkNum,
+                received: true
+            });
+        }
+
+        // Read chunk data from request body
+        const chunks = [];
+        req.on('data', chunk => chunks.push(chunk));
+        req.on('end', async () => {
+            try {
+                const chunkData = Buffer.concat(chunks);
+                
+                // Validate chunk size
+                if (chunkData.length > CHUNK_SIZE) {
+                    return res.status(400).json({
+                        error: 'Chunk too large',
+                        maxSize: CHUNK_SIZE
+                    });
+                }
+
+                // Generate checksum
+                const checksum = crypto.createHash('sha256').update(chunkData).digest('hex');
+                
+                // Save chunk to file
+                const chunkPath = await saveChunkToFile(uploadId, chunkNum, chunkData);
+                
+                // Store chunk metadata
+                await pool.query(
+                    'INSERT INTO file_chunks (upload_id, chunk_number, chunk_path, checksum, created_at) VALUES ($1, $2, $3, $4, $5)',
+                    [uploadId, chunkNum, chunkPath, checksum, Date.now()]
+                );
+
+                // Update session
+                await updateUploadSession(uploadId, {
+                    uploaded_chunks: session.uploaded_chunks + 1,
+                    status: session.uploaded_chunks + 1 >= session.total_chunks ? 'ready' : 'uploading'
+                });
+
+                res.json({
+                    success: true,
+                    chunkNumber: chunkNum,
+                    received: true,
+                    checksum
+                });
+
+            } catch (error) {
+                console.error('❌ Error saving chunk:', error.message);
+                res.status(500).json({
+                    error: 'Internal server error',
+                    message: 'Failed to save chunk'
+                });
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error uploading chunk:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to upload chunk'
+        });
+    }
+});
+
+// Complete upload
+app.post('/api/upload/complete/:uploadId', async (req, res) => {
+    try {
+        const { uploadId } = req.params;
+        
+        const session = await getUploadSession(uploadId);
+        if (!session) {
+            return res.status(404).json({
+                error: 'Upload session not found',
+                message: 'Invalid upload ID or session expired'
+            });
+        }
+
+        if (session.uploaded_chunks < session.total_chunks) {
+            return res.status(400).json({
+                error: 'Upload incomplete',
+                message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
+            });
+        }
+
+        // Assemble file
+        const filePath = await assembleFile(uploadId, session);
+        
+        // Create clip
+        const clipId = generateClipId(false); // Always use normal clip ID for files
+        
+        // Handle text content conversion
+        let content = null;
+        let isFile = true;
+        
+        if (session.is_text_content) {
+            // For text content, read file and store as binary in content column
+            const fileData = await fs.readFile(filePath);
+            content = fileData;
+            isFile = false;
+            
+            // Remove the temporary file for text content
+            await fs.unlink(filePath);
+        }
+
+        // Store clip in database
+        await pool.query(`
+            INSERT INTO clips 
+            (clip_id, content, expiration_time, password_hash, one_time, created_at,
+             file_path, original_filename, mime_type, filesize, is_file, file_metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `, [
+            clipId,
+            content, // null for files, binary data for text
+            session.expiration_time,
+            session.has_password ? 'client-encrypted' : null,
+            session.one_time,
+            Date.now(),
+            isFile ? filePath : null,
+            session.original_filename,
+            session.mime_type,
+            session.filesize,
+            isFile,
+            JSON.stringify({
+                uploadId,
+                originalUploadSession: true
+            })
+        ]);
+
+        // Update statistics
+        await updateStatistics('clip_created');
+        if (session.has_password) {
+            await updateStatistics('password_protected_created');
+        } else {
+            await updateStatistics('normal_created');
+        }
+        if (session.one_time) {
+            await updateStatistics('one_time_created');
+        }
+
+        // Clean up upload session (order matters due to foreign key constraints)
+        await pool.query('DELETE FROM file_chunks WHERE upload_id = $1', [uploadId]);
+        await pool.query('DELETE FROM upload_sessions WHERE upload_id = $1', [uploadId]);
+        
+        if (redis) {
+            await redis.del(`upload:${uploadId}`);
+        }
+
+        res.json({
+            success: true,
+            clipId,
+            url: `${req.protocol}://${req.get('host')}/clip/${clipId}`,
+            filename: session.original_filename,
+            filesize: session.filesize,
+            expiresAt: session.expiration_time,
+            isFile: isFile
+        });
+
+    } catch (error) {
+        console.error('❌ Error completing upload:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to complete upload'
+        });
+    }
+});
+
+// Upload status
+app.get('/api/upload/:uploadId/status', async (req, res) => {
+    try {
+        const { uploadId } = req.params;
+        
+        const session = await getUploadSession(uploadId);
+        if (!session) {
+            return res.status(404).json({
+                error: 'Upload session not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            uploadId,
+            status: session.status,
+            uploadedChunks: session.uploaded_chunks,
+            totalChunks: session.total_chunks,
+            progress: Math.round((session.uploaded_chunks / session.total_chunks) * 100)
+        });
+
+    } catch (error) {
+        console.error('❌ Error getting upload status:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to get upload status'
+        });
+    }
+});
+
+// Cancel upload
+app.delete('/api/upload/:uploadId', async (req, res) => {
+    try {
+        const { uploadId } = req.params;
+        
+        // Clean up chunks
+        const chunkDir = path.join(STORAGE_PATH, 'chunks', uploadId);
+        await fs.rm(chunkDir, { recursive: true, force: true });
+        
+        // Clean up database
+        await pool.query('DELETE FROM file_chunks WHERE upload_id = $1', [uploadId]);
+        await pool.query('DELETE FROM upload_sessions WHERE upload_id = $1', [uploadId]);
+        
+        if (redis) {
+            await redis.del(`upload:${uploadId}`);
+        }
+
+        res.json({
+            success: true,
+            message: 'Upload cancelled'
+        });
+
+    } catch (error) {
+        console.error('❌ Error cancelling upload:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to cancel upload'
+        });
+    }
+});
+
 // Content-Sanitization-Funktion
 
+// ==========================================
+// UPLOAD MANAGEMENT SYSTEM
+// ==========================================
 
-// Create share
+// Upload ID generation
+function generateUploadId() {
+    return uuidv4().replace(/-/g, '').substring(0, 16).toUpperCase();
+}
+
+// Calculate SHA256 checksum for chunk validation
+function calculateChecksum(data) {
+    return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+// Cache helper functions
+async function setCache(key, value, ttl = 3600) {
+    if (redis) {
+        await redis.setEx(key, ttl, JSON.stringify(value));
+    }
+}
+
+async function getCache(key) {
+    if (redis) {
+        const cached = await redis.get(key);
+        return cached ? JSON.parse(cached) : null;
+    }
+    return null;
+}
+
+// Upload rate limiting
+const uploadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // 10 upload sessions per IP
+    message: {
+        error: 'Too many uploads',
+        message: 'Upload rate limit exceeded. Please try again later.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: getClientIP
+});
+
+// Apply upload rate limiting
+app.use('/api/upload', uploadLimiter);
+
+// ==========================================
+// UPLOAD ENDPOINTS
+// ==========================================
+
+// Initiate upload
+app.post('/api/upload/initiate', [
+    body('filename').isString().isLength({ min: 1, max: 255 }).withMessage('Valid filename required'),
+    body('filesize').isInt({ min: 1, max: MAX_FILE_SIZE }).withMessage(`File size must be between 1 byte and ${MAX_FILE_SIZE} bytes`),
+    body('mimeType').isString().isLength({ min: 1, max: 100 }).withMessage('Valid MIME type required'),
+    body('expiration').optional().isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
+    body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
+    body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
+    body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: errors.array()
+            });
+        }
+
+        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false } = req.body;
+        
+        // Calculate chunks
+        const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
+        
+        // Generate upload ID
+        const uploadId = generateUploadId();
+        
+        // Calculate expiration time
+        const expirationTimes = {
+            '5min': 5 * 60 * 1000,
+            '15min': 15 * 60 * 1000,
+            '30min': 30 * 60 * 1000,
+            '1hr': 60 * 60 * 1000,
+            '6hr': 6 * 60 * 60 * 1000,
+            '24hr': 24 * 60 * 60 * 1000
+        };
+        
+        const expirationTime = Date.now() + expirationTimes[expiration];
+        const clientIP = getClientIP(req);
+        
+        // Store upload session in database
+        await pool.query(`
+            INSERT INTO upload_sessions (
+                upload_id, filename, original_filename, filesize, mime_type, 
+                chunk_size, total_chunks, expiration_time, has_password, 
+                one_time, quick_share, client_ip, created_at, last_activity
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        `, [
+            uploadId, filename, filename, filesize, mimeType,
+            CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
+            oneTime, quickShare, clientIP, Date.now(), Date.now()
+        ]);
+
+        // Cache session data for quick access
+        await setCache(`upload:${uploadId}`, {
+            uploadId, filename, filesize, mimeType, totalChunks, 
+            chunksUploaded: 0, checksums: []
+        });
+
+        res.json({
+            success: true,
+            uploadId,
+            chunkSize: CHUNK_SIZE,
+            totalChunks,
+            uploadUrl: `/api/upload/chunk/${uploadId}`,
+            expiresAt: expirationTime
+        });
+
+    } catch (error) {
+        console.error('❌ Error initiating upload:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to initiate upload'
+        });
+    }
+});
+
+// Upload chunk
+app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
+    param('uploadId').isString().isLength({ min: 16, max: 16 }).withMessage('Invalid upload ID'),
+    param('chunkNumber').isInt({ min: 0 }).withMessage('Invalid chunk number')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: errors.array()
+            });
+        }
+
+        const { uploadId, chunkNumber } = req.params;
+        const chunkNum = parseInt(chunkNumber);
+
+        // Verify upload session exists and is active
+        const sessionResult = await pool.query(
+            'SELECT * FROM upload_sessions WHERE upload_id = $1 AND status = $2',
+            [uploadId, 'uploading']
+        );
+
+        if (sessionResult.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Upload session not found',
+                message: 'Invalid or expired upload session'
+            });
+        }
+
+        const session = sessionResult.rows[0];
+
+        // Check if chunk number is valid
+        if (chunkNum >= session.total_chunks) {
+            return res.status(400).json({
+                error: 'Invalid chunk number',
+                message: `Chunk number must be less than ${session.total_chunks}`
+            });
+        }
+
+        // Check if chunk already exists
+        const existingChunk = await pool.query(
+            'SELECT * FROM file_chunks WHERE upload_id = $1 AND chunk_number = $2',
+            [uploadId, chunkNum]
+        );
+
+        if (existingChunk.rows.length > 0) {
+            return res.status(409).json({
+                error: 'Chunk already uploaded',
+                message: 'This chunk has already been uploaded'
+            });
+        }
+
+        // Get chunk data from request body
+        const chunks = [];
+        req.on('data', chunk => chunks.push(chunk));
+        req.on('end', async () => {
+            try {
+                const chunkData = Buffer.concat(chunks);
+                
+                // Validate chunk size (allow last chunk to be smaller)
+                const expectedSize = chunkNum === session.total_chunks - 1 
+                    ? session.filesize - (chunkNum * session.chunk_size)
+                    : session.chunk_size;
+                
+                if (chunkData.length !== expectedSize) {
+                    return res.status(400).json({
+                        error: 'Invalid chunk size',
+                        message: `Expected ${expectedSize} bytes, got ${chunkData.length} bytes`
+                    });
+                }
+
+                // Calculate checksum
+                const checksum = calculateChecksum(chunkData);
+                
+                // Store chunk to file system
+                const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${chunkNum}.chunk`);
+                await fs.writeFile(chunkPath, chunkData);
+
+                // Store chunk metadata in database
+                await pool.query(`
+                    INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `, [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]);
+
+                // Update upload session
+                await pool.query(`
+                    UPDATE upload_sessions 
+                    SET uploaded_chunks = uploaded_chunks + 1, last_activity = $1
+                    WHERE upload_id = $2
+                `, [Date.now(), uploadId]);
+
+                // Update cache
+                const cachedSession = await getCache(`upload:${uploadId}`);
+                if (cachedSession) {
+                    cachedSession.chunksUploaded++;
+                    cachedSession.checksums[chunkNum] = checksum;
+                    await setCache(`upload:${uploadId}`, cachedSession);
+                }
+
+                res.json({
+                    success: true,
+                    chunkNumber: chunkNum,
+                    received: true,
+                    checksum,
+                    uploadedChunks: session.uploaded_chunks + 1,
+                    totalChunks: session.total_chunks
+                });
+
+            } catch (error) {
+                console.error('❌ Error processing chunk:', error.message);
+                res.status(500).json({
+                    error: 'Internal server error',
+                    message: 'Failed to process chunk'
+                });
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error uploading chunk:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to upload chunk'
+        });
+    }
+});
+
+// Complete upload
+app.post('/api/upload/complete/:uploadId', [
+    param('uploadId').isString().isLength({ min: 16, max: 16 }).withMessage('Invalid upload ID'),
+    body('checksums').optional().isArray().withMessage('Checksums must be an array')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: errors.array()
+            });
+        }
+
+        const { uploadId } = req.params;
+        const { checksums } = req.body;
+
+        // Get upload session
+        const sessionResult = await pool.query(
+            'SELECT * FROM upload_sessions WHERE upload_id = $1 AND status = $2',
+            [uploadId, 'uploading']
+        );
+
+        if (sessionResult.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Upload session not found',
+                message: 'Invalid or expired upload session'
+            });
+        }
+
+        const session = sessionResult.rows[0];
+
+        // Verify all chunks are uploaded
+        if (session.uploaded_chunks !== session.total_chunks) {
+            return res.status(400).json({
+                error: 'Upload incomplete',
+                message: `Only ${session.uploaded_chunks} of ${session.total_chunks} chunks uploaded`
+            });
+        }
+
+        // Get all chunks for this upload
+        const chunksResult = await pool.query(
+            'SELECT * FROM file_chunks WHERE upload_id = $1 ORDER BY chunk_number',
+            [uploadId]
+        );
+
+        const chunks = chunksResult.rows;
+
+        // Verify checksums if provided
+        if (checksums && checksums.length === chunks.length) {
+            for (let i = 0; i < chunks.length; i++) {
+                if (chunks[i].checksum !== checksums[i]) {
+                    return res.status(400).json({
+                        error: 'Checksum mismatch',
+                        message: `Chunk ${i} checksum mismatch`
+                    });
+                }
+            }
+        }
+
+        // Assemble file from chunks
+        const finalFilePath = path.join(STORAGE_PATH, 'files', `${uploadId}.file`);
+        const writeStream = fs.createWriteStream(finalFilePath);
+
+        for (const chunk of chunks) {
+            const chunkData = await fs.readFile(chunk.storage_path);
+            writeStream.write(chunkData);
+        }
+        
+        // Wait for stream to finish
+        await new Promise((resolve, reject) => {
+            writeStream.end((error) => {
+                if (error) reject(error);
+                else resolve();
+            });
+        });
+
+        // Generate clip ID
+        const clipId = generateClipId(session.quick_share);
+
+        // Create clip entry
+        const file_metadata = {
+            originalName: session.original_filename,
+            uploadId: uploadId,
+            chunksCount: session.total_chunks,
+            checksums: chunks.map(c => c.checksum)
+        };
+
+        await pool.query(`
+            INSERT INTO clips (
+                clip_id, content_type, file_path, original_filename, 
+                mime_type, filesize, file_metadata, upload_id,
+                expiration_time, password_hash, one_time, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `, [
+            clipId, 'file', finalFilePath, session.original_filename,
+            session.mime_type, session.filesize, JSON.stringify(file_metadata), uploadId,
+            session.expiration_time, session.has_password ? 'client-encrypted' : null, 
+            session.one_time, Date.now()
+        ]);
+
+        // Update upload session status
+        await pool.query(`
+            UPDATE upload_sessions 
+            SET status = $1, completed_at = $2
+            WHERE upload_id = $3
+        `, ['completed', Date.now(), uploadId]);
+
+        // Clean up chunks after successful assembly
+        for (const chunk of chunks) {
+            try {
+                await fs.unlink(chunk.storage_path);
+            } catch (error) {
+                console.warn('⚠️ Failed to delete chunk file:', chunk.storage_path);
+            }
+        }
+
+        // Delete chunk records
+        await pool.query('DELETE FROM file_chunks WHERE upload_id = $1', [uploadId]);
+
+        // Clear cache
+        if (redis) {
+            await redis.del(`upload:${uploadId}`);
+        }
+
+        // Update statistics
+        await updateStatistics('file_upload_completed');
+        await updateStatistics('file_clips_created');
+
+        res.json({
+            success: true,
+            clipId,
+            url: `${req.protocol}://${req.get('host')}/file/${clipId}`,
+            filename: session.original_filename,
+            filesize: session.filesize,
+            mimeType: session.mime_type,
+            expiresAt: session.expiration_time,
+            oneTime: session.one_time,
+            quickShare: session.quick_share
+        });
+
+    } catch (error) {
+        console.error('❌ Error completing upload:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to complete upload'
+        });
+    }
+});
+
+// Get upload status
+app.get('/api/upload/:uploadId/status', [
+    param('uploadId').isString().isLength({ min: 16, max: 16 }).withMessage('Invalid upload ID')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: errors.array()
+            });
+        }
+
+        const { uploadId } = req.params;
+
+        // Check cache first
+        const cachedSession = await getCache(`upload:${uploadId}`);
+        if (cachedSession) {
+            return res.json({
+                success: true,
+                status: 'uploading',
+                uploadedChunks: cachedSession.chunksUploaded,
+                totalChunks: cachedSession.totalChunks,
+                progress: (cachedSession.chunksUploaded / cachedSession.totalChunks) * 100
+            });
+        }
+
+        // Fallback to database
+        const sessionResult = await pool.query(
+            'SELECT * FROM upload_sessions WHERE upload_id = $1',
+            [uploadId]
+        );
+
+        if (sessionResult.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Upload session not found',
+                message: 'Invalid upload session'
+            });
+        }
+
+        const session = sessionResult.rows[0];
+
+        res.json({
+            success: true,
+            status: session.status,
+            uploadedChunks: session.uploaded_chunks,
+            totalChunks: session.total_chunks,
+            progress: (session.uploaded_chunks / session.total_chunks) * 100,
+            filename: session.original_filename,
+            filesize: session.filesize,
+            mimeType: session.mime_type
+        });
+
+    } catch (error) {
+        console.error('❌ Error getting upload status:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to get upload status'
+        });
+    }
+});
+
+// Cancel upload
+app.delete('/api/upload/:uploadId', [
+    param('uploadId').isString().isLength({ min: 16, max: 16 }).withMessage('Invalid upload ID')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: errors.array()
+            });
+        }
+
+        const { uploadId } = req.params;
+
+        // Get upload session
+        const sessionResult = await pool.query(
+            'SELECT * FROM upload_sessions WHERE upload_id = $1',
+            [uploadId]
+        );
+
+        if (sessionResult.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Upload session not found',
+                message: 'Invalid upload session'
+            });
+        }
+
+        // Get and delete all chunks
+        const chunksResult = await pool.query(
+            'SELECT * FROM file_chunks WHERE upload_id = $1',
+            [uploadId]
+        );
+
+        for (const chunk of chunksResult.rows) {
+            try {
+                await fs.unlink(chunk.storage_path);
+            } catch (error) {
+                console.warn('⚠️ Failed to delete chunk file:', chunk.storage_path);
+            }
+        }
+
+        // Delete from database (order matters due to foreign key constraints)
+        await pool.query('DELETE FROM file_chunks WHERE upload_id = $1', [uploadId]);
+        await pool.query('DELETE FROM upload_sessions WHERE upload_id = $1', [uploadId]);
+
+        // Clear cache
+        if (redis) {
+            await redis.del(`upload:${uploadId}`);
+        }
+
+        res.json({
+            success: true,
+            message: 'Upload cancelled successfully'
+        });
+
+    } catch (error) {
+        console.error('❌ Error cancelling upload:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to cancel upload'
+        });
+    }
+});
+
+// ==========================================
+// FILE SHARING ENDPOINTS
+// ==========================================
+
+// Get file info
+app.get('/api/file/:clipId/info', [
+    param('clipId').custom((value) => {
+        if (value.length !== 4 && value.length !== 10) {
+            throw new Error('Clip ID must be 4 or 10 characters');
+        }
+        if (!/^[A-Z0-9]+$/.test(value)) {
+            throw new Error('Clip ID must contain only uppercase letters and numbers');
+        }
+        return true;
+    })
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: errors.array()
+            });
+        }
+
+        const { clipId } = req.params;
+
+        const result = await pool.query(
+            'SELECT * FROM clips WHERE clip_id = $1 AND content_type = $2 AND is_expired = false',
+            [clipId, 'file']
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                error: 'File not found',
+                message: 'The requested file does not exist or has expired'
+            });
+        }
+
+        const clip = result.rows[0];
+
+        res.json({
+            success: true,
+            clipId: clip.clip_id,
+            filename: clip.original_filename,
+            filesize: clip.filesize,
+            mimeType: clip.mime_type,
+            expiresAt: clip.expiration_time,
+            oneTime: clip.one_time,
+            hasPassword: clip.password_hash !== null && clip.password_hash !== 'client-encrypted'
+        });
+
+    } catch (error) {
+        console.error('❌ Error getting file info:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to get file info'
+        });
+    }
+});
+
+// File page route (serves the main app for file URLs with hash)
+app.get('/file/:clipId', [
+    param('clipId').custom((value) => {
+        if (value.length !== 4 && value.length !== 10) {
+            throw new Error('Clip ID must be 4 or 10 characters');
+        }
+        if (!/^[A-Z0-9]+$/.test(value)) {
+            throw new Error('Clip ID must contain only uppercase letters and numbers');
+        }
+        return true;
+    })
+], async (req, res) => {
+    // Serve the main index.html for file URLs (for client-side routing)
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Download file API
+app.get('/api/file/:clipId', [
+    param('clipId').custom((value) => {
+        if (value.length !== 4 && value.length !== 10) {
+            throw new Error('Clip ID must be 4 or 10 characters');
+        }
+        if (!/^[A-Z0-9]+$/.test(value)) {
+            throw new Error('Clip ID must contain only uppercase letters and numbers');
+        }
+        return true;
+    })
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: errors.array()
+            });
+        }
+
+        const { clipId } = req.params;
+
+        const result = await pool.query(
+            'SELECT * FROM clips WHERE clip_id = $1 AND content_type = $2 AND is_expired = false',
+            [clipId, 'file']
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                error: 'File not found',
+                message: 'The requested file does not exist or has expired'
+            });
+        }
+
+        const clip = result.rows[0];
+
+        // Update access statistics
+        await pool.query(`
+            UPDATE clips 
+            SET access_count = access_count + 1, accessed_at = $1 
+            WHERE clip_id = $2
+        `, [Date.now(), clipId]);
+
+        await updateStatistics('file_accessed');
+
+        // Handle one-time access
+        if (clip.one_time) {
+            await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
+        }
+
+        // Check if file exists
+        try {
+            await fs.access(clip.file_path);
+        } catch (error) {
+            return res.status(404).json({
+                error: 'File not found on storage',
+                message: 'The file has been removed from storage'
+            });
+        }
+
+        // Set appropriate headers
+        res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+        res.setHeader('Content-Length', clip.filesize);
+        res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+        // Stream file to client
+        const fileStream = fs.createReadStream(clip.file_path);
+        fileStream.pipe(res);
+
+        fileStream.on('error', (error) => {
+            console.error('❌ Error streaming file:', error.message);
+            if (!res.headersSent) {
+                res.status(500).json({
+                    error: 'File stream error',
+                    message: 'Failed to stream file'
+                });
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error downloading file:', error.message);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to download file'
+        });
+    }
+});
+
+// ==========================================
+// TEXT SHARING (using new upload system for consistency)
+// ==========================================
+
+// Create share - handles both text and binary content using unified approach
 app.post('/api/share', [
   body('content').custom((value) => {
     // Validate content as binary array or string
@@ -444,7 +1677,7 @@ app.post('/api/share', [
       }
       return true;
     } else if (typeof value === 'string') {
-      // Old format: base64 string (for backward compatibility)
+      // Text content or base64 string
       if (value.length === 0) {
         throw new Error('Content cannot be empty');
       }
@@ -460,7 +1693,8 @@ app.post('/api/share', [
   body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
   body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
   body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean'),
-  body('quickShareSecret').optional().isString().withMessage('quickShareSecret must be a string')
+  body('quickShareSecret').optional().isString().withMessage('quickShareSecret must be a string'),
+  body('contentType').optional().isIn(['text', 'binary']).withMessage('contentType must be text or binary')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -471,7 +1705,7 @@ app.post('/api/share', [
       });
     }
 
-    let { content, expiration, hasPassword, oneTime, quickShare, quickShareSecret } = req.body;
+    let { content, expiration, hasPassword, oneTime, quickShare, quickShareSecret, contentType = 'text' } = req.body;
 
     // Quick Share Mode: Override settings
     if (quickShare) {
@@ -488,26 +1722,37 @@ app.post('/api/share', [
       });
     }
 
-    // Convert content to binary for storage
-    let binaryContent;
+    // Process content based on type
+    let processedContent;
+    let storagePath = null;
+    let mimeType = 'text/plain';
+    let filesize = 0;
+
     try {
-      if (Array.isArray(content)) {
-        // New format: raw bytes array from client
-        binaryContent = Buffer.from(content);
-
+      if (contentType === 'text' && typeof content === 'string') {
+        // Text content - convert to UTF-8 bytes for unified storage
+        processedContent = Buffer.from(content, 'utf-8');
+        filesize = processedContent.length;
+        mimeType = 'text/plain; charset=utf-8';
+      } else if (Array.isArray(content)) {
+        // Binary content: raw bytes array from client
+        processedContent = Buffer.from(content);
+        filesize = processedContent.length;
+        mimeType = 'application/octet-stream';
       } else if (typeof content === 'string') {
-        // Old format: base64 string (for backward compatibility)
-        binaryContent = Buffer.from(content, 'base64');
-
+        // Base64 content (for backward compatibility)
+        processedContent = Buffer.from(content, 'base64');
+        filesize = processedContent.length;
+        mimeType = 'application/octet-stream';
       } else {
         throw new Error('Invalid content format');
       }
       
     } catch (error) {
-      console.error('❌ Error converting content to binary:', error);
+      console.error('❌ Error processing content:', error);
       return res.status(400).json({
         error: 'Invalid content format',
-        message: 'Content must be valid binary data.'
+        message: 'Content must be valid text or binary data.'
       });
     }
 
@@ -528,7 +1773,6 @@ app.post('/api/share', [
     let passwordHash = null;
     if (quickShare && quickShareSecret) {
       // Quick Share: Store the secret in password_hash column
-      // Ensure the secret fits in the column (max 60 chars for bcrypt)
       if (quickShareSecret.length > 60) {
         console.error('❌ Quick Share secret too long:', quickShareSecret.length);
         return res.status(400).json({
@@ -541,16 +1785,46 @@ app.post('/api/share', [
       // Password-protected: Mark as client-encrypted
       passwordHash = 'client-encrypted';
     }
-    // Normal clips without password: passwordHash remains null
 
-    // Insert clip into database (privacy-first: no IP/user-agent tracking)
-    // Store binary data directly as BYTEA
-    
+    // For larger content (>1MB), store as file; otherwise store inline
+    const shouldStoreAsFile = processedContent.length > 1024 * 1024; // 1MB threshold
+
     try {
-      await pool.query(`
-        INSERT INTO clips (clip_id, content, expiration_time, password_hash, one_time, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `, [clipId, binaryContent, expirationTime, passwordHash, oneTime || false, Date.now()]);
+      if (shouldStoreAsFile) {
+        // Store as file in the storage system
+        const uploadId = generateUploadId();
+        storagePath = path.join(STORAGE_PATH, 'files', `${uploadId}.content`);
+        await fs.writeFile(storagePath, processedContent);
+
+        // Create file metadata
+        const file_metadata = {
+          originalSize: processedContent.length,
+          contentType: contentType,
+          storedAsFile: true
+        };
+
+        await pool.query(`
+          INSERT INTO clips (
+            clip_id, content_type, file_path, mime_type, filesize, 
+            file_metadata, expiration_time, password_hash, one_time, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [
+          clipId, contentType, storagePath, mimeType, filesize,
+          JSON.stringify(file_metadata), expirationTime, passwordHash, 
+          oneTime || false, Date.now()
+        ]);
+      } else {
+        // Store inline in database (legacy compatibility)
+        await pool.query(`
+          INSERT INTO clips (
+            clip_id, content_type, content, mime_type, filesize,
+            expiration_time, password_hash, one_time, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [
+          clipId, contentType, processedContent, mimeType, filesize,
+          expirationTime, passwordHash, oneTime || false, Date.now()
+        ]);
+      }
     } catch (dbError) {
       console.error('❌ Database error:', dbError.message);
       if (dbError.message.includes('password_hash')) {
@@ -717,17 +1991,76 @@ app.get('/api/clip/:clipId', [
       );
     }
 
-    // Convert binary content back to array for response
-    const contentArray = Array.from(clip.content);
+    // Handle content based on storage type
+    let responseContent;
+    let contentMetadata = {};
+    
+    if (clip.content_type === 'file') {
+      // File stored on disk - redirect to file endpoint
+      return res.json({
+        success: true,
+        contentType: 'file',
+        redirectTo: `/api/file/${clipId}`,
+        filename: clip.original_filename,
+        filesize: clip.filesize,
+        mimeType: clip.mime_type,
+        expiresAt: clip.expiration_time,
+        oneTime: clip.one_time
+      });
+    } else if (clip.file_path) {
+      // Content stored as file
+      try {
+        const fileContent = await fs.readFile(clip.file_path);
+        if (clip.content_type === 'text') {
+          // Convert back to text
+          responseContent = fileContent.toString('utf-8');
+          contentMetadata.contentType = 'text';
+        } else {
+          // Return as binary array
+          responseContent = Array.from(fileContent);
+          contentMetadata.contentType = 'binary';
+        }
+      } catch (error) {
+        return res.status(404).json({
+          error: 'Content not found',
+          message: 'The content file has been removed from storage'
+        });
+      }
+    } else if (clip.content) {
+      // Content stored inline in database
+      if (clip.content_type === 'text') {
+        // Convert buffer back to text
+        responseContent = clip.content.toString('utf-8');
+        contentMetadata.contentType = 'text';
+      } else {
+        // Convert binary content back to array for response
+        responseContent = Array.from(clip.content);
+        contentMetadata.contentType = 'binary';
+      }
+    } else {
+      return res.status(404).json({
+        error: 'No content found',
+        message: 'The clip contains no content'
+      });
+    }
 
     // Prepare response
     const response = {
       success: true,
-      content: contentArray,
+      content: responseContent,
+      contentType: contentMetadata.contentType || 'binary',
       expiresAt: clip.expiration_time,
       oneTime: clip.one_time,
       hasPassword: false // Quick Share clips never have passwords
     };
+
+    // Add additional metadata for files
+    if (clip.filesize) {
+      response.filesize = clip.filesize;
+    }
+    if (clip.mime_type) {
+      response.mimeType = clip.mime_type;
+    }
 
     // For Quick Share clips (4-digit ID), include the secret for decryption
     if (clipId.length === 4 && clip.password_hash && clip.password_hash !== 'client-encrypted') {
@@ -946,7 +2279,11 @@ app.use((req, res) => {
 });
 
 // Set up periodic tasks
-const cleanupInterval = setInterval(cleanupExpiredClips, 5 * 60 * 1000); // Every 5 minutes
+// Comprehensive cleanup every 5 minutes
+const cleanupInterval = setInterval(async () => {
+  await cleanupExpiredClips();
+  await cleanupExpiredUploads();
+}, 5 * 60 * 1000); // Every 5 minutes
 
 // Graceful shutdown handlers
 process.on('SIGTERM', () => {
@@ -1042,6 +2379,9 @@ async function startServer() {
         const client = await pool.connect();
         await client.query('SELECT NOW() as current_time');
         
+        // Ensure storage directory exists
+        await ensureStorageDirectory();
+
         // Create statistics table if it doesn't exist
         await client.query(`
             CREATE TABLE IF NOT EXISTS statistics (
@@ -1055,6 +2395,55 @@ async function startServer() {
                 last_updated BIGINT DEFAULT 0
             )
         `);
+
+        // Create upload_sessions table for multi-part uploads
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS upload_sessions (
+                id SERIAL PRIMARY KEY,
+                upload_id VARCHAR(50) UNIQUE NOT NULL,
+                filename VARCHAR(255) NOT NULL,
+                original_filename VARCHAR(255) NOT NULL,
+                filesize BIGINT NOT NULL,
+                mime_type VARCHAR(100) NOT NULL,
+                chunk_size INTEGER NOT NULL DEFAULT 5242880,
+                total_chunks INTEGER NOT NULL,
+                uploaded_chunks INTEGER DEFAULT 0,
+                checksums TEXT[],
+                status VARCHAR(20) DEFAULT 'uploading',
+                expiration_time BIGINT NOT NULL,
+                has_password BOOLEAN DEFAULT false,
+                one_time BOOLEAN DEFAULT false,
+                quick_share BOOLEAN DEFAULT false,
+                client_ip VARCHAR(45),
+                created_at BIGINT NOT NULL,
+                last_activity BIGINT NOT NULL,
+                completed_at BIGINT
+            )
+        `);
+
+        // Create file_chunks table for storing upload chunks
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS file_chunks (
+                id SERIAL PRIMARY KEY,
+                upload_id VARCHAR(50) NOT NULL,
+                chunk_number INTEGER NOT NULL,
+                chunk_size INTEGER NOT NULL,
+                checksum VARCHAR(64) NOT NULL,
+                storage_path VARCHAR(500) NOT NULL,
+                created_at BIGINT NOT NULL,
+                UNIQUE(upload_id, chunk_number),
+                FOREIGN KEY (upload_id) REFERENCES upload_sessions(upload_id) ON DELETE CASCADE
+            )
+        `);
+
+        // Extend clips table for file metadata
+        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) DEFAULT 'text'`);
+        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_metadata JSONB`);
+        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)`);
+        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255)`);
+        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)`);
+        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT`);
+        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS upload_id VARCHAR(50)`);
         
         // Initialize statistics if table is empty
         const statsCheck = await client.query('SELECT COUNT(*) as count FROM statistics');
@@ -1066,6 +2455,97 @@ async function startServer() {
             `, [Date.now()]);
             console.log('📊 Statistics table initialized');
         }
+
+        // Create upload_statistics table for monitoring
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS upload_statistics (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                total_uploads INTEGER DEFAULT 0,
+                total_file_size BIGINT DEFAULT 0,
+                completed_uploads INTEGER DEFAULT 0,
+                failed_uploads INTEGER DEFAULT 0,
+                text_clips INTEGER DEFAULT 0,
+                file_clips INTEGER DEFAULT 0,
+                avg_upload_time INTEGER DEFAULT 0,
+                UNIQUE(date)
+            )
+        `);
+
+        // Create all necessary indexes
+        const indexes = [
+            'CREATE INDEX IF NOT EXISTS idx_upload_sessions_upload_id ON upload_sessions(upload_id)',
+            'CREATE INDEX IF NOT EXISTS idx_upload_sessions_status_expiration ON upload_sessions(status, expiration_time)',
+            'CREATE INDEX IF NOT EXISTS idx_upload_sessions_created_at ON upload_sessions(created_at)',
+            'CREATE INDEX IF NOT EXISTS idx_file_chunks_upload_chunk ON file_chunks(upload_id, chunk_number)',
+            'CREATE INDEX IF NOT EXISTS idx_file_chunks_created_at ON file_chunks(created_at)',
+            'CREATE INDEX IF NOT EXISTS idx_upload_statistics_date ON upload_statistics(date)',
+            'CREATE INDEX IF NOT EXISTS idx_clips_content_type ON clips(content_type)',
+            'CREATE INDEX IF NOT EXISTS idx_clips_upload_id ON clips(upload_id)',
+            'CREATE INDEX IF NOT EXISTS idx_clips_file_path ON clips(file_path)'
+        ];
+
+        for (const indexQuery of indexes) {
+            try {
+                await client.query(indexQuery);
+            } catch (indexError) {
+                console.warn(`⚠️ Index creation warning: ${indexError.message}`);
+            }
+        }
+
+        // Create cleanup function for expired uploads
+        await client.query(`
+            CREATE OR REPLACE FUNCTION cleanup_expired_uploads() RETURNS void AS $$
+            BEGIN
+                DELETE FROM upload_sessions WHERE expiration_time < EXTRACT(EPOCH FROM NOW()) * 1000;
+                DELETE FROM file_chunks WHERE upload_id NOT IN (SELECT upload_id FROM upload_sessions);
+            END;
+            $$ LANGUAGE plpgsql
+        `);
+
+        // Create statistics trigger function
+        await client.query(`
+            CREATE OR REPLACE FUNCTION update_upload_stats() RETURNS TRIGGER AS $$
+            BEGIN
+                IF TG_OP = 'INSERT' THEN
+                    INSERT INTO upload_statistics (date, total_uploads, total_file_size) 
+                    VALUES (CURRENT_DATE, 1, NEW.filesize)
+                    ON CONFLICT (date) 
+                    DO UPDATE SET 
+                        total_uploads = upload_statistics.total_uploads + 1,
+                        total_file_size = upload_statistics.total_file_size + NEW.filesize;
+                    RETURN NEW;
+                END IF;
+                
+                IF TG_OP = 'UPDATE' AND NEW.status = 'completed' AND OLD.status != 'completed' THEN
+                    INSERT INTO upload_statistics (date, completed_uploads) 
+                    VALUES (CURRENT_DATE, 1)
+                    ON CONFLICT (date) 
+                    DO UPDATE SET completed_uploads = upload_statistics.completed_uploads + 1;
+                    RETURN NEW;
+                END IF;
+                
+                RETURN NULL;
+            END;
+            $$ LANGUAGE plpgsql
+        `);
+
+        // Create trigger
+        await client.query(`DROP TRIGGER IF EXISTS trigger_upload_stats ON upload_sessions`);
+        await client.query(`
+            CREATE TRIGGER trigger_upload_stats
+                AFTER INSERT OR UPDATE ON upload_sessions
+                FOR EACH ROW EXECUTE FUNCTION update_upload_stats()
+        `);
+
+        // Insert initial statistics data
+        await client.query(`
+            INSERT INTO upload_statistics (date, total_uploads, total_file_size, completed_uploads, failed_uploads, text_clips, file_clips, avg_upload_time)
+            VALUES (CURRENT_DATE, 0, 0, 0, 0, 0, 0, 0)
+            ON CONFLICT (date) DO NOTHING
+        `);
+
+        console.log('✅ Multi-part upload database migration completed successfully!');
         
         // Run database migration for clip_id column length
         try {

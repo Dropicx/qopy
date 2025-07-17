@@ -79,6 +79,10 @@ class ClipboardApp {
             this.switchTab('share');
         });
 
+        document.getElementById('file-tab').addEventListener('click', () => {
+            this.switchTab('file');
+        });
+
         document.getElementById('retrieve-tab').addEventListener('click', () => {
             this.switchTab('retrieve');
         });
@@ -217,6 +221,18 @@ class ClipboardApp {
             // Check for /clip/ABC1 pattern (4-char Quick Share ID)
             else if (path.startsWith('/clip/') && path.length === 10) {
                 clipId = path.substring(6);
+            }
+            // Check for /file/ABC123 pattern (10-char file ID)
+            else if (path.startsWith('/file/') && path.length === 16) {
+                clipId = path.substring(6);
+                // Mark this as a file request
+                this.isFileRequest = true;
+            }
+            // Check for /file/ABC1 pattern (4-char file ID)
+            else if (path.startsWith('/file/') && path.length === 10) {
+                clipId = path.substring(6);
+                // Mark this as a file request
+                this.isFileRequest = true;
             }
             // Check for /ABC123 pattern (direct 10-char ID)
             else if (path.length === 11 && path.startsWith('/') && /^[A-Z0-9]{10}$/.test(path.substring(1))) {
@@ -830,7 +846,29 @@ class ClipboardApp {
 
     // Show Retrieve Result
     showRetrieveResult(data) {
-        document.getElementById('retrieved-content').textContent = data.content;
+        // Check if this is a file redirect
+        if (data.contentType === 'file' && data.redirectTo) {
+            this.handleFileDownload(data);
+            return;
+        }
+
+        // Handle regular text content
+        if (data.contentType === 'text' && typeof data.content === 'string') {
+            document.getElementById('retrieved-content').textContent = data.content;
+        } else {
+            // Handle binary content (convert back to text if possible)
+            try {
+                if (Array.isArray(data.content)) {
+                    const bytes = new Uint8Array(data.content);
+                    const text = new TextDecoder('utf-8').decode(bytes);
+                    document.getElementById('retrieved-content').textContent = text;
+                } else {
+                    document.getElementById('retrieved-content').textContent = data.content;
+                }
+            } catch (error) {
+                document.getElementById('retrieved-content').textContent = '[Binary content - cannot display as text]';
+            }
+        }
         
         // Use current time as created time since API doesn't provide it
         document.getElementById('created-time').textContent = new Date().toLocaleString();
@@ -1426,6 +1464,101 @@ class ClipboardApp {
         if (passwordSection) {
             passwordSection.classList.add('hidden');
         }
+    }
+
+    // Handle File Download
+    async handleFileDownload(data) {
+        console.log('🗂️ Handling file download:', data);
+        
+        // Create file download UI
+        const contentResult = document.getElementById('content-result');
+        const retrievedContent = document.getElementById('retrieved-content');
+        
+        // Hide text content display and show file download interface
+        retrievedContent.style.display = 'none';
+        
+        // Create file download section if it doesn't exist
+        let fileSection = document.getElementById('file-download-section');
+        if (!fileSection) {
+            fileSection = document.createElement('div');
+            fileSection.id = 'file-download-section';
+            fileSection.className = 'file-download-section';
+            contentResult.appendChild(fileSection);
+        }
+        
+        // Create elements safely to prevent XSS
+        fileSection.innerHTML = `
+            <div class="file-download-info">
+                <div class="file-icon">📄</div>
+                <div class="file-download-details">
+                    <div class="filename" id="download-filename"></div>
+                    <div class="filesize" id="download-filesize"></div>
+                </div>
+            </div>
+            <div class="file-download-actions">
+                <button id="download-file-button" class="btn btn-primary">
+                    📥 Download File
+                </button>
+                <button id="copy-file-url-button" class="btn btn-secondary">
+                    📋 Copy Link
+                </button>
+            </div>
+        `;
+        
+        // Set text content safely
+        const filenameElement = document.getElementById('download-filename');
+        const filesizeElement = document.getElementById('download-filesize');
+        
+        if (filenameElement) {
+            filenameElement.textContent = data.filename || 'Unknown File';
+        }
+        
+        if (filesizeElement) {
+            filesizeElement.textContent = this.formatFileSize(data.filesize || 0);
+        }
+        
+        // Add download event listener
+        const downloadButton = document.getElementById('download-file-button');
+        if (downloadButton) {
+            downloadButton.addEventListener('click', async () => {
+                try {
+                    if (fileDownloadManager) {
+                        const clipId = document.getElementById('clip-id-input').value.trim();
+                        await fileDownloadManager.downloadFile(clipId, data.filename);
+                    } else {
+                        console.error('File download manager not available');
+                        this.showToast('❌ File download not available', 'error');
+                    }
+                } catch (error) {
+                    console.error('Download failed:', error);
+                    this.showToast('❌ Download failed: ' + error.message, 'error');
+                }
+            });
+        }
+        
+        // Add copy URL event listener
+        const copyUrlButton = document.getElementById('copy-file-url-button');
+        if (copyUrlButton) {
+            copyUrlButton.addEventListener('click', () => {
+                const clipId = document.getElementById('clip-id-input').value.trim();
+                const fileUrl = `${window.location.origin}/file/${clipId}`;
+                this.copyToClipboard(fileUrl, '📋 File URL copied!');
+            });
+        }
+        
+        // Show the content result
+        contentResult.classList.remove('hidden');
+    }
+
+    // Format file size for display
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         
         // Clear password input
         const passwordInput = document.getElementById('retrieve-password-input');
