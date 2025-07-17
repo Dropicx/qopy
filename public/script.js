@@ -728,7 +728,21 @@ class ClipboardApp {
             });
 
             if (response.ok) {
-                // Decrypt the content before showing
+                // Check if this is a file first
+                if (data.contentType === 'file' && data.redirectTo) {
+                    console.log('📁 Detected file content, calling handleFileDownload directly');
+                    this.handleFileDownload(data);
+                    return;
+                }
+
+                // Check if this is a file by checking for file_path
+                if (data.file_path) {
+                    console.log('📁 Detected file by file_path, calling handleFileDownload directly');
+                    this.handleFileDownload(data);
+                    return;
+                }
+
+                // Decrypt the content before showing (only for text content)
                 try {
                     let decryptedContent;
                     
