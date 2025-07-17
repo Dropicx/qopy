@@ -2143,7 +2143,7 @@ app.get('/api/clip/:clipId/info', [
     const { clipId } = req.params;
 
     const result = await pool.query(
-      'SELECT clip_id, expiration_time, one_time, password_hash FROM clips WHERE clip_id = $1 AND is_expired = false',
+      'SELECT clip_id, content_type, expiration_time, one_time, password_hash FROM clips WHERE clip_id = $1 AND is_expired = false',
       [clipId]
     );
 
@@ -2169,6 +2169,7 @@ app.get('/api/clip/:clipId/info', [
     res.json({
       success: true,
       clipId: clip.clip_id,
+      contentType: clip.content_type,
       expiresAt: clip.expiration_time,
       oneTime: clip.one_time,
       hasPassword: hasPassword
