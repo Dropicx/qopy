@@ -261,12 +261,26 @@ class FileUploadManager {
     }
 
     async uploadChunks(file, uploadSession) {
+        console.log('🚀 uploadChunks called with session:', {
+            uploadId: uploadSession.uploadId,
+            chunkSize: uploadSession.chunkSize,
+            totalChunks: uploadSession.totalChunks,
+            hasUrlSecret: !!uploadSession.urlSecret,
+            urlSecret: uploadSession.urlSecret ? 'present' : 'none'
+        });
+
         const { uploadId, chunkSize, totalChunks, urlSecret } = uploadSession;
         const checksums = [];
 
         // Get encryption settings from form
         const hasPassword = document.getElementById('file-password-checkbox')?.checked || false;
         const password = hasPassword ? document.getElementById('file-password-input')?.value?.trim() : null;
+        
+        console.log('🔐 Encryption settings from form:', {
+            hasPassword,
+            passwordProvided: !!password,
+            urlSecretProvided: !!urlSecret
+        });
         
         // Validate password if enabled
         if (hasPassword && (!password || password.length === 0)) {
@@ -281,6 +295,11 @@ class FileUploadManager {
             password: password,
             urlSecret: urlSecret
         };
+
+        console.log('🔐 Final encryption options:', {
+            hasPassword: !!encryptionOptions.password,
+            hasUrlSecret: !!encryptionOptions.urlSecret
+        });
 
         for (let chunkNumber = 0; chunkNumber < totalChunks; chunkNumber++) {
             // Calculate chunk boundaries
@@ -303,11 +322,19 @@ class FileUploadManager {
             await new Promise(resolve => setTimeout(resolve, 10));
         }
 
+        console.log('✅ All chunks uploaded successfully');
         return checksums;
     }
 
     async uploadChunk(uploadId, chunkNumber, chunk, encryptionOptions = {}) {
+        console.log(`📦 uploadChunk called for chunk ${chunkNumber}:`, {
+            hasPassword: !!encryptionOptions.password,
+            hasUrlSecret: !!encryptionOptions.urlSecret,
+            urlSecret: encryptionOptions.urlSecret ? 'present' : 'none'
+        });
+
         let chunkData = await chunk.arrayBuffer();
+        console.log(`📦 Original chunk size: ${chunkData.byteLength} bytes`);
         
         // Encrypt chunk if password or URL secret is provided
         if (encryptionOptions.password || encryptionOptions.urlSecret) {
@@ -316,7 +343,7 @@ class FileUploadManager {
                 const chunkBytes = new Uint8Array(chunkData);
                 const encryptedChunk = await this.encryptChunk(chunkBytes, encryptionOptions.password, encryptionOptions.urlSecret);
                 chunkData = encryptedChunk;
-                console.log(`✅ Chunk ${chunkNumber} encrypted successfully`);
+                console.log(`✅ Chunk ${chunkNumber} encrypted successfully, new size: ${chunkData.byteLength} bytes`);
             } catch (error) {
                 console.error(`❌ Chunk ${chunkNumber} encryption failed:`, error);
                 
@@ -327,7 +354,11 @@ class FileUploadManager {
                 // Note: This is not ideal for security, but prevents upload failures
                 // In production, you might want to fail the entire upload instead
             }
+        } else {
+            console.log(`⚠️ No encryption options provided for chunk ${chunkNumber}, uploading unencrypted`);
         }
+        
+        console.log(`📤 Uploading chunk ${chunkNumber} with size: ${chunkData.byteLength} bytes`);
         
         const response = await fetch(`/api/upload/chunk/${uploadId}/${chunkNumber}`, {
             method: 'POST',
@@ -342,7 +373,9 @@ class FileUploadManager {
             throw new Error(`Chunk ${chunkNumber} upload failed: ${error.message}`);
         }
 
-        return await response.json();
+        const result = await response.json();
+        console.log(`✅ Chunk ${chunkNumber} uploaded successfully`);
+        return result;
     }
 
     // Encrypt chunk using the same encryption as text content

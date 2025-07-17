@@ -198,6 +198,125 @@ app.get('/ping', (req, res) => {
   });
 });
 
+// Debug endpoint to check file encryption status
+app.get('/api/debug/files/:clipId', async (req, res) => {
+  try {
+    const { clipId } = req.params;
+    
+    // Get clip information from database
+    const clipResult = await pool.query(
+      'SELECT * FROM clips WHERE clip_id = $1',
+      [clipId]
+    );
+    
+    if (clipResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Clip not found' });
+    }
+    
+    const clip = clipResult.rows[0];
+    
+    // Check if it's a file
+    if (clip.content_type !== 'file' || !clip.file_path) {
+      return res.status(400).json({ error: 'Not a file clip' });
+    }
+    
+    // Get file path
+    const filePath = path.join(STORAGE_PATH, 'files', clip.file_path);
+    
+    // Check if file exists
+    const fileExists = await fs.pathExists(filePath);
+    if (!fileExists) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+    
+    // Get file stats
+    const stats = await fs.stat(filePath);
+    
+    // Read first 32 bytes to check encryption
+    const fileBuffer = await fs.readFile(filePath);
+    const firstBytes = fileBuffer.slice(0, 32);
+    const firstBytesHex = firstBytes.toString('hex');
+    
+    // Check if file looks encrypted (should start with IV for AES-GCM)
+    const isLikelyEncrypted = fileBuffer.length >= 12 && 
+      // AES-GCM uses 12-byte IV, so first 12 bytes should be random
+      // We can't definitively say it's encrypted, but we can check patterns
+      fileBuffer.length > 100; // Encrypted files are usually larger than original
+    
+    // Get chunk information
+    const chunksResult = await pool.query(
+      'SELECT chunk_number, storage_path, chunk_size FROM file_chunks WHERE upload_id = $1 ORDER BY chunk_number',
+      [clip.upload_id]
+    );
+    
+    const chunks = chunksResult.rows.map(chunk => {
+      const chunkPath = path.join(STORAGE_PATH, 'chunks', chunk.storage_path);
+      return {
+        chunkNumber: chunk.chunk_number,
+        storagePath: chunk.storage_path,
+        chunkSize: chunk.chunk_size,
+        exists: fs.existsSync(chunkPath),
+        actualSize: fs.existsSync(chunkPath) ? fs.statSync(chunkPath).size : 0
+      };
+    });
+    
+    res.json({
+      clipId,
+      fileInfo: {
+        filename: clip.filename,
+        originalSize: clip.filesize,
+        contentType: clip.content_type,
+        filePath: clip.file_path,
+        uploadId: clip.upload_id
+      },
+      diskInfo: {
+        fileExists,
+        fileSize: stats.size,
+        fileSizeFormatted: formatBytes(stats.size),
+        lastModified: stats.mtime,
+        isLikelyEncrypted,
+        first32BytesHex: firstBytesHex,
+        first32BytesAscii: firstBytes.toString('ascii').replace(/[^\x20-\x7E]/g, '.')
+      },
+      chunks: {
+        totalChunks: chunks.length,
+        chunks: chunks
+      },
+      analysis: {
+        isEncrypted: isLikelyEncrypted,
+        encryptionIndicators: {
+          hasIV: fileBuffer.length >= 12,
+          sizeIncreased: stats.size > clip.filesize,
+          randomFirstBytes: !isTextContent(firstBytes),
+          chunked: chunks.length > 1
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Helper function to format bytes
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Helper function to check if content looks like text
+function isTextContent(buffer) {
+  const text = buffer.toString('utf8');
+  // Check if it contains mostly printable ASCII characters
+  const printableChars = text.replace(/[^\x20-\x7E]/g, '').length;
+  const totalChars = text.length;
+  return totalChars > 0 && (printableChars / totalChars) > 0.8;
+}
+
 // Enhanced middleware configuration
 app.use(helmet({
   contentSecurityPolicy: {

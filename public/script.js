@@ -1525,14 +1525,38 @@ class ClipboardApp {
             keys: Object.keys(data)
         });
         
-        // Create file download UI
+        // Hide all text-related elements
         const contentResult = document.getElementById('content-result');
         const retrievedContent = document.getElementById('retrieved-content');
+        const copyContentButton = document.getElementById('copy-content-button');
+        const createdTimeSection = document.getElementById('created-time-section');
+        const expiresTimeSection = document.getElementById('expires-time-section');
+        const oneTimeNotice = document.getElementById('one-time-notice');
         
-        console.log('🗂️ Setting up file download UI');
+        console.log('🗂️ Hiding text-related elements');
         
-        // Hide text content display and show file download interface
-        retrievedContent.style.display = 'none';
+        // Hide text content display
+        if (retrievedContent) {
+            retrievedContent.style.display = 'none';
+        }
+        
+        // Hide copy content button
+        if (copyContentButton) {
+            copyContentButton.style.display = 'none';
+        }
+        
+        // Hide time sections
+        if (createdTimeSection) {
+            createdTimeSection.style.display = 'none';
+        }
+        if (expiresTimeSection) {
+            expiresTimeSection.style.display = 'none';
+        }
+        
+        // Hide one-time notice
+        if (oneTimeNotice) {
+            oneTimeNotice.style.display = 'none';
+        }
         
         // Create file download section if it doesn't exist
         let fileSection = document.getElementById('file-download-section');
