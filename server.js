@@ -2590,7 +2590,7 @@ async function startServer() {
             CREATE TABLE IF NOT EXISTS clips (
                 id SERIAL PRIMARY KEY,
                 clip_id VARCHAR(10) UNIQUE NOT NULL,
-                content TEXT NOT NULL,
+                content TEXT,
                 password_hash VARCHAR(255),
                 one_time BOOLEAN DEFAULT false,
                 quick_share BOOLEAN DEFAULT false,
@@ -2605,6 +2605,8 @@ async function startServer() {
 
         // Extend clips table for file metadata (only if table exists)
         try {
+            // Make content column nullable for file uploads
+            await client.query(`ALTER TABLE clips ALTER COLUMN content DROP NOT NULL`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) DEFAULT 'text'`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_metadata JSONB`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)`);
