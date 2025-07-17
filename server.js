@@ -917,7 +917,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         res.json({
             success: true,
             clipId,
-            url: `${req.protocol}://${req.get('host')}/clip/${clipId}`,
+            url: `${req.protocol}://${req.get('host')}/file/${clipId}`,
             filename: session.original_filename,
             filesize: session.filesize,
             expiresAt: session.expiration_time,

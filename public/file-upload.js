@@ -569,6 +569,7 @@ class FileUploadManager {
 
     showUploadSuccess(result) {
         console.log('🎉 Upload successful:', result);
+        console.log('🔍 Current upload session:', this.currentUploadSession);
         
         // Hide progress and show success
         this.showProgressUI(false);
@@ -577,6 +578,9 @@ class FileUploadManager {
         let finalUrl = result.url;
         if (this.currentUploadSession && this.currentUploadSession.urlSecret) {
             finalUrl = `${result.url}#${this.currentUploadSession.urlSecret}`;
+            console.log('🔗 Final URL with secret:', finalUrl);
+        } else {
+            console.log('🔗 Final URL without secret:', finalUrl);
         }
         
         // Update success modal with file info
@@ -586,30 +590,53 @@ class FileUploadManager {
         const successMessage = document.getElementById('success-message');
         const expiryTime = document.getElementById('expiry-time');
 
+        console.log('🔍 Modal elements found:', {
+            modal: !!modal,
+            shareUrl: !!shareUrl,
+            clipId: !!clipId,
+            successMessage: !!successMessage,
+            expiryTime: !!expiryTime
+        });
+
         if (shareUrl) {
             shareUrl.value = finalUrl;
+            console.log('✅ Share URL set:', finalUrl);
         }
 
         if (clipId) {
             clipId.value = result.clipId;
+            console.log('✅ Clip ID set:', result.clipId);
         }
 
         if (successMessage) {
             successMessage.textContent = `File "${result.filename}" uploaded successfully!`;
+            console.log('✅ Success message set');
         }
 
         if (expiryTime && result.expiresAt) {
             const expiryDate = new Date(result.expiresAt);
             expiryTime.textContent = expiryDate.toLocaleString();
+            console.log('✅ Expiry time set:', expiryDate.toLocaleString());
         }
 
         if (modal) {
-            modal.classList.remove('hidden');
-            console.log('✅ Success modal displayed');
+            console.log('🔍 Modal before showing:', {
+                classList: modal.classList.toString(),
+                style: modal.style.display,
+                zIndex: modal.style.zIndex
+            });
             
-            // Ensure modal is visible and properly positioned
+            modal.classList.remove('hidden');
             modal.style.display = 'flex';
             modal.style.zIndex = '1000';
+            
+            console.log('🔍 Modal after showing:', {
+                classList: modal.classList.toString(),
+                style: modal.style.display,
+                zIndex: modal.style.zIndex
+            });
+            
+            console.log('✅ Success modal displayed');
         } else {
             console.error('❌ Success modal not found');
         }
