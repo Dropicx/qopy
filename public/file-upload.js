@@ -584,6 +584,7 @@ class FileUploadManager {
         const shareUrl = document.getElementById('share-url');
         const clipId = document.getElementById('clip-id');
         const successMessage = document.getElementById('success-message');
+        const expiryTime = document.getElementById('expiry-time');
 
         if (shareUrl) {
             shareUrl.value = finalUrl;
@@ -597,13 +598,28 @@ class FileUploadManager {
             successMessage.textContent = `File "${result.filename}" uploaded successfully!`;
         }
 
+        if (expiryTime && result.expiresAt) {
+            const expiryDate = new Date(result.expiresAt);
+            expiryTime.textContent = expiryDate.toLocaleString();
+        }
+
         if (modal) {
             modal.classList.remove('hidden');
+            console.log('✅ Success modal displayed');
+            
+            // Ensure modal is visible and properly positioned
+            modal.style.display = 'flex';
+            modal.style.zIndex = '1000';
+        } else {
+            console.error('❌ Success modal not found');
         }
         
         // Generate QR code with the full URL including secret
-        if (window.app && window.app.generateQRCode) {
-            window.app.generateQRCode(finalUrl);
+        if (window.clipboardApp && window.clipboardApp.generateQRCode) {
+            window.clipboardApp.generateQRCode(finalUrl);
+            console.log('✅ QR code generated');
+        } else {
+            console.warn('⚠️ QR code generation not available');
         }
 
         // Reset form

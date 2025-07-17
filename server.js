@@ -458,10 +458,16 @@ function generateClipId(quickShare = false) {
 // Enhanced cleanup for expired clips and uploads
 async function cleanupExpiredClips() {
   try {
-    // Delete expired clips
-    const result = await pool.query(
-      'DELETE FROM clips WHERE expiration_time < $1',
+    // Mark expired clips as expired instead of deleting them
+    const markResult = await pool.query(
+      'UPDATE clips SET is_expired = true WHERE expiration_time < $1 AND is_expired = false',
       [Date.now()]
+    );
+    
+    // Delete clips that have been expired for more than 7 days
+    const deleteResult = await pool.query(
+      'DELETE FROM clips WHERE is_expired = true AND expiration_time < $1',
+      [Date.now() - (7 * 24 * 60 * 60 * 1000)] // 7 days ago
     );
     
     // Check if we need to reset the sequence (if we're approaching the limit)
@@ -484,8 +490,12 @@ async function cleanupExpiredClips() {
       console.log(`🔄 Reset SERIAL sequence to ${newStartValue} (was ${currentSequence})`);
     }
     
-    if (result.rowCount > 0) {
-      console.log(`🧹 Cleaned up ${result.rowCount} expired clips`);
+    if (markResult.rowCount > 0) {
+      console.log(`🏷️ Marked ${markResult.rowCount} clips as expired`);
+    }
+    
+    if (deleteResult.rowCount > 0) {
+      console.log(`🧹 Permanently deleted ${deleteResult.rowCount} old expired clips`);
     }
   } catch (error) {
     console.error('❌ Error cleaning up expired clips:', error.message);
@@ -1831,7 +1841,7 @@ app.post('/api/share', [
           storedAsFile: true
         };
 
-        await pool.query(`
+      await pool.query(`
           INSERT INTO clips (
             clip_id, content_type, file_path, mime_type, filesize, 
             file_metadata, expiration_time, password_hash, one_time, created_at
@@ -2061,7 +2071,7 @@ app.get('/api/clip/:clipId', [
         responseContent = clip.content.toString('utf-8');
         contentMetadata.contentType = 'text';
       } else {
-        // Convert binary content back to array for response
+    // Convert binary content back to array for response
         responseContent = Array.from(clip.content);
         contentMetadata.contentType = 'binary';
       }
@@ -2506,7 +2516,7 @@ async function startServer() {
             'id', 'clip_id', 'content', 'password_hash', 'one_time', 'quick_share', 
             'expiration_time', 'access_count', 'max_accesses', 'client_ip', 
             'created_at', 'last_accessed', 'content_type', 'file_metadata', 
-            'file_path', 'original_filename', 'mime_type', 'filesize', 'upload_id', 'is_file'
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'upload_id', 'is_file', 'is_expired'
         ];
 
         const CLIPS_INSERT_COLUMNS = [
@@ -2521,7 +2531,7 @@ async function startServer() {
         }
 
         console.log('✅ Spaltenabgleichung clips abgeschlossen');
-
+        
         // Create statistics table if it doesn't exist
         await client.query(`
             CREATE TABLE IF NOT EXISTS statistics (
@@ -2615,6 +2625,15 @@ async function startServer() {
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS upload_id VARCHAR(50)`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_file BOOLEAN DEFAULT false`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT false`);
+            
+            // Update existing expired clips to have is_expired = true
+            await client.query(`
+                UPDATE clips 
+                SET is_expired = true 
+                WHERE expiration_time < $1 AND is_expired = false
+            `, [Date.now()]);
+            
             console.log('✅ Clips table extended with file metadata columns');
         } catch (alterError) {
             console.warn(`⚠️ Clips table extension warning: ${alterError.message}`);
