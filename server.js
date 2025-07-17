@@ -1627,6 +1627,18 @@ app.get('/api/file/:clipId', [
 
         const { clipId } = req.params;
 
+        // Debug: Log was wir in der DB finden
+        console.log(`🔍 Download-Request für clipId: ${clipId}`);
+        const debugResult = await pool.query(
+            'SELECT clip_id, content_type, file_path, is_expired FROM clips WHERE clip_id = $1',
+            [clipId]
+        );
+        if (debugResult.rows.length === 0) {
+            console.log(`❌ Kein Clip mit dieser ID gefunden!`);
+        } else {
+            console.log('🔍 DB-Clip:', debugResult.rows[0]);
+        }
+
         const result = await pool.query(
             'SELECT * FROM clips WHERE clip_id = $1 AND content_type = $2 AND is_expired = false',
             [clipId, 'file']
