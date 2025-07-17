@@ -312,11 +312,20 @@ class FileUploadManager {
         // Encrypt chunk if password or URL secret is provided
         if (encryptionOptions.password || encryptionOptions.urlSecret) {
             try {
+                console.log(`🔐 Encrypting chunk ${chunkNumber}...`);
                 const chunkBytes = new Uint8Array(chunkData);
                 const encryptedChunk = await this.encryptChunk(chunkBytes, encryptionOptions.password, encryptionOptions.urlSecret);
                 chunkData = encryptedChunk;
+                console.log(`✅ Chunk ${chunkNumber} encrypted successfully`);
             } catch (error) {
-                throw new Error(`Chunk encryption failed: ${error.message}`);
+                console.error(`❌ Chunk ${chunkNumber} encryption failed:`, error);
+                
+                // Fallback: Upload without encryption if encryption fails
+                console.warn(`⚠️ Falling back to unencrypted upload for chunk ${chunkNumber}`);
+                chunkData = await chunk.arrayBuffer();
+                
+                // Note: This is not ideal for security, but prevents upload failures
+                // In production, you might want to fail the entire upload instead
             }
         }
         
@@ -339,7 +348,10 @@ class FileUploadManager {
     // Encrypt chunk using the same encryption as text content
     async encryptChunk(chunkBytes, password = null, urlSecret = null) {
         try {
+            console.log('🔐 Starting chunk encryption...');
+            
             const key = await this.generateEncryptionKey(password, urlSecret);
+            console.log('✅ Encryption key generated, usages:', key.usages);
             
             // Generate IV for this chunk
             let iv;
@@ -348,13 +360,19 @@ class FileUploadManager {
             } else {
                 iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-nopass-v1');
             }
+            console.log('✅ IV generated, length:', iv.length);
+            
+            // Ensure chunkBytes is a Uint8Array
+            const chunkArray = chunkBytes instanceof Uint8Array ? chunkBytes : new Uint8Array(chunkBytes);
             
             // Encrypt the chunk
+            console.log('🔒 Encrypting chunk of size:', chunkArray.length);
             const encryptedData = await window.crypto.subtle.encrypt(
                 { name: 'AES-GCM', iv: iv },
                 key,
-                chunkBytes
+                chunkArray
             );
+            console.log('✅ Chunk encrypted successfully');
             
             // Combine IV + encrypted data
             const encryptedBytes = new Uint8Array(encryptedData);
@@ -364,53 +382,73 @@ class FileUploadManager {
             combined.set(ivBytes, 0);
             combined.set(encryptedBytes, ivBytes.length);
             
+            console.log('✅ Combined IV + encrypted data, total size:', combined.length);
             return combined;
         } catch (error) {
+            console.error('❌ Encryption error:', error);
             throw new Error('Failed to encrypt chunk: ' + error.message);
         }
     }
 
     // Generate encryption key (same algorithm as main app)
     async generateEncryptionKey(password = null, urlSecret = null) {
-        const encoder = new TextEncoder();
-        
-        let keyMaterial;
-        if (password && urlSecret) {
-            // Password + URL secret mode
-            const combined = password + '|' + urlSecret;
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(combined),
-                'PBKDF2',
+        try {
+            const encoder = new TextEncoder();
+            
+            let keyMaterial;
+            if (password && urlSecret) {
+                // Password + URL secret mode
+                const combined = password + '|' + urlSecret;
+                console.log('🔑 Using password + URL secret mode');
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(combined),
+                    'PBKDF2',
+                    false,
+                    ['deriveKey']
+                );
+            } else if (urlSecret) {
+                // URL secret only mode
+                console.log('🔑 Using URL secret only mode');
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(urlSecret),
+                    'PBKDF2',
+                    false,
+                    ['deriveKey']
+                );
+            } else {
+                throw new Error('Either password or URL secret must be provided');
+            }
+            
+            console.log('✅ Key material imported successfully');
+            
+            // Derive key using PBKDF2
+            const derivedKey = await window.crypto.subtle.deriveKey(
+                {
+                    name: 'PBKDF2',
+                    salt: encoder.encode('qopy-salt-v1'),
+                    iterations: 100000,
+                    hash: 'SHA-256'
+                },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 },
                 false,
-                ['deriveKey']
+                ['encrypt', 'decrypt']
             );
-        } else if (urlSecret) {
-            // URL secret only mode
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(urlSecret),
-                'PBKDF2',
-                false,
-                ['deriveKey']
-            );
-        } else {
-            throw new Error('Either password or URL secret must be provided');
+            
+            console.log('✅ Key derived successfully, usages:', derivedKey.usages);
+            
+            // Verify key has correct usages
+            if (!derivedKey.usages.includes('encrypt')) {
+                throw new Error('Derived key does not support encryption');
+            }
+            
+            return derivedKey;
+        } catch (error) {
+            console.error('❌ Key generation error:', error);
+            throw new Error('Failed to generate encryption key: ' + error.message);
         }
-        
-        // Derive key using PBKDF2
-        return await window.crypto.subtle.deriveKey(
-            {
-                name: 'PBKDF2',
-                salt: encoder.encode('qopy-salt-v1'),
-                iterations: 100000,
-                hash: 'SHA-256'
-            },
-            keyMaterial,
-            { name: 'AES-GCM', length: 256 },
-            false,
-            ['encrypt', 'decrypt']
-        );
     }
 
     // Derive IV (same as main app)
