@@ -688,7 +688,6 @@ app.post('/api/upload/initiate', [
             total_chunks: totalChunks,
             uploaded_chunks: 0,
             status: 'uploading',
-            expiration,
             has_password: hasPassword || false,
             one_time: oneTime || false,
             is_text_content: isTextContent || false,
@@ -701,11 +700,11 @@ app.post('/api/upload/initiate', [
         await pool.query(`
             INSERT INTO upload_sessions 
             (upload_id, filename, original_filename, filesize, mime_type, chunk_size, total_chunks, 
-             expiration, has_password, one_time, is_text_content, expiration_time, created_at, last_activity)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             has_password, one_time, is_text_content, expiration_time, created_at, last_activity)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         `, [
             uploadId, sessionData.filename, sessionData.original_filename, filesize, sessionData.mime_type,
-            CHUNK_SIZE, totalChunks, expiration, hasPassword || false, oneTime || false, 
+            CHUNK_SIZE, totalChunks, hasPassword || false, oneTime || false, 
             isTextContent || false, expirationTime, Date.now(), Date.now()
         ]);
 
