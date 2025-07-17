@@ -1178,7 +1178,9 @@ app.post('/api/upload/initiate', [
     body('expiration').optional().isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
     body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
     body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
-    body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean')
+    body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean'),
+    body('contentType').optional().isIn(['text', 'file']).withMessage('contentType must be text or file'),
+    body('originalContent').optional().isString().withMessage('originalContent must be a string')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -1189,7 +1191,7 @@ app.post('/api/upload/initiate', [
             });
         }
 
-        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false } = req.body;
+        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'file', originalContent = null } = req.body;
         
         // Calculate chunks
         const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
@@ -1215,12 +1217,14 @@ app.post('/api/upload/initiate', [
             INSERT INTO upload_sessions (
                 upload_id, filename, original_filename, filesize, mime_type, 
                 chunk_size, total_chunks, expiration_time, has_password, 
-                one_time, quick_share, client_ip, created_at, last_activity
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                one_time, quick_share, client_ip, created_at, last_activity,
+                is_text_content, original_content
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         `, [
             uploadId, filename, filename, filesize, mimeType,
             CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
-            oneTime, quickShare, clientIP, Date.now(), Date.now()
+            oneTime, quickShare, clientIP, Date.now(), Date.now(),
+            contentType === 'text', originalContent
         ]);
 
         // Cache session data for quick access
@@ -1389,7 +1393,7 @@ app.post('/api/upload/complete/:uploadId', [
         }
 
         const { uploadId } = req.params;
-        const { checksums } = req.body;
+        const { checksums, quickShareSecret } = req.body;
 
         // Get upload session
         const sessionResult = await pool.query(
@@ -1454,26 +1458,58 @@ app.post('/api/upload/complete/:uploadId', [
         // Generate clip ID
         const clipId = generateClipId(session.quick_share);
 
-        // Create clip entry
-        const file_metadata = {
-            originalName: session.original_filename,
-            uploadId: uploadId,
-            chunksCount: session.total_chunks,
-            checksums: chunks.map(c => c.checksum)
-        };
+        // Handle Quick Share secret if provided
+        let passwordHash = null;
+        if (session.quick_share && req.body.quickShareSecret) {
+            passwordHash = req.body.quickShareSecret;
+        } else if (session.has_password) {
+            passwordHash = 'client-encrypted';
+        }
 
-        await pool.query(`
-            INSERT INTO clips (
-                clip_id, content_type, file_path, original_filename, 
-                mime_type, filesize, file_metadata, upload_id,
-                expiration_time, password_hash, one_time, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        `, [
-            clipId, 'file', finalFilePath, session.original_filename,
-            session.mime_type, session.filesize, JSON.stringify(file_metadata), uploadId,
-            session.expiration_time, session.has_password ? 'client-encrypted' : null, 
-            session.one_time, Date.now()
-        ]);
+        // Create clip entry based on content type
+        if (session.is_text_content) {
+            // Text content - store as file but mark as text
+            const file_metadata = {
+                originalName: session.original_filename,
+                uploadId: uploadId,
+                chunksCount: session.total_chunks,
+                checksums: chunks.map(c => c.checksum),
+                isTextContent: true,
+                originalContent: session.original_content
+            };
+
+            await pool.query(`
+                INSERT INTO clips (
+                    clip_id, content_type, file_path, original_filename, 
+                    mime_type, filesize, file_metadata, upload_id,
+                    expiration_time, password_hash, one_time, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            `, [
+                clipId, 'text', finalFilePath, session.original_filename,
+                session.mime_type, session.filesize, JSON.stringify(file_metadata), uploadId,
+                session.expiration_time, passwordHash, session.one_time, Date.now()
+            ]);
+        } else {
+            // File content
+            const file_metadata = {
+                originalName: session.original_filename,
+                uploadId: uploadId,
+                chunksCount: session.total_chunks,
+                checksums: chunks.map(c => c.checksum)
+            };
+
+            await pool.query(`
+                INSERT INTO clips (
+                    clip_id, content_type, file_path, original_filename, 
+                    mime_type, filesize, file_metadata, upload_id,
+                    expiration_time, password_hash, one_time, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            `, [
+                clipId, 'file', finalFilePath, session.original_filename,
+                session.mime_type, session.filesize, JSON.stringify(file_metadata), uploadId,
+                session.expiration_time, passwordHash, session.one_time, Date.now()
+            ]);
+        }
 
         // Update upload session status
         await pool.query(`
@@ -1506,13 +1542,14 @@ app.post('/api/upload/complete/:uploadId', [
         res.json({
             success: true,
             clipId,
-            url: `${req.protocol}://${req.get('host')}/file/${clipId}`,
+            url: `${req.protocol}://${req.get('host')}/${session.is_text_content ? 'clip' : 'file'}/${clipId}`,
             filename: session.original_filename,
             filesize: session.filesize,
             mimeType: session.mime_type,
             expiresAt: session.expiration_time,
             oneTime: session.one_time,
-            quickShare: session.quick_share
+            quickShare: session.quick_share,
+            contentType: session.is_text_content ? 'text' : 'file'
         });
 
     } catch (error) {
@@ -1905,10 +1942,28 @@ app.post('/api/share', [
 
     try {
       if (contentType === 'text' && typeof content === 'string') {
-        // Text content - store as UTF-8 string directly
-        processedContent = content; // Keep as string for text content
-        filesize = Buffer.from(content, 'utf-8').length; // Calculate size for display
-        mimeType = 'text/plain; charset=utf-8';
+        // Text content - check if it's base64 encoded encrypted data
+        try {
+          // Try to decode as base64 first
+          const decoded = Buffer.from(content, 'base64');
+          // If it's valid base64, treat as encrypted binary data
+          if (decoded.length > 0) {
+            processedContent = decoded; // Store as buffer for encrypted data
+            filesize = decoded.length;
+            mimeType = 'application/octet-stream'; // Mark as binary for encrypted content
+            contentType = 'binary'; // Override to binary since it's encrypted
+          } else {
+            // Empty base64, treat as plain text
+            processedContent = content;
+            filesize = Buffer.from(content, 'utf-8').length;
+            mimeType = 'text/plain; charset=utf-8';
+          }
+        } catch (base64Error) {
+          // Not valid base64, treat as plain text
+          processedContent = content;
+          filesize = Buffer.from(content, 'utf-8').length;
+          mimeType = 'text/plain; charset=utf-8';
+        }
       } else if (Array.isArray(content)) {
         // Binary content: raw bytes array from client
         processedContent = Buffer.from(content);
@@ -2223,12 +2278,14 @@ app.get('/api/clip/:clipId', [
     } else if (clip.content) {
       // Content stored inline in database
       if (clip.content_type === 'text') {
-        // Text content stored as string
+        // Text content stored as string (unencrypted)
         responseContent = clip.content; // Already a string
         contentMetadata.contentType = 'text';
       } else {
         // Binary content - check if it's a buffer or string
         if (Buffer.isBuffer(clip.content)) {
+          // This could be encrypted text or binary data
+          // For text clips, this is encrypted content that needs client-side decryption
           responseContent = Array.from(clip.content);
           contentMetadata.contentType = 'binary';
         } else if (typeof clip.content === 'string') {
@@ -2741,6 +2798,7 @@ async function startServer() {
         // Migrate existing upload_sessions table if needed
         try {
             await client.query(`ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS is_text_content BOOLEAN DEFAULT false`);
+            await client.query(`ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS original_content TEXT`);
             console.log('✅ upload_sessions table migration completed');
         } catch (migrationError) {
             console.warn(`⚠️ upload_sessions migration warning: ${migrationError.message}`);

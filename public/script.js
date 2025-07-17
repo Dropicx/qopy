@@ -338,7 +338,7 @@ class ClipboardApp {
                     }
                     
                     // Show result immediately for all clips accessed via direct link
-                    this.showRetrieveResult(resultData);
+                    await this.showRetrieveResult(resultData);
                 } catch (decryptError) {
                     // For auto-retrieve, don't show error - let user manually retrieve
                 }
@@ -535,72 +535,135 @@ class ClipboardApp {
         shareButton.disabled = true;
 
         try {
-            let encryptedContent;
-            let urlSecret = null;
+            // Convert text to file-like object for multi-part upload
+            const textBlob = new Blob([content], { type: 'text/plain; charset=utf-8' });
+            const textFile = new File([textBlob], 'text-content.txt', { type: 'text/plain; charset=utf-8' });
             
-            if (quickShare) {
-                // Quick Share: Generate random secret, encrypt content, and send secret to server
-                const quickShareSecret = this.generateRandomSecret();
-                encryptedContent = await this.encryptContent(content, null, quickShareSecret);
-                // Store the secret to send to server (will be stored in password_hash column)
-                this.currentQuickShareSecret = quickShareSecret;
-                urlSecret = null;
-            } else if (!password) {
-                // Normal clip without password: generate and use URL secret
-                urlSecret = this.generateUrlSecret();
-                encryptedContent = await this.encryptContent(content, null, urlSecret);
-            } else {
-                // Normal mode: Use encryption with password and URL secret
-                urlSecret = this.generateUrlSecret();
-                encryptedContent = await this.encryptContent(content, password, urlSecret);
-            }
+            // Use the existing file upload system for text
+            await this.uploadTextAsFile(textFile, content, password, expiration, oneTime, quickShare);
             
-            // Prepare request body - for text content, send as UTF-8 string
-            const requestBody = {
-                content: content, // Send original text content, not encrypted
-                expiration,
-                oneTime,
-                hasPassword: !!password, // Just indicate if password protection is used
-                quickShare,
-                contentType: 'text' // Explicitly mark as text content
-            };
-
-            // For Quick Share, include the secret to be stored in password_hash column
-            if (quickShare && this.currentQuickShareSecret) {
-                requestBody.quickShareSecret = this.currentQuickShareSecret;
-            }
-
-            const response = await fetch('/api/share', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // For all normal clips (not Quick Share), always add the URL secret as fragment
-                const shareUrl = (!quickShare) ? `${data.url}#${urlSecret}` : data.url;
-                data.url = shareUrl;
-                this.showShareResult(data);
-            } else {
-                if (data.details && data.details.length > 0) {
-                    const errorMessages = data.details.map(detail => detail.msg).join(', ');
-                    throw new Error(`❌ Server validation failed: ${errorMessages}`);
-                } else if (data.message) {
-                    throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
-                } else {
-                    throw new Error(`❌ ${data.error || 'Failed to create clip'}`);
-                }
-            }
         } catch (error) {
             this.showToast(error.message || 'Failed to create share link', 'error');
         } finally {
             this.hideLoading('loading');
             shareButton.disabled = false;
         }
+    }
+
+    // Upload text as file using multi-part upload system
+    async uploadTextAsFile(file, originalContent, password, expiration, oneTime, quickShare) {
+        try {
+            let urlSecret = null;
+            let quickShareSecret = null;
+            
+            // Determine encryption method based on mode
+            if (quickShare) {
+                // Quick Share: Generate random secret, encrypt content
+                quickShareSecret = this.generateRandomSecret();
+                urlSecret = null;
+            } else if (!password) {
+                // Normal clip without password: generate and use URL secret
+                urlSecret = this.generateUrlSecret();
+            } else {
+                // Normal mode: Use encryption with password and URL secret
+                urlSecret = this.generateUrlSecret();
+            }
+
+            // Create upload session
+            const sessionResponse = await fetch('/api/upload/initiate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: 'text-content.txt',
+                    filesize: file.size,
+                    expiration: expiration,
+                    oneTime: oneTime,
+                    hasPassword: !!password,
+                    quickShare: quickShare,
+                    contentType: 'text',
+                    originalContent: originalContent // Store original content for reference
+                })
+            });
+
+            const sessionData = await sessionResponse.json();
+            if (!sessionResponse.ok) {
+                throw new Error(sessionData.message || 'Failed to create upload session');
+            }
+
+            const { uploadId, chunks } = sessionData;
+            console.log(`📝 Starting text upload: ${chunks} chunks, ${file.size} bytes`);
+
+            // Upload chunks
+            const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+            let uploadedChunks = 0;
+
+            for (let i = 0; i < chunks; i++) {
+                const start = i * chunkSize;
+                const end = Math.min(start + chunkSize, file.size);
+                const chunk = file.slice(start, end);
+
+                // Encrypt chunk based on mode
+                let encryptedChunk;
+                if (quickShare) {
+                    encryptedChunk = await this.encryptFileChunk(chunk, null, quickShareSecret);
+                } else if (!password) {
+                    encryptedChunk = await this.encryptFileChunk(chunk, null, urlSecret);
+                } else {
+                    encryptedChunk = await this.encryptFileChunk(chunk, password, urlSecret);
+                }
+
+                // Upload encrypted chunk
+                const formData = new FormData();
+                formData.append('chunk', new Blob([encryptedChunk]));
+                formData.append('chunkNumber', i + 1);
+
+                const chunkResponse = await fetch(`/api/upload/chunk/${uploadId}/${i + 1}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!chunkResponse.ok) {
+                    const errorData = await chunkResponse.json();
+                    throw new Error(errorData.message || `Failed to upload chunk ${i + 1}`);
+                }
+
+                uploadedChunks++;
+                console.log(`📤 Uploaded chunk ${uploadedChunks}/${chunks}`);
+            }
+
+            // Complete upload
+            const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quickShareSecret: quickShareSecret
+                })
+            });
+
+            const completeData = await completeResponse.json();
+            if (!completeResponse.ok) {
+                throw new Error(completeData.message || 'Failed to complete upload');
+            }
+
+            // Add URL secret to share URL for normal clips
+            const shareUrl = (!quickShare) ? `${completeData.url}#${urlSecret}` : completeData.url;
+            completeData.url = shareUrl;
+            
+            this.showShareResult(completeData);
+
+        } catch (error) {
+            console.error('❌ Text upload error:', error);
+            throw error;
+        }
+    }
+
+    // Encrypt file chunk with the same logic as text encryption
+    async encryptFileChunk(chunk, password = null, urlSecret = null) {
+        const arrayBuffer = await chunk.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Use the same encryption logic as text content
+        return await this.encryptContent(uint8Array, password, urlSecret);
     }
 
     // Generate URL secret for enhanced security
@@ -770,7 +833,7 @@ class ClipboardApp {
                         hasFile: !!resultData.file_path,
                         hasRedirectTo: !!resultData.redirectTo
                     });
-                    this.showRetrieveResult(resultData);
+                    await this.showRetrieveResult(resultData);
                 } catch (decryptError) {
                     console.error('❌ Decryption error:', decryptError);
                     if (decryptError.message.includes('password is incorrect')) {
@@ -873,7 +936,7 @@ class ClipboardApp {
     }
 
     // Show Retrieve Result
-    showRetrieveResult(data) {
+    async showRetrieveResult(data) {
         console.log('🎯 showRetrieveResult called with data:', {
             contentType: data.contentType,
             hasContent: !!data.content,
@@ -902,22 +965,34 @@ class ClipboardApp {
 
         console.log('📝 Processing as text content');
 
-        // Handle regular text content
+        // Handle content based on type
         if (data.contentType === 'text' && typeof data.content === 'string') {
+            // Unencrypted text content
             document.getElementById('retrieved-content').textContent = data.content;
-        } else {
-            // Handle binary content (convert back to text if possible)
+        } else if (Array.isArray(data.content)) {
+            // Binary content - could be encrypted text or binary data
             try {
-                if (Array.isArray(data.content)) {
+                // Try to decrypt as text first
+                const urlSecret = this.extractUrlSecret();
+                const password = this.getPasswordFromUser();
+                
+                if (urlSecret || password) {
+                    // Attempt decryption
+                    const decryptedText = await this.decryptContent(data.content, password, urlSecret);
+                    document.getElementById('retrieved-content').textContent = decryptedText;
+                } else {
+                    // No decryption keys available, try to decode as UTF-8
                     const bytes = new Uint8Array(data.content);
                     const text = new TextDecoder('utf-8').decode(bytes);
                     document.getElementById('retrieved-content').textContent = text;
-                } else {
-                    document.getElementById('retrieved-content').textContent = data.content;
                 }
             } catch (error) {
-                document.getElementById('retrieved-content').textContent = '[Binary content - cannot display as text]';
+                console.error('❌ Decryption failed:', error);
+                document.getElementById('retrieved-content').textContent = '[Encrypted content - decryption failed]';
             }
+        } else {
+            // Fallback
+            document.getElementById('retrieved-content').textContent = data.content || '[No content]';
         }
         
         // Use current time as created time since API doesn't provide it
