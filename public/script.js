@@ -616,9 +616,9 @@ class ClipboardApp {
                 // Upload encrypted chunk
                 const formData = new FormData();
                 formData.append('chunk', new Blob([encryptedChunk]));
-                formData.append('chunkNumber', i + 1);
+                formData.append('chunkNumber', i); // statt i + 1
 
-                const chunkResponse = await fetch(`/api/upload/chunk/${uploadId}/${i + 1}`, {
+                const chunkResponse = await fetch(`/api/upload/chunk/${uploadId}/${i}`, {
                     method: 'POST',
                     body: formData
                 });
