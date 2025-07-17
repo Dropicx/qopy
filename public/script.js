@@ -658,6 +658,8 @@ class ClipboardApp {
         const clipId = document.getElementById('clip-id-input').value.trim();
         const password = document.getElementById('retrieve-password-input').value.trim();
 
+        console.log('🔍 Starting retrieveContent with:', { clipId, hasPassword: !!password });
+
         // Enhanced validation with specific error messages
         if (!clipId) {
             this.showToast('❌ Please enter a clip ID', 'error');
@@ -701,9 +703,11 @@ class ClipboardApp {
         try {
             // Extract URL secret from current URL if available
             const urlSecret = this.extractUrlSecret();
+            console.log('🔗 URL secret extracted:', urlSecret ? 'present' : 'none');
             
             // Always use GET - no password needed for server authentication
             // Content is already encrypted client-side
+            console.log('📡 Making API request to:', `/api/clip/${clipId}`);
             const response = await fetch(`/api/clip/${clipId}`, {
                 method: 'GET',
                 headers: {
@@ -711,7 +715,17 @@ class ClipboardApp {
                 }
             });
 
+            console.log('📡 API response status:', response.status);
             const data = await response.json();
+            console.log('📡 API response data:', {
+                contentType: data.contentType,
+                hasContent: !!data.content,
+                hasFile: !!data.file_path,
+                hasRedirectTo: !!data.redirectTo,
+                expiresAt: data.expiresAt,
+                oneTime: data.oneTime,
+                keys: Object.keys(data)
+            });
 
             if (response.ok) {
                 // Decrypt the content before showing
@@ -720,6 +734,7 @@ class ClipboardApp {
                     
                     // Check if this is a Quick Share (4-digit ID) or normal clip
                     if (clipId.length === 4) {
+                        console.log('🔐 Processing Quick Share clip');
                         // Quick Share: Use the secret from server response
                         const quickShareSecret = data.quickShareSecret || data.password_hash;
                         if (!quickShareSecret) {
@@ -727,6 +742,7 @@ class ClipboardApp {
                         }
                         decryptedContent = await this.decryptContent(data.content, null, quickShareSecret);
                     } else {
+                        console.log('🔐 Processing normal clip');
                         // Normal mode: Decrypt the content
                         decryptedContent = await this.decryptContent(data.content, password, urlSecret);
                     }
@@ -736,8 +752,15 @@ class ClipboardApp {
                         ...data,
                         content: decryptedContent
                     };
+                    console.log('✅ Decryption successful, calling showRetrieveResult with:', {
+                        contentType: resultData.contentType,
+                        hasContent: !!resultData.content,
+                        hasFile: !!resultData.file_path,
+                        hasRedirectTo: !!resultData.redirectTo
+                    });
                     this.showRetrieveResult(resultData);
                 } catch (decryptError) {
+                    console.error('❌ Decryption error:', decryptError);
                     if (decryptError.message.includes('password is incorrect')) {
                         throw new Error('❌ Wrong password or URL secret');
                     } else if (decryptError.message.includes('corrupted')) {
@@ -749,6 +772,7 @@ class ClipboardApp {
                     }
                 }
             } else {
+                console.error('❌ API error response:', data);
                 if (data.message) {
                     throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
                 } else {
@@ -756,21 +780,13 @@ class ClipboardApp {
                 }
             }
         } catch (error) {
+            console.error('❌ retrieveContent error:', error);
             this.showToast(error.message || '❌ Failed to retrieve content', 'error');
             document.getElementById('content-result').classList.add('hidden');
         } finally {
             this.hideLoading('retrieve-loading');
             retrieveButton.disabled = false;
         }
-    }
-
-    // Extract URL secret from current URL fragment
-    extractUrlSecret() {
-        const hash = window.location.hash;
-        if (hash && hash.length > 1) {
-            return hash.substring(1); // Remove the # symbol
-        }
-        return null;
     }
 
     // Show Share Result Modal
@@ -846,11 +862,29 @@ class ClipboardApp {
 
     // Show Retrieve Result
     showRetrieveResult(data) {
+        console.log('🎯 showRetrieveResult called with data:', {
+            contentType: data.contentType,
+            hasContent: !!data.content,
+            hasFile: !!data.file_path,
+            hasRedirectTo: !!data.redirectTo,
+            keys: Object.keys(data)
+        });
+
         // Check if this is a file redirect
         if (data.contentType === 'file' && data.redirectTo) {
+            console.log('📁 Detected file content, calling handleFileDownload');
             this.handleFileDownload(data);
             return;
         }
+
+        // Check if this is a file by checking for file_path
+        if (data.file_path) {
+            console.log('📁 Detected file by file_path, calling handleFileDownload');
+            this.handleFileDownload(data);
+            return;
+        }
+
+        console.log('📝 Processing as text content');
 
         // Handle regular text content
         if (data.contentType === 'text' && typeof data.content === 'string') {
@@ -1468,11 +1502,20 @@ class ClipboardApp {
 
     // Handle File Download
     async handleFileDownload(data) {
-        console.log('🗂️ Handling file download:', data);
+        console.log('🗂️ handleFileDownload called with data:', {
+            filename: data.filename,
+            filesize: data.filesize,
+            file_path: data.file_path,
+            redirectTo: data.redirectTo,
+            contentType: data.contentType,
+            keys: Object.keys(data)
+        });
         
         // Create file download UI
         const contentResult = document.getElementById('content-result');
         const retrievedContent = document.getElementById('retrieved-content');
+        
+        console.log('🗂️ Setting up file download UI');
         
         // Hide text content display and show file download interface
         retrievedContent.style.display = 'none';
@@ -1480,10 +1523,13 @@ class ClipboardApp {
         // Create file download section if it doesn't exist
         let fileSection = document.getElementById('file-download-section');
         if (!fileSection) {
+            console.log('🗂️ Creating new file download section');
             fileSection = document.createElement('div');
             fileSection.id = 'file-download-section';
             fileSection.className = 'file-download-section';
             contentResult.appendChild(fileSection);
+        } else {
+            console.log('🗂️ Using existing file download section');
         }
         
         // Create elements safely to prevent XSS
@@ -1509,26 +1555,35 @@ class ClipboardApp {
         const filenameElement = document.getElementById('download-filename');
         const filesizeElement = document.getElementById('download-filesize');
         
+        const filename = data.filename || 'Unknown File';
+        const filesize = data.filesize || 0;
+        
+        console.log('🗂️ Setting file info:', { filename, filesize });
+        
         if (filenameElement) {
-            filenameElement.textContent = data.filename || 'Unknown File';
+            filenameElement.textContent = filename;
         }
         
         if (filesizeElement) {
-            filesizeElement.textContent = this.formatFileSize(data.filesize || 0);
+            filesizeElement.textContent = this.formatFileSize(filesize);
         }
         
         // Add download event listener
         const downloadButton = document.getElementById('download-file-button');
         if (downloadButton) {
+            console.log('🗂️ Adding download button event listener');
             downloadButton.addEventListener('click', async () => {
                 try {
                     const clipId = document.getElementById('clip-id-input').value.trim();
-                    await this.downloadFile(clipId, data.filename);
+                    console.log('🗂️ Download button clicked for clipId:', clipId);
+                    await this.downloadFile(clipId, filename);
                 } catch (error) {
-                    console.error('Download failed:', error);
+                    console.error('❌ Download failed:', error);
                     this.showToast('❌ Download failed: ' + error.message, 'error');
                 }
             });
+        } else {
+            console.error('❌ Download button not found!');
         }
         
         // Add copy URL event listener
@@ -1543,6 +1598,7 @@ class ClipboardApp {
         
         // Show the content result
         contentResult.classList.remove('hidden');
+        console.log('🗂️ File download UI setup complete');
     }
 
     // Format file size for display
@@ -1559,48 +1615,69 @@ class ClipboardApp {
     // Download file functionality
     async downloadFile(clipId, filename) {
         try {
-            console.log('📥 Starting download:', clipId);
+            console.log('📥 downloadFile called with:', { clipId, filename });
             
             // Extract URL secret from current URL
             const urlSecret = this.extractUrlSecret();
             const password = this.getPasswordFromUser();
             
+            console.log('📥 Encryption keys:', { 
+                hasUrlSecret: !!urlSecret, 
+                hasPassword: !!password,
+                urlSecret: urlSecret ? 'present' : 'none'
+            });
+            
             // Start download
+            console.log('📥 Making download request to:', `/api/file/${clipId}`);
             const response = await fetch(`/api/file/${clipId}`);
+            
+            console.log('📥 Download response status:', response.status);
+            console.log('📥 Download response headers:', Object.fromEntries(response.headers.entries()));
             
             if (!response.ok) {
                 const error = await response.json();
+                console.error('❌ Download API error:', error);
                 throw new Error(error.message || 'Download failed');
             }
 
             // Get file data as array buffer
+            console.log('📥 Reading response as array buffer');
             const encryptedData = await response.arrayBuffer();
             const encryptedBytes = new Uint8Array(encryptedData);
+            
+            console.log('📥 Received encrypted data size:', encryptedBytes.length, 'bytes');
             
             let decryptedData;
             
             // Try to decrypt if we have encryption keys
             if (password || urlSecret) {
                 try {
+                    console.log('📥 Attempting to decrypt file data');
                     decryptedData = await this.decryptFile(encryptedBytes, password, urlSecret);
-                    console.log('🔓 File decrypted successfully');
+                    console.log('🔓 File decrypted successfully, size:', decryptedData.length, 'bytes');
                 } catch (decryptError) {
                     console.warn('⚠️ Decryption failed, downloading as-is:', decryptError.message);
                     decryptedData = encryptedBytes;
                 }
             } else {
                 // No encryption keys, download as-is
+                console.log('📥 No encryption keys, downloading as-is');
                 decryptedData = encryptedBytes;
             }
             
             // Create blob from decrypted data
+            console.log('📥 Creating blob from data');
             const blob = new Blob([decryptedData]);
+            console.log('📥 Blob created, size:', blob.size, 'bytes');
             
             // Create download link
+            console.log('📥 Creating download link');
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = filename || `qopy-file-${clipId}`;
+            
+            console.log('📥 Triggering download with filename:', a.download);
             
             // Trigger download
             document.body.appendChild(a);
@@ -1610,7 +1687,7 @@ class ClipboardApp {
             // Clean up
             window.URL.revokeObjectURL(url);
             
-            console.log('✅ Download completed');
+            console.log('✅ Download completed successfully');
             this.showToast('✅ File downloaded successfully!', 'success');
             
         } catch (error) {
@@ -1622,9 +1699,13 @@ class ClipboardApp {
     // Extract URL secret from current URL fragment
     extractUrlSecret() {
         const hash = window.location.hash;
+        console.log('🔗 extractUrlSecret - current hash:', hash);
         if (hash && hash.length > 1) {
-            return hash.substring(1); // Remove the # symbol
+            const secret = hash.substring(1); // Remove the # symbol
+            console.log('🔗 URL secret extracted:', secret ? 'present' : 'none');
+            return secret;
         }
+        console.log('🔗 No URL secret found');
         return null;
     }
 
@@ -1636,6 +1717,12 @@ class ClipboardApp {
 
     // Decrypt file using same algorithm as chunks
     async decryptFile(encryptedBytes, password = null, urlSecret = null) {
+        console.log('🔓 decryptFile called with:', {
+            dataSize: encryptedBytes.length,
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
+
         if (!password && !urlSecret) {
             throw new Error('No decryption keys available');
         }
@@ -1648,31 +1735,47 @@ class ClipboardApp {
 
             const iv = encryptedBytes.slice(0, 12);
             const encryptedData = encryptedBytes.slice(12);
+            
+            console.log('🔓 Extracted IV and encrypted data:', {
+                ivLength: iv.length,
+                encryptedDataLength: encryptedData.length
+            });
 
             // Generate decryption key
+            console.log('🔓 Generating decryption key');
             const key = await this.generateDecryptionKey(password, urlSecret);
+            console.log('🔓 Decryption key generated successfully');
 
             // Decrypt the data
+            console.log('🔓 Starting decryption with AES-GCM');
             const decryptedData = await window.crypto.subtle.decrypt(
                 { name: 'AES-GCM', iv: iv },
                 key,
                 encryptedData
             );
 
+            console.log('🔓 Decryption successful, result size:', decryptedData.byteLength);
             return new Uint8Array(decryptedData);
 
         } catch (error) {
+            console.error('❌ Decryption error:', error);
             throw new Error('Decryption failed: ' + error.message);
         }
     }
 
     // Generate decryption key (same as upload)
     async generateDecryptionKey(password = null, urlSecret = null) {
+        console.log('🔑 generateDecryptionKey called with:', {
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
+
         const encoder = new TextEncoder();
         
         let keyMaterial;
         if (password && urlSecret) {
             // Password + URL secret mode
+            console.log('🔑 Using password + URL secret mode');
             const combined = password + '|' + urlSecret;
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
@@ -1683,6 +1786,7 @@ class ClipboardApp {
             );
         } else if (urlSecret) {
             // URL secret only mode
+            console.log('🔑 Using URL secret only mode');
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
                 encoder.encode(urlSecret),
@@ -1692,6 +1796,7 @@ class ClipboardApp {
             );
         } else if (password) {
             // Password only mode (should not happen for files, but handle it)
+            console.log('🔑 Using password only mode');
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
                 encoder.encode(password),
@@ -1703,8 +1808,9 @@ class ClipboardApp {
             throw new Error('Either password or URL secret must be provided');
         }
         
+        console.log('🔑 Deriving key with PBKDF2');
         // Derive key using PBKDF2
-        return await window.crypto.subtle.deriveKey(
+        const derivedKey = await window.crypto.subtle.deriveKey(
             {
                 name: 'PBKDF2',
                 salt: encoder.encode('qopy-salt-v1'),
@@ -1716,6 +1822,9 @@ class ClipboardApp {
             false,
             ['encrypt', 'decrypt']
         );
+        
+        console.log('🔑 Key derivation successful');
+        return derivedKey;
     }
 }
 
