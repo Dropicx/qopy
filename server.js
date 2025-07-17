@@ -700,12 +700,12 @@ app.post('/api/upload/initiate', [
         await pool.query(`
             INSERT INTO upload_sessions 
             (upload_id, filename, original_filename, filesize, mime_type, chunk_size, total_chunks, 
-             has_password, one_time, is_text_content, expiration_time, created_at, last_activity)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             has_password, one_time, quick_share, is_text_content, expiration_time, created_at, last_activity)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         `, [
             uploadId, sessionData.filename, sessionData.original_filename, filesize, sessionData.mime_type,
             CHUNK_SIZE, totalChunks, hasPassword || false, oneTime || false, 
-            isTextContent || false, expirationTime, Date.now(), Date.now()
+            false, isTextContent || false, expirationTime, Date.now(), Date.now()
         ]);
 
         // Cache in Redis
@@ -2410,6 +2410,108 @@ async function startServer() {
         // Ensure storage directory exists
         await initializeStorage();
 
+        // ========================================
+        // SPALTENABGLEICHUNG: upload_sessions
+        // ========================================
+        // Schema-Definition (CREATE TABLE):
+        const SCHEMA_COLUMNS = [
+            'id', 'upload_id', 'filename', 'original_filename', 'filesize', 
+            'mime_type', 'chunk_size', 'total_chunks', 'uploaded_chunks', 
+            'checksums', 'status', 'expiration_time', 'has_password', 
+            'one_time', 'quick_share', 'is_text_content', 'client_ip', 
+            'created_at', 'last_activity', 'completed_at'
+        ];
+
+        // Code-Verwendung (INSERT Statements):
+        const INSERT_COLUMNS_1 = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type', 
+            'chunk_size', 'total_chunks', 'has_password', 'one_time', 
+            'quick_share', 'is_text_content', 'expiration_time', 'created_at', 'last_activity'
+        ];
+
+        const INSERT_COLUMNS_2 = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type', 
+            'chunk_size', 'total_chunks', 'expiration_time', 'has_password', 
+            'one_time', 'quick_share', 'client_ip', 'created_at', 'last_activity'
+        ];
+
+        // Code-Verwendung (session. Eigenschaften):
+        const SESSION_PROPERTIES = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type',
+            'chunk_size', 'total_chunks', 'uploaded_chunks', 'status', 
+            'expiration_time', 'has_password', 'one_time', 'quick_share', 
+            'is_text_content', 'client_ip', 'created_at', 'last_activity', 'completed_at'
+        ];
+
+        // Prüfe auf fehlende Spalten im Schema
+        const missingInSchema = [...new Set([...INSERT_COLUMNS_1, ...INSERT_COLUMNS_2, ...SESSION_PROPERTIES])]
+            .filter(col => !SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im Schema: ${missingInSchema.join(', ')}`);
+        }
+
+        // Prüfe auf ungenutzte Spalten im Schema
+        const unusedInSchema = SCHEMA_COLUMNS.filter(col => 
+            !INSERT_COLUMNS_1.includes(col) && 
+            !INSERT_COLUMNS_2.includes(col) && 
+            !SESSION_PROPERTIES.includes(col)
+        );
+        
+        if (unusedInSchema.length > 0) {
+            console.warn(`⚠️ Ungenutzte Spalten im Schema: ${unusedInSchema.join(', ')}`);
+        }
+
+        console.log('✅ Spaltenabgleichung upload_sessions abgeschlossen');
+
+        // ========================================
+        // SPALTENABGLEICHUNG: file_chunks
+        // ========================================
+        const CHUNKS_SCHEMA_COLUMNS = [
+            'id', 'upload_id', 'chunk_number', 'chunk_size', 'checksum', 
+            'storage_path', 'created_at'
+        ];
+
+        const CHUNKS_INSERT_COLUMNS = [
+            'upload_id', 'chunk_number', 'chunk_size', 'checksum', 'storage_path', 'created_at'
+        ];
+
+        const CHUNKS_SESSION_PROPERTIES = [
+            'upload_id', 'chunk_number', 'chunk_size', 'checksum', 'storage_path', 'created_at'
+        ];
+
+        const missingInChunksSchema = [...new Set([...CHUNKS_INSERT_COLUMNS, ...CHUNKS_SESSION_PROPERTIES])]
+            .filter(col => !CHUNKS_SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInChunksSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im file_chunks Schema: ${missingInChunksSchema.join(', ')}`);
+        }
+
+        console.log('✅ Spaltenabgleichung file_chunks abgeschlossen');
+
+        // ========================================
+        // SPALTENABGLEICHUNG: clips
+        // ========================================
+        const CLIPS_SCHEMA_COLUMNS = [
+            'id', 'clip_id', 'content', 'password_hash', 'one_time', 'quick_share', 
+            'expiration_time', 'access_count', 'max_accesses', 'client_ip', 
+            'created_at', 'last_accessed', 'content_type', 'file_metadata', 
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'upload_id', 'is_file'
+        ];
+
+        const CLIPS_INSERT_COLUMNS = [
+            'clip_id', 'content', 'expiration_time', 'password_hash', 'one_time', 'created_at',
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'file_metadata'
+        ];
+
+        const missingInClipsSchema = CLIPS_INSERT_COLUMNS.filter(col => !CLIPS_SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInClipsSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im clips Schema: ${missingInClipsSchema.join(', ')}`);
+        }
+
+        console.log('✅ Spaltenabgleichung clips abgeschlossen');
+
         // Create statistics table if it doesn't exist
         await client.query(`
             CREATE TABLE IF NOT EXISTS statistics (
@@ -2442,6 +2544,7 @@ async function startServer() {
                 has_password BOOLEAN DEFAULT false,
                 one_time BOOLEAN DEFAULT false,
                 quick_share BOOLEAN DEFAULT false,
+                is_text_content BOOLEAN DEFAULT false,
                 client_ip VARCHAR(45),
                 created_at BIGINT NOT NULL,
                 last_activity BIGINT NOT NULL,
@@ -2491,6 +2594,7 @@ async function startServer() {
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS upload_id VARCHAR(50)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_file BOOLEAN DEFAULT false`);
             console.log('✅ Clips table extended with file metadata columns');
         } catch (alterError) {
             console.warn(`⚠️ Clips table extension warning: ${alterError.message}`);
