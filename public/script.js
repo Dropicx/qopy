@@ -469,7 +469,7 @@ class ClipboardApp {
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Show password section ONLY if clip has password
+                    // Show password section if clip has password (for both text and encrypted files)
                     if (data.hasPassword) {
                         if (passwordSection) {
                             passwordSection.classList.remove('hidden');
@@ -478,7 +478,7 @@ class ClipboardApp {
                             passwordInput.focus();
                         }
                     }
-                    // If no password, password section stays hidden (default behavior)
+                    // If no password, password section stays hidden
                 } else {
                     // Clip not found or expired - password section stays hidden
                 }
@@ -945,9 +945,9 @@ class ClipboardApp {
             keys: Object.keys(data)
         });
 
-        // Check if this is a file redirect
+        // Check if this is a file redirect (for files stored on disk)
         if (data.contentType === 'file' && data.redirectTo) {
-            console.log('📁 Detected file content, calling handleFileDownload');
+            console.log('📁 Detected file content with redirect, calling handleFileDownload');
             // Immediately hide all text elements before calling handleFileDownload
             this.hideAllTextElements();
             this.handleFileDownload(data);
@@ -957,6 +957,15 @@ class ClipboardApp {
         // Check if this is a file by checking for file_path
         if (data.file_path) {
             console.log('📁 Detected file by file_path, calling handleFileDownload');
+            // Immediately hide all text elements before calling handleFileDownload
+            this.hideAllTextElements();
+            this.handleFileDownload(data);
+            return;
+        }
+
+        // Check if this is a file by checking for filename and filesize (for multi-part uploads)
+        if (data.filename && data.filesize && data.contentType !== 'text') {
+            console.log('📁 Detected file by filename/filesize, calling handleFileDownload');
             // Immediately hide all text elements before calling handleFileDownload
             this.hideAllTextElements();
             this.handleFileDownload(data);
@@ -1091,6 +1100,9 @@ class ClipboardApp {
         if (oneTimeNotice) {
             oneTimeNotice.style.display = 'none';
         }
+
+        // Note: Password section visibility is handled by checkClipId function
+        // which shows it only for text content with passwords, not for files
     }
 
     // Copy to Clipboard
