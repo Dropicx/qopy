@@ -573,47 +573,6 @@
                 </div>
             </div>
 
-            <!-- Success Modal -->
-            <div id="success-modal" class="modal hidden">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>✅ Link Created Successfully!</h3>
-                        <button id="close-modal" class="close-button">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="result-section">
-                            <p id="success-message" class="success-message">File uploaded successfully!</p>
-                        </div>
-                        
-                        <div class="result-section">
-                            <label class="label">Share URL:</label>
-                            <div class="copy-container">
-                                <input type="text" id="share-url" readonly class="copy-input">
-                                <button id="copy-url-button" class="copy-button">Copy</button>
-                            </div>
-                        </div>
-
-                        <div class="result-section" id="clip-id-section" style="display: none;">
-                            <label class="label">Clip ID:</label>
-                            <div class="copy-container">
-                                <input type="text" id="clip-id" readonly class="copy-input">
-                                <button id="copy-id-button" class="copy-button">Copy</button>
-                            </div>
-                        </div>
-
-                        <div class="result-section">
-                            <label class="label">QR Code for mobile sharing:</label>
-                            <div class="qr-container">
-                                <img id="qr-code" alt="QR Code" class="qr-image">
-                            </div>
-                        </div>
-
-                        <div class="expiry-info">
-                            <p>⏰ Expires: <span id="expiry-time"></span></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </main>
 
         <!-- File Sharing Tab -->
@@ -781,6 +740,48 @@
                 </div>
             </div>
         </main>
+
+        <!-- Success Modal (Global) -->
+        <div id="success-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>✅ Link Created Successfully!</h3>
+                    <button id="close-modal" class="close-button">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="result-section">
+                        <p id="success-message" class="success-message">File uploaded successfully!</p>
+                    </div>
+                    
+                    <div class="result-section">
+                        <label class="label">Share URL:</label>
+                        <div class="copy-container">
+                            <input type="text" id="share-url" readonly class="copy-input">
+                            <button id="copy-url-button" class="copy-button">Copy</button>
+                        </div>
+                    </div>
+
+                    <div class="result-section" id="clip-id-section" style="display: none;">
+                        <label class="label">Clip ID:</label>
+                        <div class="copy-container">
+                            <input type="text" id="clip-id" readonly class="copy-input">
+                            <button id="copy-id-button" class="copy-button">Copy</button>
+                        </div>
+                    </div>
+
+                    <div class="result-section">
+                        <label class="label">QR Code for mobile sharing:</label>
+                        <div class="qr-container">
+                            <img id="qr-code" alt="QR Code" class="qr-image">
+                        </div>
+                    </div>
+
+                    <div class="expiry-info">
+                        <p>⏰ Expires: <span id="expiry-time"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Error Toast -->
         <div id="error-toast" class="toast error hidden">
