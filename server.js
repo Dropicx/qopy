@@ -2465,14 +2465,37 @@ async function startServer() {
             )
         `);
 
-        // Extend clips table for file metadata
-        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) DEFAULT 'text'`);
-        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_metadata JSONB`);
-        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)`);
-        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255)`);
-        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)`);
-        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT`);
-        await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS upload_id VARCHAR(50)`);
+        // Create clips table if it doesn't exist (base table for text sharing)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS clips (
+                id SERIAL PRIMARY KEY,
+                clip_id VARCHAR(10) UNIQUE NOT NULL,
+                content TEXT NOT NULL,
+                password_hash VARCHAR(255),
+                one_time BOOLEAN DEFAULT false,
+                quick_share BOOLEAN DEFAULT false,
+                expiration_time BIGINT NOT NULL,
+                access_count INTEGER DEFAULT 0,
+                max_accesses INTEGER DEFAULT 1,
+                client_ip VARCHAR(45),
+                created_at BIGINT NOT NULL,
+                last_accessed BIGINT
+            )
+        `);
+
+        // Extend clips table for file metadata (only if table exists)
+        try {
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) DEFAULT 'text'`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_metadata JSONB`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS upload_id VARCHAR(50)`);
+            console.log('✅ Clips table extended with file metadata columns');
+        } catch (alterError) {
+            console.warn(`⚠️ Clips table extension warning: ${alterError.message}`);
+        }
         
         // Initialize statistics if table is empty
         const statsCheck = await client.query('SELECT COUNT(*) as count FROM statistics');
