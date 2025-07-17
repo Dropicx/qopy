@@ -2552,6 +2552,14 @@ async function startServer() {
             )
         `);
 
+        // Migrate existing upload_sessions table if needed
+        try {
+            await client.query(`ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS is_text_content BOOLEAN DEFAULT false`);
+            console.log('✅ upload_sessions table migration completed');
+        } catch (migrationError) {
+            console.warn(`⚠️ upload_sessions migration warning: ${migrationError.message}`);
+        }
+
         // Create file_chunks table for storing upload chunks
         await client.query(`
             CREATE TABLE IF NOT EXISTS file_chunks (
