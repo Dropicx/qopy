@@ -51,15 +51,17 @@
 - [ ] Fallback auf Memory-Cache implementiert
 
 #### Volume Storage
-- [ ] Volume erstellt: `/app/uploads`
-- [ ] Environment Variable: `RAILWAY_VOLUME_MOUNT_PATH=/app/uploads`
+- [ ] Volume Plugin hinzugefügt in Railway Dashboard
+- [ ] Volume mount path notiert (z.B. `/var/lib/containers/railwayapp/bind-mounts/...`)
+- [ ] Environment Variable gesetzt: `RAILWAY_VOLUME_MOUNT_PATH=/var/lib/containers/railwayapp/bind-mounts/[VOLUME_ID]`
 - [ ] Mindestens 10GB Speicher
+- [ ] Deployment nach Volume-Erstellung neu gestartet
 
 #### Environment Variables
 ```bash
 DATABASE_URL=postgresql://...     # Automatisch
 REDIS_URL=redis://...            # Automatisch
-RAILWAY_VOLUME_MOUNT_PATH=/app/uploads
+RAILWAY_VOLUME_MOUNT_PATH=/var/lib/containers/railwayapp/bind-mounts/[VOLUME_ID]
 NODE_ENV=production
 PORT=8080                        # Automatisch
 ```
@@ -233,6 +235,45 @@ railway logs
 #### Storage Limitations
 - **Railway**: Volume storage up to 100GB
 - **Cleanup**: Automatic cleanup every 5 minutes
+
+### 🔧 **Troubleshooting Common Issues**
+
+#### Railway Volume Permission Error
+**Error**: `EACCES: permission denied, mkdir '/app/uploads/chunks'`
+
+**Solution**:
+1. ✅ **Volume Plugin Setup**:
+   - Go to Railway Dashboard → Your Project → Plugins
+   - Add "Volume" plugin
+   - Note the mount path (e.g., `/var/lib/containers/railwayapp/bind-mounts/f6e63938-971d-40bc-995a-ea148886f6fb/vol_tmztwgoe8c4ndu43`)
+
+2. ✅ **Environment Variable**:
+   - Set `RAILWAY_VOLUME_MOUNT_PATH` to the exact mount path from step 1
+   - Example: `RAILWAY_VOLUME_MOUNT_PATH=/var/lib/containers/railwayapp/bind-mounts/f6e63938-971d-40bc-995a-ea148886f6fb/vol_tmztwgoe8c4ndu43`
+
+3. ✅ **Restart Deployment**:
+   - After setting the environment variable, restart the deployment
+   - The server will now use the correct volume path
+
+4. ✅ **Verify Setup**:
+   - Check logs for: `✅ Storage directories initialized at: [VOLUME_PATH]`
+   - Test file upload functionality
+
+#### Database Connection Issues
+**Error**: `DATABASE_URL environment variable is required`
+
+**Solution**:
+1. Add PostgreSQL plugin in Railway Dashboard
+2. `DATABASE_URL` will be automatically set
+3. Restart deployment
+
+#### Redis Connection Issues
+**Error**: Redis connection failures
+
+**Solution**:
+1. Add Redis plugin in Railway Dashboard (optional)
+2. `REDIS_URL` will be automatically set
+3. Application falls back to in-memory cache if Redis unavailable
 
 ### 🆘 **Rollback Plan**
 

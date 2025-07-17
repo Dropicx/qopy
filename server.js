@@ -59,12 +59,41 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 // Ensure storage directories exist
 async function initializeStorage() {
     try {
-        await fs.ensureDir(path.join(STORAGE_PATH, 'chunks'));
-        await fs.ensureDir(path.join(STORAGE_PATH, 'files'));
-        console.log('✅ Storage directories initialized');
+        // For Railway, use the volume mount path directly
+        // Railway volumes are mounted at the specified path and are writable
+        const chunksDir = path.join(STORAGE_PATH, 'chunks');
+        const filesDir = path.join(STORAGE_PATH, 'files');
+        
+        // Create directories with proper error handling
+        await fs.ensureDir(chunksDir);
+        await fs.ensureDir(filesDir);
+        
+        // Test write permissions
+        const testFile = path.join(chunksDir, '.test');
+        await fs.writeFile(testFile, 'test');
+        await fs.remove(testFile);
+        
+        console.log(`✅ Storage directories initialized at: ${STORAGE_PATH}`);
+        console.log(`   - Chunks: ${chunksDir}`);
+        console.log(`   - Files: ${filesDir}`);
     } catch (error) {
         console.error('❌ Failed to initialize storage:', error);
-        process.exit(1);
+        
+        // Provide helpful error message for Railway deployment
+        if (error.code === 'EACCES') {
+            console.error('💡 Railway Volume Setup Issue:');
+            console.error('   1. Make sure you have added a Volume plugin in Railway dashboard');
+            console.error('   2. Set RAILWAY_VOLUME_MOUNT_PATH environment variable to the volume path');
+            console.error('   3. The volume path should be something like: /var/lib/containers/railwayapp/bind-mounts/...');
+            console.error('   4. Restart the deployment after adding the volume');
+        }
+        
+        // Don't exit in development, but warn
+        if (process.env.NODE_ENV === 'production') {
+            process.exit(1);
+        } else {
+            console.warn('⚠️ Continuing without file upload support in development mode');
+        }
     }
 }
 
