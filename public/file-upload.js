@@ -301,25 +301,55 @@ class FileUploadManager {
             hasUrlSecret: !!encryptionOptions.urlSecret
         });
 
-        for (let chunkNumber = 0; chunkNumber < totalChunks; chunkNumber++) {
-            // Calculate chunk boundaries
-            const start = chunkNumber * chunkSize;
-            const end = Math.min(start + chunkSize, file.size);
-            
-            // Extract chunk
-            const chunk = file.slice(start, end);
-            
-            console.log(`📦 Uploading chunk ${chunkNumber + 1}/${totalChunks} (${this.formatFileSize(chunk.size)})`);
-            
-            // Upload chunk with encryption
-            const result = await this.uploadChunk(uploadId, chunkNumber, chunk, encryptionOptions);
-            checksums[chunkNumber] = result.checksum;
-            
-            // Update progress
-            this.updateProgress(chunkNumber + 1, chunkNumber + 1, totalChunks);
-            
-            // Small delay to prevent overwhelming the server
-            await new Promise(resolve => setTimeout(resolve, 10));
+        // Read entire file and encrypt it as one piece
+        if (encryptionOptions.password || encryptionOptions.urlSecret) {
+            try {
+                console.log('🔐 Encrypting entire file as one piece...');
+                const fileBuffer = await file.arrayBuffer();
+                const fileBytes = new Uint8Array(fileBuffer);
+                
+                console.log('🔐 File size before encryption:', fileBytes.length, 'bytes');
+                const encryptedFile = await this.encryptChunk(fileBytes, encryptionOptions.password, encryptionOptions.urlSecret);
+                console.log('🔐 File size after encryption:', encryptedFile.length, 'bytes');
+                
+                // Create a new File object with encrypted data
+                const encryptedFileBlob = new Blob([encryptedFile]);
+                const encryptedFileObj = new File([encryptedFileBlob], file.name, { type: file.type });
+                
+                // Upload encrypted file as single chunk
+                console.log('📦 Uploading encrypted file as single chunk');
+                const result = await this.uploadChunk(uploadId, 0, encryptedFileObj, {});
+                checksums[0] = result.checksum;
+                
+                // Update progress
+                this.updateProgress(1, 1, 1);
+                
+            } catch (error) {
+                console.error('❌ File encryption failed:', error);
+                throw new Error('Failed to encrypt file: ' + error.message);
+            }
+        } else {
+            // No encryption - upload chunks normally
+            for (let chunkNumber = 0; chunkNumber < totalChunks; chunkNumber++) {
+                // Calculate chunk boundaries
+                const start = chunkNumber * chunkSize;
+                const end = Math.min(start + chunkSize, file.size);
+                
+                // Extract chunk
+                const chunk = file.slice(start, end);
+                
+                console.log(`📦 Uploading chunk ${chunkNumber + 1}/${totalChunks} (${this.formatFileSize(chunk.size)})`);
+                
+                // Upload chunk without encryption
+                const result = await this.uploadChunk(uploadId, chunkNumber, chunk, {});
+                checksums[chunkNumber] = result.checksum;
+                
+                // Update progress
+                this.updateProgress(chunkNumber + 1, chunkNumber + 1, totalChunks);
+                
+                // Small delay to prevent overwhelming the server
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
         }
 
         console.log('✅ All chunks uploaded successfully');
