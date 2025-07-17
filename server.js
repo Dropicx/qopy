@@ -874,12 +874,13 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         // Store clip in database
         await pool.query(`
             INSERT INTO clips 
-            (clip_id, content, expiration_time, password_hash, one_time, created_at,
+            (clip_id, content, content_type, expiration_time, password_hash, one_time, created_at,
              file_path, original_filename, mime_type, filesize, is_file, file_metadata)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         `, [
             clipId,
             content, // null for files, binary data for text
+            isFile ? 'file' : 'text',
             session.expiration_time,
             session.has_password ? 'client-encrypted' : null,
             session.one_time,
@@ -2634,6 +2635,13 @@ async function startServer() {
                 SET is_expired = true 
                 WHERE expiration_time < $1 AND is_expired = false
             `, [Date.now()]);
+            
+            // Fix content_type for existing files (files with file_path but content_type = 'text')
+            await client.query(`
+                UPDATE clips 
+                SET content_type = 'file' 
+                WHERE file_path IS NOT NULL AND content_type = 'text'
+            `);
             
             console.log('✅ Clips table extended with file metadata columns');
         } catch (alterError) {

@@ -1522,13 +1522,8 @@ class ClipboardApp {
         if (downloadButton) {
             downloadButton.addEventListener('click', async () => {
                 try {
-                    if (fileDownloadManager) {
-                        const clipId = document.getElementById('clip-id-input').value.trim();
-                        await fileDownloadManager.downloadFile(clipId, data.filename);
-                    } else {
-                        console.error('File download manager not available');
-                        this.showToast('❌ File download not available', 'error');
-                    }
+                    const clipId = document.getElementById('clip-id-input').value.trim();
+                    await this.downloadFile(clipId, data.filename);
                 } catch (error) {
                     console.error('Download failed:', error);
                     this.showToast('❌ Download failed: ' + error.message, 'error');
@@ -1559,20 +1554,168 @@ class ClipboardApp {
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        
-        // Clear password input
+    }
+
+    // Download file functionality
+    async downloadFile(clipId, filename) {
+        try {
+            console.log('📥 Starting download:', clipId);
+            
+            // Extract URL secret from current URL
+            const urlSecret = this.extractUrlSecret();
+            const password = this.getPasswordFromUser();
+            
+            // Start download
+            const response = await fetch(`/api/file/${clipId}`);
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Download failed');
+            }
+
+            // Get file data as array buffer
+            const encryptedData = await response.arrayBuffer();
+            const encryptedBytes = new Uint8Array(encryptedData);
+            
+            let decryptedData;
+            
+            // Try to decrypt if we have encryption keys
+            if (password || urlSecret) {
+                try {
+                    decryptedData = await this.decryptFile(encryptedBytes, password, urlSecret);
+                    console.log('🔓 File decrypted successfully');
+                } catch (decryptError) {
+                    console.warn('⚠️ Decryption failed, downloading as-is:', decryptError.message);
+                    decryptedData = encryptedBytes;
+                }
+            } else {
+                // No encryption keys, download as-is
+                decryptedData = encryptedBytes;
+            }
+            
+            // Create blob from decrypted data
+            const blob = new Blob([decryptedData]);
+            
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || `qopy-file-${clipId}`;
+            
+            // Trigger download
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Clean up
+            window.URL.revokeObjectURL(url);
+            
+            console.log('✅ Download completed');
+            this.showToast('✅ File downloaded successfully!', 'success');
+            
+        } catch (error) {
+            console.error('❌ Download failed:', error);
+            throw error;
+        }
+    }
+
+    // Extract URL secret from current URL fragment
+    extractUrlSecret() {
+        const hash = window.location.hash;
+        if (hash && hash.length > 1) {
+            return hash.substring(1); // Remove the # symbol
+        }
+        return null;
+    }
+
+    // Get password from user input (if available)
+    getPasswordFromUser() {
         const passwordInput = document.getElementById('retrieve-password-input');
-        if (passwordInput) {
-            passwordInput.value = '';
+        return passwordInput ? passwordInput.value.trim() : null;
+    }
+
+    // Decrypt file using same algorithm as chunks
+    async decryptFile(encryptedBytes, password = null, urlSecret = null) {
+        if (!password && !urlSecret) {
+            throw new Error('No decryption keys available');
+        }
+
+        try {
+            // Extract IV (first 12 bytes) and encrypted data
+            if (encryptedBytes.length < 12) {
+                throw new Error('File too small to be encrypted');
+            }
+
+            const iv = encryptedBytes.slice(0, 12);
+            const encryptedData = encryptedBytes.slice(12);
+
+            // Generate decryption key
+            const key = await this.generateDecryptionKey(password, urlSecret);
+
+            // Decrypt the data
+            const decryptedData = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                encryptedData
+            );
+
+            return new Uint8Array(decryptedData);
+
+        } catch (error) {
+            throw new Error('Decryption failed: ' + error.message);
+        }
+    }
+
+    // Generate decryption key (same as upload)
+    async generateDecryptionKey(password = null, urlSecret = null) {
+        const encoder = new TextEncoder();
+        
+        let keyMaterial;
+        if (password && urlSecret) {
+            // Password + URL secret mode
+            const combined = password + '|' + urlSecret;
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(combined),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else if (urlSecret) {
+            // URL secret only mode
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(urlSecret),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else if (password) {
+            // Password only mode (should not happen for files, but handle it)
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(password),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else {
+            throw new Error('Either password or URL secret must be provided');
         }
         
-        // Focus on content input
-        setTimeout(() => {
-            const contentInput = document.getElementById('content-input');
-            if (contentInput) {
-                contentInput.focus();
-            }
-        }, 100);
+        // Derive key using PBKDF2
+        return await window.crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode('qopy-salt-v1'),
+                iterations: 100000,
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
     }
 }
 
