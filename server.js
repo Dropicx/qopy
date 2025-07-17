@@ -31,6 +31,26 @@ const crypto = require('crypto');
 const mime = require('mime-types');
 const sharp = require('sharp');
 
+// Configure multer for file uploads
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: function (req, file, cb) {
+            // Use a temporary directory for chunk uploads
+            const tempDir = path.join(STORAGE_PATH, 'temp');
+            fs.ensureDirSync(tempDir);
+            cb(null, tempDir);
+        },
+        filename: function (req, file, cb) {
+            // Generate unique filename for temporary storage
+            const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+            cb(null, uniqueName);
+        }
+    }),
+    limits: {
+        fileSize: CHUNK_SIZE // 5MB per chunk
+    }
+});
+
 // Redis setup (optional, falls verfügbar)
 let redis = null;
 try {
@@ -67,6 +87,7 @@ async function initializeStorage() {
         // Create directories with proper error handling
         await fs.ensureDir(chunksDir);
         await fs.ensureDir(filesDir);
+        await fs.ensureDir(path.join(STORAGE_PATH, 'temp'));
         
         // Test write permissions
         const testFile = path.join(chunksDir, '.test');
@@ -76,6 +97,7 @@ async function initializeStorage() {
         console.log(`✅ Storage directories initialized at: ${STORAGE_PATH}`);
         console.log(`   - Chunks: ${chunksDir}`);
         console.log(`   - Files: ${filesDir}`);
+        console.log(`   - Temp: ${path.join(STORAGE_PATH, 'temp')}`);
     } catch (error) {
         console.error('❌ Failed to initialize storage:', error);
         
@@ -858,7 +880,7 @@ app.post('/api/upload/initiate', [
 });
 
 // Upload chunk
-app.post('/api/upload/chunk/:uploadId/:chunkNumber', async (req, res) => {
+app.post('/api/upload/chunk/:uploadId/:chunkNumber', upload.single('chunk'), async (req, res) => {
     try {
         const { uploadId, chunkNumber } = req.params;
         const chunkNum = parseInt(chunkNumber);
@@ -892,53 +914,53 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', async (req, res) => {
             });
         }
 
-        // Read chunk data from request body
-        const chunks = [];
-        req.on('data', chunk => chunks.push(chunk));
-        req.on('end', async () => {
-            try {
-                const chunkData = Buffer.concat(chunks);
-                
-                // Validate chunk size
-                if (chunkData.length > CHUNK_SIZE) {
-                    return res.status(400).json({
-                        error: 'Chunk too large',
-                        maxSize: CHUNK_SIZE
-                    });
-                }
+        // Check if file was uploaded
+        if (!req.file) {
+            return res.status(400).json({
+                error: 'No chunk file provided',
+                message: 'Chunk file is required'
+            });
+        }
 
-                // Generate checksum
-                const checksum = crypto.createHash('sha256').update(chunkData).digest('hex');
-                
-                // Save chunk to file
-                const chunkPath = await saveChunkToFile(uploadId, chunkNum, chunkData);
-                
-                // Store chunk metadata
-                await pool.query(
-                    'INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
-                    [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]
-                );
+        // Read chunk data from uploaded file
+        const chunkData = await fs.readFile(req.file.path);
+        
+        // Validate chunk size
+        if (chunkData.length > CHUNK_SIZE) {
+            // Clean up uploaded file
+            await fs.unlink(req.file.path);
+            return res.status(400).json({
+                error: 'Chunk too large',
+                maxSize: CHUNK_SIZE
+            });
+        }
 
-                // Update session
-                await updateUploadSession(uploadId, {
-                    uploaded_chunks: session.uploaded_chunks + 1,
-                    status: session.uploaded_chunks + 1 >= session.total_chunks ? 'ready' : 'uploading'
-                });
+        // Generate checksum
+        const checksum = crypto.createHash('sha256').update(chunkData).digest('hex');
+        
+        // Save chunk to file
+        const chunkPath = await saveChunkToFile(uploadId, chunkNum, chunkData);
+        
+        // Clean up temporary uploaded file
+        await fs.unlink(req.file.path);
+        
+        // Store chunk metadata
+        await pool.query(
+            'INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+            [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]
+        );
 
-                res.json({
-                    success: true,
-                    chunkNumber: chunkNum,
-                    received: true,
-                    checksum
-                });
+        // Update session
+        await updateUploadSession(uploadId, {
+            uploaded_chunks: session.uploaded_chunks + 1,
+            status: session.uploaded_chunks + 1 >= session.total_chunks ? 'ready' : 'uploading'
+        });
 
-            } catch (error) {
-                console.error('❌ Error saving chunk:', error.message);
-                res.status(500).json({
-                    error: 'Internal server error',
-                    message: 'Failed to save chunk'
-                });
-            }
+        res.json({
+            success: true,
+            chunkNumber: chunkNum,
+            received: true,
+            checksum
         });
 
     } catch (error) {
