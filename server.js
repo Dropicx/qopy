@@ -973,6 +973,9 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         // Assemble file
         const filePath = await assembleFile(uploadId, session);
         
+        // Get actual file size (may be different from original if encrypted)
+        const actualFileSize = (await fs.stat(filePath)).size;
+        
         // Create clip
         const clipId = generateClipId(false); // Always use normal clip ID for files
         
@@ -1007,11 +1010,13 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             isFile ? filePath : null,
             session.original_filename,
             session.mime_type,
-            session.filesize,
+            actualFileSize, // Use actual file size (encrypted if applicable)
             isFile,
             JSON.stringify({
                 uploadId,
-                originalUploadSession: true
+                originalUploadSession: true,
+                originalFileSize: session.filesize, // Store original size in metadata
+                actualFileSize: actualFileSize
             })
         ]);
 
@@ -1039,7 +1044,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             clipId,
             url: `${req.protocol}://${req.get('host')}/file/${clipId}`,
             filename: session.original_filename,
-            filesize: session.filesize,
+            filesize: session.filesize, // Return original size for display
             expiresAt: session.expiration_time,
             isFile: isFile
         });
