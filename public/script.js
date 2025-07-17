@@ -969,6 +969,10 @@ class ClipboardApp {
         const createdTimeSection = document.getElementById('created-time-section');
         const expiresTimeSection = document.getElementById('expires-time-section');
         const oneTimeNotice = document.getElementById('one-time-notice');
+        const resultHeader = document.querySelector('.result-header');
+        const contentDisplay = document.querySelector('.content-display');
+        const contentInfo = document.querySelector('.content-info');
+        const newPasteSection = document.querySelector('.new-paste-section');
         
         console.log('🗂️ Hiding all text-related elements');
         
@@ -982,7 +986,27 @@ class ClipboardApp {
             copyContentButton.style.display = 'none';
         }
         
-        // Hide time sections
+        // Hide result header (contains "Retrieved Content:" label and copy button)
+        if (resultHeader) {
+            resultHeader.style.display = 'none';
+        }
+        
+        // Hide content display container
+        if (contentDisplay) {
+            contentDisplay.style.display = 'none';
+        }
+        
+        // Hide content info (Created/Expires times)
+        if (contentInfo) {
+            contentInfo.style.display = 'none';
+        }
+        
+        // Hide new paste section
+        if (newPasteSection) {
+            newPasteSection.style.display = 'none';
+        }
+        
+        // Hide time sections (if they exist as separate elements)
         if (createdTimeSection) {
             createdTimeSection.style.display = 'none';
         }
