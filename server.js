@@ -763,19 +763,18 @@ async function getUploadSession(uploadId) {
 
 async function updateUploadSession(uploadId, updates) {
     console.log(`🔄 Updating upload session: ${uploadId}, uploaded_chunks: ${updates.uploaded_chunks}, status: ${updates.status}`);
-    
     await pool.query(
         'UPDATE upload_sessions SET uploaded_chunks = $1, last_activity = $2, status = $3 WHERE upload_id = $4',
         [updates.uploaded_chunks, Date.now(), updates.status || 'uploading', uploadId]
     );
-    
     if (redis) {
-        const session = await getUploadSession(uploadId);
+        // Hole Session direkt aus der Datenbank, nicht aus Redis!
+        const result = await pool.query('SELECT * FROM upload_sessions WHERE upload_id = $1', [uploadId]);
+        const session = result.rows[0];
         if (session) {
-            await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify({...session, ...updates}));
+            await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(session));
         }
     }
-    
     console.log(`✅ Upload session updated: ${uploadId}`);
 }
 
