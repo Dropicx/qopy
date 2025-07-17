@@ -469,8 +469,9 @@ class ClipboardApp {
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Show password section if clip has password (for both text and encrypted files)
-                    if (data.hasPassword) {
+                    // Show password section ONLY for text content with passwords
+                    // Files handle their own password logic in showRetrieveResult
+                    if (data.hasPassword && data.contentType === 'text') {
                         if (passwordSection) {
                             passwordSection.classList.remove('hidden');
                         }
@@ -478,7 +479,7 @@ class ClipboardApp {
                             passwordInput.focus();
                         }
                     }
-                    // If no password, password section stays hidden
+                    // For files, we'll handle password display in showRetrieveResult
                 } else {
                     // Clip not found or expired - password section stays hidden
                 }
@@ -948,6 +949,8 @@ class ClipboardApp {
         // Check if this is a file redirect (for files stored on disk)
         if (data.contentType === 'file' && data.redirectTo) {
             console.log('📁 Detected file content with redirect, calling handleFileDownload');
+            // Check if this file needs password
+            this.checkFilePasswordRequirement(data);
             // Immediately hide all text elements before calling handleFileDownload
             this.hideAllTextElements();
             this.handleFileDownload(data);
@@ -957,6 +960,8 @@ class ClipboardApp {
         // Check if this is a file by checking for file_path
         if (data.file_path) {
             console.log('📁 Detected file by file_path, calling handleFileDownload');
+            // Check if this file needs password
+            this.checkFilePasswordRequirement(data);
             // Immediately hide all text elements before calling handleFileDownload
             this.hideAllTextElements();
             this.handleFileDownload(data);
@@ -966,6 +971,8 @@ class ClipboardApp {
         // Check if this is a file by checking for filename and filesize (for multi-part uploads)
         if (data.filename && data.filesize && data.contentType !== 'text') {
             console.log('📁 Detected file by filename/filesize, calling handleFileDownload');
+            // Check if this file needs password
+            this.checkFilePasswordRequirement(data);
             // Immediately hide all text elements before calling handleFileDownload
             this.hideAllTextElements();
             this.handleFileDownload(data);
@@ -1042,6 +1049,33 @@ class ClipboardApp {
         
         // Scroll to result
         document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Check if a file requires password input
+    checkFilePasswordRequirement(data) {
+        const passwordSection = document.getElementById('password-section');
+        const passwordInput = document.getElementById('retrieve-password-input');
+        
+        // Check if we have URL secret (indicates encryption)
+        const urlSecret = this.extractUrlSecret();
+        
+        // For files, show password section if:
+        // 1. We have a URL secret (indicating encryption)
+        // 2. The file might be password-protected
+        if (urlSecret) {
+            // URL secret exists, might need password
+            if (passwordSection) {
+                passwordSection.classList.remove('hidden');
+            }
+            if (passwordInput) {
+                passwordInput.focus();
+            }
+        } else {
+            // No URL secret, hide password section
+            if (passwordSection) {
+                passwordSection.classList.add('hidden');
+            }
+        }
     }
 
     // Helper function to hide all text-related elements
