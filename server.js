@@ -42,8 +42,13 @@ const upload = multer({
         destination: function (req, file, cb) {
             // Use a temporary directory for chunk uploads
             const tempDir = path.join(STORAGE_PATH, 'temp');
-            fs.ensureDirSync(tempDir);
-            cb(null, tempDir);
+            try {
+                fs.ensureDirSync(tempDir);
+                cb(null, tempDir);
+            } catch (error) {
+                console.error('❌ Error creating temp directory:', error);
+                cb(error);
+            }
         },
         filename: function (req, file, cb) {
             // Generate unique filename for temporary storage
@@ -720,16 +725,25 @@ async function cleanupExpiredUploads() {
 
 // Upload session management functions
 async function createUploadSession(sessionData) {
+    console.log(`📝 Creating upload session: ${sessionData.uploadId}, total_chunks: ${sessionData.total_chunks}`);
+    
     if (redis) {
         await redis.setEx(`upload:${sessionData.uploadId}`, 3600, JSON.stringify(sessionData));
+        console.log(`✅ Cached session in Redis: ${sessionData.uploadId}`);
     }
+    
     return sessionData;
 }
 
 async function getUploadSession(uploadId) {
+    console.log(`🔍 Getting upload session: ${uploadId}`);
+    
     if (redis) {
         const cached = await redis.get(`upload:${uploadId}`);
-        if (cached) return JSON.parse(cached);
+        if (cached) {
+            console.log(`✅ Found session in Redis: ${uploadId}`);
+            return JSON.parse(cached);
+        }
     }
     
     // Fallback to database
@@ -737,10 +751,19 @@ async function getUploadSession(uploadId) {
         'SELECT * FROM upload_sessions WHERE upload_id = $1',
         [uploadId]
     );
+    
+    if (result.rows[0]) {
+        console.log(`✅ Found session in database: ${uploadId}, uploaded_chunks: ${result.rows[0].uploaded_chunks}/${result.rows[0].total_chunks}`);
+    } else {
+        console.log(`❌ Session not found in database: ${uploadId}`);
+    }
+    
     return result.rows[0] || null;
 }
 
 async function updateUploadSession(uploadId, updates) {
+    console.log(`🔄 Updating upload session: ${uploadId}, uploaded_chunks: ${updates.uploaded_chunks}, status: ${updates.status}`);
+    
     await pool.query(
         'UPDATE upload_sessions SET uploaded_chunks = $1, last_activity = $2, status = $3 WHERE upload_id = $4',
         [updates.uploaded_chunks, Date.now(), updates.status || 'uploading', uploadId]
@@ -752,6 +775,8 @@ async function updateUploadSession(uploadId, updates) {
             await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify({...session, ...updates}));
         }
     }
+    
+    console.log(`✅ Upload session updated: ${uploadId}`);
 }
 
 // File utility functions
@@ -887,8 +912,11 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', upload.single('chunk'), asy
         const { uploadId, chunkNumber } = req.params;
         const chunkNum = parseInt(chunkNumber);
         
+        console.log(`📤 Chunk upload request: uploadId=${uploadId}, chunkNumber=${chunkNumber}, hasFile=${!!req.file}`);
+        
         const session = await getUploadSession(uploadId);
         if (!session) {
+            console.log(`❌ Upload session not found: ${uploadId}`);
             return res.status(404).json({
                 error: 'Upload session not found',
                 message: 'Invalid upload ID or session expired'
@@ -918,11 +946,14 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', upload.single('chunk'), asy
 
         // Check if file was uploaded
         if (!req.file) {
+            console.log(`❌ No file uploaded for chunk ${chunkNum}`);
             return res.status(400).json({
                 error: 'No chunk file provided',
                 message: 'Chunk file is required'
             });
         }
+        
+        console.log(`📁 File uploaded: path=${req.file.path}, size=${req.file.size}, originalname=${req.file.originalname}`);
 
         // Read chunk data from uploaded file
         const chunkData = await fs.readFile(req.file.path);
@@ -953,10 +984,13 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', upload.single('chunk'), asy
         );
 
         // Update session
+        const newUploadedChunks = session.uploaded_chunks + 1;
         await updateUploadSession(uploadId, {
-            uploaded_chunks: session.uploaded_chunks + 1,
-            status: session.uploaded_chunks + 1 >= session.total_chunks ? 'ready' : 'uploading'
+            uploaded_chunks: newUploadedChunks,
+            status: newUploadedChunks >= session.total_chunks ? 'ready' : 'uploading'
         });
+
+        console.log(`✅ Chunk ${chunkNum} uploaded successfully. Progress: ${newUploadedChunks}/${session.total_chunks}`);
 
         res.json({
             success: true,

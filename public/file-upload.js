@@ -390,12 +390,14 @@ class FileUploadManager {
         
         console.log(`📤 Uploading chunk ${chunkNumber} with size: ${chunkData.byteLength} bytes`);
         
+        // Create FormData for chunk upload (same as text uploads)
+        const formData = new FormData();
+        formData.append('chunk', new Blob([chunkData]));
+        formData.append('chunkNumber', chunkNumber);
+        
         const response = await fetch(`/api/upload/chunk/${uploadId}/${chunkNumber}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/octet-stream'
-            },
-            body: chunkData
+            body: formData
         });
 
         if (!response.ok) {
