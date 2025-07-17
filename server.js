@@ -1905,9 +1905,9 @@ app.post('/api/share', [
 
     try {
       if (contentType === 'text' && typeof content === 'string') {
-        // Text content - convert to UTF-8 bytes for unified storage
-        processedContent = Buffer.from(content, 'utf-8');
-        filesize = processedContent.length;
+        // Text content - store as UTF-8 string directly
+        processedContent = content; // Keep as string for text content
+        filesize = Buffer.from(content, 'utf-8').length; // Calculate size for display
         mimeType = 'text/plain; charset=utf-8';
       } else if (Array.isArray(content)) {
         // Binary content: raw bytes array from client
@@ -1915,10 +1915,29 @@ app.post('/api/share', [
         filesize = processedContent.length;
         mimeType = 'application/octet-stream';
       } else if (typeof content === 'string') {
-        // Base64 content (for backward compatibility)
-        processedContent = Buffer.from(content, 'base64');
-        filesize = processedContent.length;
-        mimeType = 'application/octet-stream';
+        // Check if this is base64 encoded binary or plain text
+        try {
+          // Try to decode as base64 first
+          const decoded = Buffer.from(content, 'base64');
+          // If it's valid base64 and looks like binary data, treat as binary
+          if (decoded.length > 0 && !decoded.toString('utf-8').match(/^[\x00-\x7F]*$/)) {
+            processedContent = decoded;
+            filesize = processedContent.length;
+            mimeType = 'application/octet-stream';
+          } else {
+            // Treat as plain text
+            processedContent = content;
+            filesize = Buffer.from(content, 'utf-8').length;
+            mimeType = 'text/plain; charset=utf-8';
+            contentType = 'text'; // Override content type
+          }
+        } catch (base64Error) {
+          // Not valid base64, treat as plain text
+          processedContent = content;
+          filesize = Buffer.from(content, 'utf-8').length;
+          mimeType = 'text/plain; charset=utf-8';
+          contentType = 'text'; // Override content type
+        }
       } else {
         throw new Error('Invalid content format');
       }
@@ -2204,13 +2223,23 @@ app.get('/api/clip/:clipId', [
     } else if (clip.content) {
       // Content stored inline in database
       if (clip.content_type === 'text') {
-        // Convert buffer back to text
-        responseContent = clip.content.toString('utf-8');
+        // Text content stored as string
+        responseContent = clip.content; // Already a string
         contentMetadata.contentType = 'text';
       } else {
-    // Convert binary content back to array for response
-        responseContent = Array.from(clip.content);
-        contentMetadata.contentType = 'binary';
+        // Binary content - check if it's a buffer or string
+        if (Buffer.isBuffer(clip.content)) {
+          responseContent = Array.from(clip.content);
+          contentMetadata.contentType = 'binary';
+        } else if (typeof clip.content === 'string') {
+          // String content - treat as text
+          responseContent = clip.content;
+          contentMetadata.contentType = 'text';
+        } else {
+          // Unknown format - try to convert
+          responseContent = clip.content.toString();
+          contentMetadata.contentType = 'text';
+        }
       }
     } else {
       return res.status(404).json({

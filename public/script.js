@@ -555,16 +555,14 @@ class ClipboardApp {
                 encryptedContent = await this.encryptContent(content, password, urlSecret);
             }
             
-            // Convert Uint8Array to regular array for JSON serialization
-            const contentArray = Array.from(encryptedContent);
-            
-            // Prepare request body
+            // Prepare request body - for text content, send as UTF-8 string
             const requestBody = {
-                content: contentArray,
+                content: content, // Send original text content, not encrypted
                 expiration,
                 oneTime,
                 hasPassword: !!password, // Just indicate if password protection is used
-                quickShare
+                quickShare,
+                contentType: 'text' // Explicitly mark as text content
             };
 
             // For Quick Share, include the secret to be stored in password_hash column
