@@ -559,16 +559,24 @@ class ClipboardApp {
             
             // Determine encryption method based on mode
             if (quickShare) {
-                // Quick Share: Generate random secret, encrypt content
                 quickShareSecret = this.generateRandomSecret();
                 urlSecret = null;
             } else if (!password) {
-                // Normal clip without password: generate and use URL secret
                 urlSecret = this.generateUrlSecret();
             } else {
-                // Normal mode: Use encryption with password and URL secret
                 urlSecret = this.generateUrlSecret();
             }
+
+            console.log('[TextUpload] Initiating upload session:', {
+                filename: 'text-content.txt',
+                filesize: file.size,
+                expiration,
+                oneTime,
+                hasPassword: !!password,
+                quickShare,
+                contentType: 'text',
+                originalContent: originalContent
+            });
 
             // Create upload session
             const sessionResponse = await fetch('/api/upload/initiate', {
@@ -582,17 +590,18 @@ class ClipboardApp {
                     hasPassword: !!password,
                     quickShare: quickShare,
                     contentType: 'text',
-                    originalContent: originalContent // Store original content for reference
+                    originalContent: originalContent
                 })
             });
 
             const sessionData = await sessionResponse.json();
+            console.log('[TextUpload] Session response:', sessionData);
             if (!sessionResponse.ok) {
                 throw new Error(sessionData.message || 'Failed to create upload session');
             }
 
             const { uploadId, chunks } = sessionData;
-            console.log(`📝 Starting text upload: ${chunks} chunks, ${file.size} bytes`);
+            console.log(`[TextUpload] Starting text upload: ${chunks} chunks, ${file.size} bytes, uploadId=${uploadId}`);
 
             // Upload chunks
             const chunkSize = 5 * 1024 * 1024; // 5MB chunks
@@ -602,6 +611,7 @@ class ClipboardApp {
                 const start = i * chunkSize;
                 const end = Math.min(start + chunkSize, file.size);
                 const chunk = file.slice(start, end);
+                console.log(`[TextUpload] Preparing chunk ${i} (bytes ${start}-${end})`);
 
                 // Encrypt chunk based on mode
                 let encryptedChunk;
@@ -612,27 +622,33 @@ class ClipboardApp {
                 } else {
                     encryptedChunk = await this.encryptFileChunk(chunk, password, urlSecret);
                 }
+                console.log(`[TextUpload] Encrypted chunk ${i}, size: ${encryptedChunk.length}`);
 
                 // Upload encrypted chunk
                 const formData = new FormData();
                 formData.append('chunk', new Blob([encryptedChunk]));
-                formData.append('chunkNumber', i); // statt i + 1
+                formData.append('chunkNumber', i);
 
+                console.log(`[TextUpload] Uploading chunk ${i} to /api/upload/chunk/${uploadId}/${i}`);
                 const chunkResponse = await fetch(`/api/upload/chunk/${uploadId}/${i}`, {
                     method: 'POST',
                     body: formData
                 });
+                console.log(`[TextUpload] Chunk ${i} upload response status:`, chunkResponse.status);
 
                 if (!chunkResponse.ok) {
-                    const errorData = await chunkResponse.json();
-                    throw new Error(errorData.message || `Failed to upload chunk ${i + 1}`);
+                    let errorData = {};
+                    try { errorData = await chunkResponse.json(); } catch (e) {}
+                    console.error(`[TextUpload] Chunk ${i} upload failed:`, errorData);
+                    throw new Error(errorData.message || `Failed to upload chunk ${i}`);
                 }
 
                 uploadedChunks++;
-                console.log(`📤 Uploaded chunk ${uploadedChunks}/${chunks}`);
+                console.log(`[TextUpload] Uploaded chunk ${uploadedChunks}/${chunks}`);
             }
 
             // Complete upload
+            console.log(`[TextUpload] Completing upload for uploadId=${uploadId}`);
             const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -642,6 +658,7 @@ class ClipboardApp {
             });
 
             const completeData = await completeResponse.json();
+            console.log('[TextUpload] Complete response:', completeData);
             if (!completeResponse.ok) {
                 throw new Error(completeData.message || 'Failed to complete upload');
             }
@@ -653,7 +670,7 @@ class ClipboardApp {
             this.showShareResult(completeData);
 
         } catch (error) {
-            console.error('❌ Text upload error:', error);
+            console.error('[TextUpload] ❌ Text upload error:', error);
             throw error;
         }
     }
