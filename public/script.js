@@ -538,7 +538,8 @@ class ClipboardApp {
         try {
             // Convert text to file-like object for multi-part upload
             const textBlob = new Blob([content], { type: 'text/plain; charset=utf-8' });
-            const textFile = new File([textBlob], 'text-content.txt', { type: 'text/plain; charset=utf-8' });
+            const randomHash = this.generateRandomHash();
+            const textFile = new File([textBlob], `${randomHash}.txt`, { type: 'text/plain; charset=utf-8' });
             
             // Use the existing file upload system for text
             await this.uploadTextAsFile(textFile, content, password, expiration, oneTime, quickShare);
@@ -568,7 +569,7 @@ class ClipboardApp {
             }
 
             console.log('[TextUpload] Initiating upload session:', {
-                filename: 'text-content.txt',
+                filename: file.name,
                 filesize: file.size,
                 expiration,
                 oneTime,
@@ -583,7 +584,7 @@ class ClipboardApp {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    filename: 'text-content.txt',
+                    filename: file.name,
                     filesize: file.size,
                     expiration: expiration,
                     oneTime: oneTime,
@@ -675,13 +676,67 @@ class ClipboardApp {
         }
     }
 
-    // Encrypt file chunk with the same logic as text encryption
+    // Encrypt file chunk with binary data support
     async encryptFileChunk(chunk, password = null, urlSecret = null) {
         const arrayBuffer = await chunk.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
         
-        // Use the same encryption logic as text content
-        return await this.encryptContent(uint8Array, password, urlSecret);
+        // Use binary encryption logic
+        return await this.encryptBinaryData(uint8Array, password, urlSecret);
+    }
+
+    // Encrypt binary data (for file chunks)
+    async encryptBinaryData(data, password = null, urlSecret = null) {
+        try {
+            // Input validation
+            if (!(data instanceof Uint8Array)) {
+                throw new Error('Data must be a Uint8Array');
+            }
+            
+            if (data.length === 0) {
+                throw new Error('Data cannot be empty');
+            }
+            
+            if (password !== null && (typeof password !== 'string' || password.length === 0)) {
+                throw new Error('Password must be a non-empty string or null');
+            }
+            
+            if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+                throw new Error('URL secret must be a non-empty string or null');
+            }
+            
+            const key = await this.generateKey(password, urlSecret);
+            
+            // Generate IV: deterministic for all clips using URL secret
+            let iv;
+            if (password) {
+                iv = await this.deriveIV(password, urlSecret);
+            } else {
+                // For non-password clips, derive IV from URL secret
+                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-nopass-v1');
+            }
+            
+            // Encrypt the data
+            const encryptedData = await window.crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                data
+            );
+            
+            // Direct byte concatenation: IV + encrypted data (no key storage needed)
+            const encryptedBytes = new Uint8Array(encryptedData);
+            const ivBytes = new Uint8Array(iv);
+            
+            // All clips: IV + encrypted data (key derived from URL secret/password)
+            const combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
+            combined.set(ivBytes, 0);
+            combined.set(encryptedBytes, ivBytes.length);
+            
+            // Return raw bytes
+            return combined;
+        } catch (error) {
+            throw new Error('Failed to encrypt binary data');
+        }
     }
 
     // Generate URL secret for enhanced security
@@ -699,6 +754,14 @@ class ClipboardApp {
     generateRandomSecret() {
         // Generate a cryptographically secure random secret (128 bits = 32 hex chars)
         const array = new Uint8Array(16); // 128 bits
+        window.crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Generate random hash for filenames
+    generateRandomHash() {
+        // Generate a random 16-character hash for filenames
+        const array = new Uint8Array(8); // 64 bits
         window.crypto.getRandomValues(array);
         return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
     }
@@ -1080,11 +1143,11 @@ class ClipboardApp {
         // Check if we have URL secret (indicates encryption)
         const urlSecret = this.extractUrlSecret();
         
-        // For files, show password section if:
-        // 1. We have a URL secret (indicating encryption)
-        // 2. The file might be password-protected
-        if (urlSecret) {
-            // URL secret exists, might need password
+        // For files, show password section only if:
+        // 1. We have a URL secret (indicating encryption) AND
+        // 2. The file has a password hash (indicating it was password-protected)
+        if (urlSecret && data.hasPassword) {
+            // URL secret exists AND file has password, show password input
             if (passwordSection) {
                 passwordSection.classList.remove('hidden');
             }
@@ -1092,7 +1155,7 @@ class ClipboardApp {
                 passwordInput.focus();
             }
         } else {
-            // No URL secret, hide password section
+            // No URL secret OR no password, hide password section
             if (passwordSection) {
                 passwordSection.classList.add('hidden');
             }
