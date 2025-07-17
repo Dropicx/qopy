@@ -786,8 +786,8 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', async (req, res) => {
                 
                 // Store chunk metadata
                 await pool.query(
-                    'INSERT INTO file_chunks (upload_id, chunk_number, chunk_path, checksum, created_at) VALUES ($1, $2, $3, $4, $5)',
-                    [uploadId, chunkNum, chunkPath, checksum, Date.now()]
+                    'INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+                    [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]
                 );
 
                 // Update session
@@ -2485,6 +2485,16 @@ async function startServer() {
         
         if (missingInChunksSchema.length > 0) {
             console.warn(`⚠️ Fehlende Spalten im file_chunks Schema: ${missingInChunksSchema.join(', ')}`);
+        }
+
+        // Prüfe auf ungenutzte Spalten im Schema
+        const unusedInChunksSchema = CHUNKS_SCHEMA_COLUMNS.filter(col => 
+            !CHUNKS_INSERT_COLUMNS.includes(col) && 
+            !CHUNKS_SESSION_PROPERTIES.includes(col)
+        );
+        
+        if (unusedInChunksSchema.length > 0) {
+            console.warn(`⚠️ Ungenutzte Spalten im file_chunks Schema: ${unusedInChunksSchema.join(', ')}`);
         }
 
         console.log('✅ Spaltenabgleichung file_chunks abgeschlossen');
