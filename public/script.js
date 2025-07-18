@@ -573,7 +573,7 @@ class ClipboardApp {
                 filesize: file.size,
                 expiration,
                 oneTime,
-                hasPassword: !!password,
+                hasPassword: !!password, // This refers to user-entered password, not URL secret
                 quickShare,
                 contentType: 'text',
                 originalContent: originalContent

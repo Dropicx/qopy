@@ -991,7 +991,11 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
             passwordHash = quickShareSecret;
         } else if (session.has_password) {
+            // Only set 'client-encrypted' for actual user passwords, not for URL secrets
             passwordHash = 'client-encrypted';
+        } else {
+            // For normal text shares with URL secret but no user password, set to null
+            passwordHash = null;
         }
 
         // Store clip in database
@@ -2246,6 +2250,12 @@ app.get('/api/clip/:clipId/info', [
     if (clipId.length === 10) {
       // For normal clips (10-digit), check if password_hash exists and is not 'client-encrypted'
       hasPassword = clip.password_hash !== null && clip.password_hash !== 'client-encrypted';
+      console.log('🔍 Clip info debug:', {
+        clipId,
+        contentType: clip.content_type,
+        password_hash: clip.password_hash,
+        hasPassword
+      });
     } else {
       // For Quick Share clips (4-digit), never have passwords
       hasPassword = false;
