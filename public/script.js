@@ -872,6 +872,13 @@ class ClipboardApp {
             });
 
             if (response.ok) {
+                // Check if this is a text file stored as file (needs redirect to showRetrieveResult)
+                if (data.contentType === 'text' && data.redirectTo) {
+                    console.log('📝 Detected text content stored as file, calling showRetrieveResult directly');
+                    await this.showRetrieveResult(data);
+                    return;
+                }
+
                 // Check if this is a file first
                 if (data.contentType === 'file' && data.redirectTo) {
                     console.log('📁 Detected file content, calling handleFileDownload directly');
