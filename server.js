@@ -1261,17 +1261,37 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
         // Read chunk data from uploaded file
         const chunkData = await fs.readFile(req.file.path);
         
-        // Validate chunk size (allow last chunk to be smaller)
-        const expectedSize = chunkNum === session.total_chunks - 1 
-            ? session.filesize - (chunkNum * session.chunk_size)
-            : session.chunk_size;
+        // Validate chunk size
+        let sizeValidationPassed = true;
+        let validationMessage = '';
         
-        if (chunkData.length > expectedSize) {
+        if (session.is_text_content) {
+            // For text content, encryption increases size, so we only check maximum reasonable size
+            // Encrypted text can be up to ~8x larger due to IV + padding + encryption overhead
+            const maxEncryptedSize = Math.max(session.chunk_size * 2, 1024 * 1024); // At least 1MB for encrypted text
+            
+            if (chunkData.length > maxEncryptedSize) {
+                sizeValidationPassed = false;
+                validationMessage = `Encrypted text chunk too large: ${chunkData.length} bytes exceeds maximum ${maxEncryptedSize} bytes`;
+            }
+        } else {
+            // For regular files, use original size validation
+            const expectedSize = chunkNum === session.total_chunks - 1 
+                ? session.filesize - (chunkNum * session.chunk_size)
+                : session.chunk_size;
+            
+            if (chunkData.length > expectedSize) {
+                sizeValidationPassed = false;
+                validationMessage = `Expected max ${expectedSize} bytes, got ${chunkData.length} bytes`;
+            }
+        }
+        
+        if (!sizeValidationPassed) {
             // Clean up uploaded file
             await fs.unlink(req.file.path);
             return res.status(400).json({
                 error: 'Chunk too large',
-                message: `Expected max ${expectedSize} bytes, got ${chunkData.length} bytes`
+                message: validationMessage
             });
         }
 
