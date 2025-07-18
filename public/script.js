@@ -1316,7 +1316,7 @@ class ClipboardApp {
         const retrievedContent = document.getElementById('retrieved-content');
         const copyContentButton = document.getElementById('copy-content-button');
         const oneTimeNotice = document.getElementById('one-time-notice');
-        const resultHeader = document.querySelector('.result-header');
+        const contentActions = document.querySelector('.content-actions');
         const contentDisplay = document.querySelector('.content-display');
         const contentInfo = document.querySelector('.content-info');
         const newPasteSection = document.querySelector('.new-paste-section');
@@ -1331,9 +1331,9 @@ class ClipboardApp {
             copyContentButton.style.display = 'none';
         }
         
-        // Hide result header (contains "Retrieved Content:" label and copy button)
-        if (resultHeader) {
-            resultHeader.style.display = 'none';
+        // Hide content actions (contains copy button)
+        if (contentActions) {
+            contentActions.style.display = 'none';
         }
         
         // Hide content display container
@@ -1368,7 +1368,7 @@ class ClipboardApp {
         const retrievedContent = document.getElementById('retrieved-content');
         const copyContentButton = document.getElementById('copy-content-button');
         const oneTimeNotice = document.getElementById('one-time-notice');
-        const resultHeader = document.querySelector('.result-header');
+        const contentActions = document.querySelector('.content-actions');
         const contentDisplay = document.querySelector('.content-display');
         const contentInfo = document.querySelector('.content-info');
         const newPasteSection = document.querySelector('.new-paste-section');
@@ -1383,9 +1383,9 @@ class ClipboardApp {
             copyContentButton.style.display = 'block';
         }
         
-        // Show result header (contains "Retrieved Content:" label and copy button)
-        if (resultHeader) {
-            resultHeader.style.display = 'block';
+        // Show content actions (contains copy button)
+        if (contentActions) {
+            contentActions.style.display = 'flex';
         }
         
         // Show content display container
@@ -1507,10 +1507,23 @@ class ClipboardApp {
         document.getElementById(messageId).textContent = message;
         document.getElementById(toastId).classList.remove('hidden');
         
-        // Auto-hide after 5 seconds
+        // Auto-hide after 2 seconds for success/copy messages, 4 seconds for errors
+        const autoHideDelay = (type === 'success' || type === 'info') ? 2000 : 4000;
         setTimeout(() => {
             document.getElementById(toastId).classList.add('hidden');
-        }, 5000);
+        }, autoHideDelay);
+    }
+
+    // Initialize toast close buttons
+    initializeToastCloseButtons() {
+        document.querySelectorAll('.toast-close').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const toast = e.target.closest('#error-toast, #info-toast, #success-toast');
+                if (toast) {
+                    toast.classList.add('hidden');
+                }
+            });
+        });
     }
 
     // Utility Methods
@@ -2323,6 +2336,8 @@ class ClipboardApp {
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.clipboardApp = new ClipboardApp();
+    // Initialize toast close buttons
+    window.clipboardApp.initializeToastCloseButtons();
 });
 
 // Service Worker registration removed - not needed for current functionality 

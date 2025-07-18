@@ -718,12 +718,11 @@
                 </div>
 
                 <div id="content-result" class="result-container hidden">
-                    <div class="result-header">
-                        <label class="label">Retrieved Content:</label>
-                        <button id="copy-content-button" class="copy-button">Copy Content</button>
-                    </div>
                     <div class="content-display">
                         <pre id="retrieved-content"></pre>
+                    </div>
+                    <div class="content-actions">
+                        <button id="copy-content-button" class="copy-button">Copy Content</button>
                     </div>
                     <div class="content-info">
                         <p>📅 Created: <span id="created-time"></span></p>
@@ -847,6 +846,11 @@
     <div id="info-toast" class="hidden">
         <button class="toast-close">×</button>
         <p class="toast-message" id="info-message">Info message</p>
+    </div>
+
+    <div id="success-toast" class="hidden">
+        <button class="toast-close">×</button>
+        <p class="toast-message" id="success-message">Success message</p>
     </div>
 </body>
 </html> 

@@ -813,6 +813,13 @@ textarea:focus {
   margin: 0;
 }
 
+.content-actions {
+  padding: 0.75rem 0;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
 .content-info {
   display: flex;
   flex-wrap: wrap;
@@ -1928,7 +1935,7 @@ footer p {
 }
 
 /* Toast Notifications for File Operations */
-#error-toast, #info-toast {
+#error-toast, #info-toast, #success-toast {
   position: fixed;
   top: 20px;
   right: 20px;
@@ -1943,7 +1950,7 @@ footer p {
   transition: transform 0.3s ease;
 }
 
-#error-toast:not(.hidden), #info-toast:not(.hidden) {
+#error-toast:not(.hidden), #info-toast:not(.hidden), #success-toast:not(.hidden) {
   transform: translateX(0);
 }
 
@@ -1953,6 +1960,10 @@ footer p {
 
 #info-toast {
   border-left: 4px solid var(--accent-color);
+}
+
+#success-toast {
+  border-left: 4px solid #28a745;
 }
 
 .toast-message {
