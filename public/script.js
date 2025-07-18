@@ -170,7 +170,9 @@ class ClipboardApp {
 
         // New Paste button
         document.getElementById('new-paste-button').addEventListener('click', () => {
-            this.goToHome();
+            if (confirm('Are you sure you want to create a new paste? This will clear the current content.')) {
+                this.goToHome();
+            }
         });
 
         // Logo/Title click to return to home
@@ -1488,7 +1490,7 @@ class ClipboardApp {
         } else if (type === 'success' || type === 'info') {
             // Use success toast for both success and info messages
             toastId = 'success-toast';
-            messageId = 'success-message';
+            messageId = 'success-toast-message';
         }
         
         // Hide any existing toasts

@@ -718,23 +718,20 @@
                 </div>
 
                 <div id="content-result" class="result-container hidden">
+                    <div class="content-actions">
+                        <button id="new-paste-button" class="new-paste-button">
+                            <span class="button-icon">📝</span>
+                            Create New Paste
+                        </button>
+                        <button id="copy-content-button" class="copy-button">Copy Content</button>
+                    </div>
                     <div class="content-display">
                         <pre id="retrieved-content"></pre>
-                    </div>
-                    <div class="content-actions">
-                        <button id="copy-content-button" class="copy-button">Copy Content</button>
                     </div>
                     <div class="content-info">
                         <p>📅 Created: <span id="created-time"></span></p>
                         <p>⏰ Expires: <span id="expires-time"></span></p>
                         <p id="one-time-notice" class="warning hidden">🔥 This was a one-time clip and has been destroyed</p>
-                    </div>
-                    
-                    <div class="new-paste-section">
-                        <button id="new-paste-button" class="secondary-button">
-                            <span class="button-icon">📝</span>
-                            Create New Paste
-                        </button>
                     </div>
                 </div>
             </div>
@@ -838,7 +835,7 @@
 
     <div id="success-toast" class="hidden">
         <button class="toast-close">×</button>
-        <p class="toast-message" id="success-message">Success message</p>
+        <p class="toast-message" id="success-toast-message">Success message</p>
     </div>
 </body>
 </html> 
