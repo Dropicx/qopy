@@ -1378,6 +1378,12 @@ app.post('/api/upload/complete/:uploadId', [
 
         const session = sessionResult.rows[0];
 
+        // Ensure expiration_time is set (fallback to 24 hours if missing)
+        if (!session.expiration_time) {
+            console.warn(`⚠️ Missing expiration_time for session ${uploadId}, using 24 hours as fallback`);
+            session.expiration_time = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
+        }
+
         // Verify all chunks are uploaded
         if (session.uploaded_chunks !== session.total_chunks) {
             return res.status(400).json({
