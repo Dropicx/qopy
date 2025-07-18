@@ -1275,14 +1275,14 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
                 validationMessage = `Encrypted text chunk too large: ${chunkData.length} bytes exceeds maximum ${maxEncryptedSize} bytes`;
             }
         } else {
-            // For regular files, use original size validation
-            const expectedSize = chunkNum === session.total_chunks - 1 
-                ? session.filesize - (chunkNum * session.chunk_size)
-                : session.chunk_size;
+            // For regular files, encryption also increases size, so we need to account for that
+            // Encrypted files can be larger due to IV + padding + encryption overhead
+            // Allow for reasonable encryption overhead (typically 16-32 bytes for IV + padding)
+            const maxEncryptedSize = session.chunk_size + 1024; // Allow 1KB overhead per chunk
             
-            if (chunkData.length > expectedSize) {
+            if (chunkData.length > maxEncryptedSize) {
                 sizeValidationPassed = false;
-                validationMessage = `Expected max ${expectedSize} bytes, got ${chunkData.length} bytes`;
+                validationMessage = `Encrypted file chunk too large: ${chunkData.length} bytes exceeds maximum ${maxEncryptedSize} bytes`;
             }
         }
         
@@ -1363,7 +1363,7 @@ app.post('/api/upload/complete/:uploadId', [
         const { uploadId } = req.params;
         const { checksums, quickShareSecret } = req.body;
 
-        // Get upload session
+        // Get upload session directly from database (not cache) to ensure all fields are available
         const sessionResult = await pool.query(
             'SELECT * FROM upload_sessions WHERE upload_id = $1 AND status = $2',
             [uploadId, 'uploading']
