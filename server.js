@@ -1341,12 +1341,16 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
             WHERE upload_id = $2
         `, [Date.now(), uploadId]);
 
-        // Update cache
-        const cachedSession = await getCache(`upload:${uploadId}`);
-        if (cachedSession) {
-            cachedSession.chunksUploaded++;
-            cachedSession.checksums[chunkNum] = checksum;
-            await setCache(`upload:${uploadId}`, cachedSession);
+        // Update cache - get fresh data from database to ensure consistency
+        if (redis) {
+            const updatedSessionResult = await pool.query(
+                'SELECT * FROM upload_sessions WHERE upload_id = $1',
+                [uploadId]
+            );
+            if (updatedSessionResult.rows[0]) {
+                await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(updatedSessionResult.rows[0]));
+                console.log(`🔄 Updated Redis cache for session ${uploadId} with uploaded_chunks: ${updatedSessionResult.rows[0].uploaded_chunks}`);
+            }
         }
 
         console.log(`✅ Chunk ${chunkNum} uploaded successfully. Progress: ${session.uploaded_chunks + 1}/${session.total_chunks}`);
