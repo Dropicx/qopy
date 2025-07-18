@@ -933,8 +933,8 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         // Get actual file size (may be different from original if encrypted)
         const actualFileSize = (await fs.stat(filePath)).size;
         
-        // Create clip
-        const clipId = generateClipId(false); // Always use normal clip ID for files
+        // Create clip - use quick_share setting for text content, normal IDs for files
+        const clipId = generateClipId(session.is_text_content ? session.quick_share : false);
         
         // Handle text content conversion
         let content = null;
