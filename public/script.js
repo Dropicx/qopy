@@ -841,6 +841,17 @@ class ClipboardApp {
             }
         }
 
+        // Check if this clip requires a password by checking the password field visibility
+        const passwordSection = document.getElementById('password-section');
+        if (passwordSection && !passwordSection.classList.contains('hidden')) {
+            // Password field is visible, which means this clip requires a password
+            if (!password || password.trim().length === 0) {
+                this.showToast('❌ Please enter the password for this protected content', 'error');
+                document.getElementById('retrieve-password-input').focus();
+                return;
+            }
+        }
+
         this.showLoading('retrieve-loading');
         const retrieveButton = document.getElementById('retrieve-button');
         retrieveButton.disabled = true;

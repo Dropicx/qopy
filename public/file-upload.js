@@ -467,7 +467,7 @@ class FileUploadManager {
             let keyMaterial;
             if (password && urlSecret) {
                 // Password + URL secret mode
-                const combined = password + '|' + urlSecret;
+                const combined = urlSecret + ':' + password;
                 console.log('🔑 Using password + URL secret mode');
                 keyMaterial = await window.crypto.subtle.importKey(
                     'raw',
