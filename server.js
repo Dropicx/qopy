@@ -1474,8 +1474,9 @@ app.post('/api/upload/complete/:uploadId', [
 
         // Handle Quick Share secret if provided
         let passwordHash = null;
-        if (session.quick_share && req.body.quickShareSecret) {
-            passwordHash = req.body.quickShareSecret;
+        if (session.quick_share && quickShareSecret) {
+            console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
+            passwordHash = quickShareSecret;
         } else if (session.has_password) {
             passwordHash = 'client-encrypted';
         }
