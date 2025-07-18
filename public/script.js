@@ -308,40 +308,16 @@ class ClipboardApp {
             const data = await response.json();
 
             if (response.ok) {
-                // Decrypt the content before showing
-                try {
-                    let decryptedContent;
-                    
-                    // Check if this is a Quick Share (4-digit ID) or normal clip
-                    if (clipId.length === 4) {
-                        // Quick Share: Use the secret from server response
-                        const quickShareSecret = data.quickShareSecret || data.password_hash;
-                        if (!quickShareSecret) {
-                            throw new Error('Quick Share secret not found');
-                        }
-                        decryptedContent = await this.decryptContent(data.content, null, quickShareSecret);
-                    } else {
-                        // Normal mode: Decrypt the content
-                        decryptedContent = await this.decryptContent(data.content, null, urlSecret);
-                    }
-                    
-                    // Create a new data object with decrypted content but preserve other properties
-                    const resultData = {
-                        ...data,
-                        content: decryptedContent
-                    };
-                    
-                    // Hide password section since content was successfully retrieved without password
-                    const passwordSection = document.getElementById('password-section');
-                    if (passwordSection) {
-                        passwordSection.classList.add('hidden');
-                    }
-                    
-                    // Show result immediately for all clips accessed via direct link
-                    await this.showRetrieveResult(resultData);
-                } catch (decryptError) {
-                    // For auto-retrieve, don't show error - let user manually retrieve
+                // Hide password section since we know this clip doesn't have a password
+                // (we checked infoData.hasPassword above)
+                const passwordSection = document.getElementById('password-section');
+                if (passwordSection) {
+                    passwordSection.classList.add('hidden');
+                    console.log('🔒 Hiding password section in autoRetrieveClip (no password required)');
                 }
+                
+                // Show result immediately for all clips accessed via direct link
+                await this.showRetrieveResult(data);
             } else {
                 // For auto-retrieve, don't show error - let user manually retrieve
             }
