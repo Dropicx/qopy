@@ -1982,6 +1982,8 @@ footer p {
   color: var(--text-primary);
   font-size: 0.9rem;
   margin: 0;
+  padding-right: 30px; /* Add space for the close button */
+  line-height: 1.4;
 }
 
 .toast-close {
