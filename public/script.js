@@ -716,7 +716,7 @@ class ClipboardApp {
                 iv = await this.deriveIV(password, urlSecret);
             } else {
                 // For non-password clips, derive IV from URL secret
-                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-nopass-v1');
+                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
             }
             
             // Encrypt the data
@@ -1795,7 +1795,7 @@ class ClipboardApp {
                 iv = await this.deriveIV(password, urlSecret);
             } else {
                 // For non-password clips, derive IV from URL secret
-                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-nopass-v1');
+                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
             }
             
             // Encrypt the content
