@@ -1402,6 +1402,7 @@ app.post('/api/upload/complete/:uploadId', [
 
         const { uploadId } = req.params;
         const { checksums, quickShareSecret } = req.body;
+        console.log('🔑 Upload complete request body:', { checksums: !!checksums, quickShareSecret: quickShareSecret });
 
         // Get upload session directly from database (not cache) to ensure all fields are available
         const sessionResult = await pool.query(
@@ -1417,6 +1418,12 @@ app.post('/api/upload/complete/:uploadId', [
         }
 
         const session = sessionResult.rows[0];
+        console.log('🔑 Upload session details:', { 
+            uploadId: session.upload_id, 
+            quick_share: session.quick_share, 
+            has_password: session.has_password,
+            is_text_content: session.is_text_content
+        });
 
         // Ensure expiration_time is set (fallback to 24 hours if missing)
         if (!session.expiration_time) {
