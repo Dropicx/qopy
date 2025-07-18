@@ -653,10 +653,10 @@ async function cleanupExpiredClips() {
       [now]
     );
     
-    // Delete clips that have been expired for more than 7 days
+    // Delete clips that have been expired for more than 5 minutes
     const deleteResult = await pool.query(
       'DELETE FROM clips WHERE is_expired = true AND expiration_time < $1',
-      [now - (7 * 24 * 60 * 60 * 1000)] // 7 days ago
+      [now - (5 * 60 * 1000)] // 5 minutes ago
     );
     
     // Check if we need to reset the sequence (if we're approaching the limit)
@@ -1055,6 +1055,8 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             filename: session.original_filename,
             filesize: session.filesize, // Return original size for display
             expiresAt: session.expiration_time,
+            quickShare: session.quick_share, // Include Quick Share flag for client
+            oneTime: session.one_time, // Include one-time flag for client
             isFile: isFile
         });
 

@@ -974,7 +974,25 @@ class ClipboardApp {
         // Generate QR code client-side
         this.generateQRCode(data.url);
         
-        document.getElementById('expiry-time').textContent = new Date(data.expiresAt).toLocaleString();
+        // Format expiration time properly (handle both string and number timestamps)
+        try {
+            const expiresAt = data.expiresAt;
+            if (expiresAt) {
+                const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
+                const expiryDate = new Date(expiresAtNumber);
+                
+                if (!isNaN(expiryDate.getTime())) {
+                    document.getElementById('expiry-time').textContent = expiryDate.toLocaleString();
+                } else {
+                    document.getElementById('expiry-time').textContent = 'Invalid date';
+                }
+            } else {
+                document.getElementById('expiry-time').textContent = 'Not available';
+            }
+        } catch (error) {
+            console.error('Error formatting expiry date:', error);
+            document.getElementById('expiry-time').textContent = 'Error formatting date';
+        }
         
         document.getElementById('success-modal').classList.remove('hidden');
     }
