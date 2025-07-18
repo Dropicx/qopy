@@ -1462,6 +1462,16 @@ footer p {
     justify-content: center;
   }
 
+  .file-info-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .file-info-card .file-details {
+    text-align: center;
+  }
+
   .toast {
     right: 10px;
     left: 10px;

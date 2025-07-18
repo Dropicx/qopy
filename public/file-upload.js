@@ -58,6 +58,22 @@ class FileUploadManager {
             });
         }
 
+        // Cancel upload button (progress section)
+        const cancelButtonProgress = document.getElementById('cancel-upload-button-progress');
+        if (cancelButtonProgress) {
+            cancelButtonProgress.addEventListener('click', () => {
+                this.cancelUpload();
+            });
+        }
+
+        // File reset button
+        const fileResetButton = document.getElementById('file-reset-button');
+        if (fileResetButton) {
+            fileResetButton.addEventListener('click', () => {
+                this.resetFileSelection();
+            });
+        }
+
         // Password checkbox toggle
         const passwordCheckbox = document.getElementById('file-password-checkbox');
         const passwordSection = document.getElementById('file-password-section');
@@ -158,6 +174,64 @@ class FileUploadManager {
 
         if (fileType) {
             fileType.textContent = file.type || 'Unknown type';
+        }
+    }
+
+    resetFileSelection() {
+        // Clear selected file
+        this.selectedFile = null;
+        
+        // Clear file input
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        
+        // Hide file info container
+        const fileInfoContainer = document.getElementById('file-info-container');
+        if (fileInfoContainer) {
+            fileInfoContainer.style.display = 'none';
+        }
+        
+        // Hide and reset upload controls
+        this.showUploadControls(false);
+        this.resetUploadControls();
+        
+        // Hide progress container if visible
+        const progressContainer = document.getElementById('upload-progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
+        }
+        
+        console.log('🔄 File selection reset');
+    }
+
+    resetUploadControls() {
+        // Reset checkboxes
+        const oneTimeCheckbox = document.getElementById('file-one-time-checkbox');
+        const passwordCheckbox = document.getElementById('file-password-checkbox');
+        const passwordSection = document.getElementById('file-password-section');
+        const passwordInput = document.getElementById('file-password-input');
+        const expirationSelect = document.getElementById('file-expiration');
+        
+        if (oneTimeCheckbox) {
+            oneTimeCheckbox.checked = false;
+        }
+        
+        if (passwordCheckbox) {
+            passwordCheckbox.checked = false;
+        }
+        
+        if (passwordSection) {
+            passwordSection.style.display = 'none';
+        }
+        
+        if (passwordInput) {
+            passwordInput.value = '';
+        }
+        
+        if (expirationSelect) {
+            expirationSelect.value = '30min'; // Reset to default
         }
     }
 
