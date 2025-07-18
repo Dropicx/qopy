@@ -905,6 +905,8 @@ async function assembleFile(uploadId, session) {
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
     try {
         const { uploadId } = req.params;
+        const { quickShareSecret } = req.body;
+        console.log('🔑 Upload complete request body:', { quickShareSecret: quickShareSecret });
         
         const session = await getUploadSession(uploadId);
         if (!session) {
@@ -913,6 +915,13 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
                 message: 'Invalid upload ID or session expired'
             });
         }
+        
+        console.log('🔑 Upload session details:', { 
+            uploadId: session.upload_id, 
+            quick_share: session.quick_share, 
+            has_password: session.has_password,
+            is_text_content: session.is_text_content
+        });
 
         // Ensure expiration_time is set (fallback to 24 hours if missing)
         if (!session.expiration_time) {
@@ -950,6 +959,15 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             // DON'T delete the file - keep it like regular files
         }
 
+        // Handle Quick Share secret and password hash
+        let passwordHash = null;
+        if (session.quick_share && quickShareSecret) {
+            console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
+            passwordHash = quickShareSecret;
+        } else if (session.has_password) {
+            passwordHash = 'client-encrypted';
+        }
+
         // Store clip in database
         await pool.query(`
             INSERT INTO clips 
@@ -962,7 +980,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             // Keep content_type = 'text' for text content, even when stored as file
             session.is_text_content ? 'text' : 'file',
             session.expiration_time,
-            session.has_password ? 'client-encrypted' : null,
+            passwordHash, // Use the calculated password hash (Quick Share secret or 'client-encrypted')
             session.one_time,
             Date.now(),
             isFile ? filePath : null,
@@ -980,11 +998,15 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
 
         // Update statistics
         await updateStatistics('clip_created');
-        if (session.has_password) {
+        
+        if (session.quick_share) {
+            await updateStatistics('quick_share_created');
+        } else if (session.has_password) {
             await updateStatistics('password_protected_created');
         } else {
             await updateStatistics('normal_created');
         }
+        
         if (session.one_time) {
             await updateStatistics('one_time_created');
         }
