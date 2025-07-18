@@ -600,7 +600,7 @@ class FileUploadManager {
         
         let keyMaterial;
         if (password && urlSecret) {
-            const combined = password + '|' + urlSecret;
+            const combined = urlSecret + ':' + password;
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
                 encoder.encode(combined),
