@@ -890,107 +890,7 @@ async function assembleFile(uploadId, session) {
 
 
 
-// Upload chunk
-app.post('/api/upload/chunk/:uploadId/:chunkNumber', upload.single('chunk'), async (req, res) => {
-    try {
-        const { uploadId, chunkNumber } = req.params;
-        const chunkNum = parseInt(chunkNumber);
-        
-        console.log(`📤 Chunk upload request: uploadId=${uploadId}, chunkNumber=${chunkNumber}, hasFile=${!!req.file}`);
-        
-        const session = await getUploadSession(uploadId);
-        if (!session) {
-            console.log(`❌ Upload session not found: ${uploadId}`);
-            return res.status(404).json({
-                error: 'Upload session not found',
-                message: 'Invalid upload ID or session expired'
-            });
-        }
-
-        if (chunkNum >= session.total_chunks) {
-            return res.status(400).json({
-                error: 'Invalid chunk number',
-                message: 'Chunk number exceeds total chunks'
-            });
-        }
-
-        // Check if chunk already uploaded
-        const existingChunk = await pool.query(
-            'SELECT * FROM file_chunks WHERE upload_id = $1 AND chunk_number = $2',
-            [uploadId, chunkNum]
-        );
-
-        if (existingChunk.rows.length > 0) {
-            return res.status(409).json({
-                error: 'Chunk already uploaded',
-                chunkNumber: chunkNum,
-                received: true
-            });
-        }
-
-        // Check if file was uploaded
-        if (!req.file) {
-            console.log(`❌ No file uploaded for chunk ${chunkNum}`);
-            return res.status(400).json({
-                error: 'No chunk file provided',
-                message: 'Chunk file is required'
-            });
-        }
-        
-        console.log(`📁 File uploaded: path=${req.file.path}, size=${req.file.size}, originalname=${req.file.originalname}`);
-
-        // Read chunk data from uploaded file
-        const chunkData = await fs.readFile(req.file.path);
-        
-        // Validate chunk size
-        if (chunkData.length > CHUNK_SIZE) {
-            // Clean up uploaded file
-            await fs.unlink(req.file.path);
-            return res.status(400).json({
-                error: 'Chunk too large',
-                maxSize: CHUNK_SIZE
-            });
-        }
-
-        // Generate checksum
-        const checksum = crypto.createHash('sha256').update(chunkData).digest('hex');
-        
-        // Save chunk to file
-        const chunkPath = await saveChunkToFile(uploadId, chunkNum, chunkData);
-        
-        // Clean up temporary uploaded file
-        await fs.unlink(req.file.path);
-        
-        // Store chunk metadata
-        await pool.query(
-            'INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
-            [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]
-        );
-
-        // Update session
-        const newUploadedChunks = session.uploaded_chunks + 1;
-        await updateUploadSession(uploadId, {
-            uploaded_chunks: newUploadedChunks,
-            status: newUploadedChunks >= session.total_chunks ? 'ready' : 'uploading'
-        });
-
-        console.log(`✅ Chunk ${chunkNum} uploaded successfully. Progress: ${newUploadedChunks}/${session.total_chunks}`);
-
-        res.json({
-            success: true,
-            chunkNumber: chunkNum,
-            received: true,
-            checksum
-        });
-
-    } catch (error) {
-        console.error('❌ Error uploading chunk:', error.message);
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Failed to upload chunk'
-        });
-    }
-});
+// Upload chunk (removed duplicate endpoint)
 
 // Complete upload
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
@@ -1298,7 +1198,7 @@ app.post('/api/upload/initiate', [
 app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
     param('uploadId').isString().isLength({ min: 16, max: 16 }).withMessage('Invalid upload ID'),
     param('chunkNumber').isInt({ min: 0 }).withMessage('Invalid chunk number')
-], async (req, res) => {
+], upload.single('chunk'), async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -1310,6 +1210,8 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
 
         const { uploadId, chunkNumber } = req.params;
         const chunkNum = parseInt(chunkNumber);
+
+        console.log(`📤 Chunk upload request: uploadId=${uploadId}, chunkNumber=${chunkNumber}, hasFile=${!!req.file}`);
 
         // Verify upload session exists and is active
         const sessionResult = await pool.query(
@@ -1347,69 +1249,72 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
             });
         }
 
-        // Get chunk data from request body
-        const chunks = [];
-        req.on('data', chunk => chunks.push(chunk));
-        req.on('end', async () => {
-            try {
-                const chunkData = Buffer.concat(chunks);
-                
-                // Validate chunk size (allow last chunk to be smaller)
-                const expectedSize = chunkNum === session.total_chunks - 1 
-                    ? session.filesize - (chunkNum * session.chunk_size)
-                    : session.chunk_size;
-                
-                if (chunkData.length !== expectedSize) {
-                    return res.status(400).json({
-                        error: 'Invalid chunk size',
-                        message: `Expected ${expectedSize} bytes, got ${chunkData.length} bytes`
-                    });
-                }
+        // Check if file was uploaded
+        if (!req.file) {
+            console.log(`❌ No file uploaded for chunk ${chunkNum}`);
+            return res.status(400).json({
+                error: 'No chunk file provided',
+                message: 'Chunk file is required'
+            });
+        }
 
-                // Calculate checksum
-                const checksum = calculateChecksum(chunkData);
-                
-                // Store chunk to file system
-                const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${chunkNum}.chunk`);
-                await fs.writeFile(chunkPath, chunkData);
+        // Read chunk data from uploaded file
+        const chunkData = await fs.readFile(req.file.path);
+        
+        // Validate chunk size (allow last chunk to be smaller)
+        const expectedSize = chunkNum === session.total_chunks - 1 
+            ? session.filesize - (chunkNum * session.chunk_size)
+            : session.chunk_size;
+        
+        if (chunkData.length > expectedSize) {
+            // Clean up uploaded file
+            await fs.unlink(req.file.path);
+            return res.status(400).json({
+                error: 'Chunk too large',
+                message: `Expected max ${expectedSize} bytes, got ${chunkData.length} bytes`
+            });
+        }
 
-                // Store chunk metadata in database
-                await pool.query(`
-                    INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                `, [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]);
+        // Calculate checksum
+        const checksum = calculateChecksum(chunkData);
+        
+        // Store chunk to file system
+        const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${chunkNum}.chunk`);
+        await fs.writeFile(chunkPath, chunkData);
 
-                // Update upload session
-                await pool.query(`
-                    UPDATE upload_sessions 
-                    SET uploaded_chunks = uploaded_chunks + 1, last_activity = $1
-                    WHERE upload_id = $2
-                `, [Date.now(), uploadId]);
+        // Clean up temporary uploaded file
+        await fs.unlink(req.file.path);
 
-                // Update cache
-                const cachedSession = await getCache(`upload:${uploadId}`);
-                if (cachedSession) {
-                    cachedSession.chunksUploaded++;
-                    cachedSession.checksums[chunkNum] = checksum;
-                    await setCache(`upload:${uploadId}`, cachedSession);
-                }
+        // Store chunk metadata in database
+        await pool.query(`
+            INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]);
 
-                res.json({
-                    success: true,
-                    chunkNumber: chunkNum,
-                    received: true,
-                    checksum,
-                    uploadedChunks: session.uploaded_chunks + 1,
-                    totalChunks: session.total_chunks
-                });
+        // Update upload session
+        await pool.query(`
+            UPDATE upload_sessions 
+            SET uploaded_chunks = uploaded_chunks + 1, last_activity = $1
+            WHERE upload_id = $2
+        `, [Date.now(), uploadId]);
 
-            } catch (error) {
-                console.error('❌ Error processing chunk:', error.message);
-                res.status(500).json({
-                    error: 'Internal server error',
-                    message: 'Failed to process chunk'
-                });
-            }
+        // Update cache
+        const cachedSession = await getCache(`upload:${uploadId}`);
+        if (cachedSession) {
+            cachedSession.chunksUploaded++;
+            cachedSession.checksums[chunkNum] = checksum;
+            await setCache(`upload:${uploadId}`, cachedSession);
+        }
+
+        console.log(`✅ Chunk ${chunkNum} uploaded successfully. Progress: ${session.uploaded_chunks + 1}/${session.total_chunks}`);
+
+        res.json({
+            success: true,
+            chunkNumber: chunkNum,
+            received: true,
+            checksum,
+            uploadedChunks: session.uploaded_chunks + 1,
+            totalChunks: session.total_chunks
         });
 
     } catch (error) {
