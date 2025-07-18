@@ -941,13 +941,13 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         let isFile = true;
         
         if (session.is_text_content) {
-            // For text content, read file and store as binary in content column
-            const fileData = await fs.readFile(filePath);
-            content = fileData;
-            isFile = false;
+            // For text content, keep file on disk (like regular files) but mark as text type
+            content = null;  // No database storage for text content
+            isFile = true;   // File is stored on disk
             
-            // Remove the temporary file for text content
-            await fs.unlink(filePath);
+            console.log(`📝 Text content stored as file: ${filePath} (${actualFileSize} bytes encrypted)`);
+            
+            // DON'T delete the file - keep it like regular files
         }
 
         // Store clip in database
@@ -958,8 +958,9 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         `, [
             clipId,
-            content, // null for files, binary data for text
-            isFile ? 'file' : 'text',
+            content, // null for all files (including text stored as files)
+            // Keep content_type = 'text' for text content, even when stored as file
+            session.is_text_content ? 'text' : 'file',
             session.expiration_time,
             session.has_password ? 'client-encrypted' : null,
             session.one_time,
@@ -999,7 +1000,10 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         res.json({
             success: true,
             clipId,
-            url: `${req.protocol}://${req.get('host')}/file/${clipId}`,
+            // Use /clip/ URL for text content, /file/ URL for regular files
+            url: session.is_text_content 
+                ? `${req.protocol}://${req.get('host')}/clip/${clipId}`
+                : `${req.protocol}://${req.get('host')}/file/${clipId}`,
             filename: session.original_filename,
             filesize: session.filesize, // Return original size for display
             expiresAt: session.expiration_time,
@@ -2270,11 +2274,12 @@ app.get('/api/clip/:clipId', [
       try {
         const fileContent = await fs.readFile(clip.file_path);
         if (clip.content_type === 'text') {
-          // Convert back to text
-          responseContent = fileContent.toString('utf-8');
-          contentMetadata.contentType = 'text';
+          // Text content stored as encrypted file - return as binary array for client-side decryption
+          responseContent = Array.from(fileContent);
+          contentMetadata.contentType = 'text'; // Keep content type as 'text' so client knows to display as text
+          console.log(`📖 Text file retrieved: ${clip.file_path} (${fileContent.length} bytes encrypted)`);
         } else {
-          // Return as binary array
+          // Return as binary array for regular files
           responseContent = Array.from(fileContent);
           contentMetadata.contentType = 'binary';
         }
