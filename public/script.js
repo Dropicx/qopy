@@ -2282,7 +2282,7 @@ class ClipboardApp {
         if (password && urlSecret) {
             // Password + URL secret mode
             console.log('🔑 Using password + URL secret mode');
-            const combined = password + '|' + urlSecret;
+            const combined = urlSecret + ':' + password;
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
                 encoder.encode(combined),
