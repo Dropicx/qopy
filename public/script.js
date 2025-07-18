@@ -1196,9 +1196,10 @@ class ClipboardApp {
             
             console.log(`📥 Downloaded encrypted text file: ${encryptedBytes.length} bytes`);
 
-            // Decrypt the content (convert to array format like the API response)
-            const encryptedArray = Array.from(encryptedBytes);
-            const decryptedText = await this.decryptContent(encryptedArray, password, urlSecret);
+            // Decrypt the content using the same method as file downloads
+            const decryptedBytes = await this.decryptFile(encryptedBytes, password, urlSecret);
+            const decoder = new TextDecoder();
+            const decryptedText = decoder.decode(decryptedBytes);
             
             console.log('✅ Text file decrypted successfully');
 
@@ -1975,22 +1976,29 @@ class ClipboardApp {
             console.log('🗂️ Using existing file download section');
         }
         
-        // Create elements safely to prevent XSS
+        // Create modern file download UI
         fileSection.innerHTML = `
-            <div class="file-download-info">
-                <div class="file-icon">📄</div>
-                <div class="file-download-details">
-                    <div class="filename" id="download-filename"></div>
-                    <div class="filesize" id="download-filesize"></div>
+            <div class="result-header">
+                <label class="label">📄 File Ready for Download</label>
+            </div>
+            <div class="file-download-card">
+                <div class="file-info">
+                    <div class="file-icon">📄</div>
+                    <div class="file-details">
+                        <div class="file-name" id="download-filename"></div>
+                        <div class="file-size" id="download-filesize"></div>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <button id="download-file-button" class="primary-button">
+                        <span class="button-icon">📥</span>
+                        Download File
+                    </button>
                 </div>
             </div>
-            <div class="file-download-actions">
-                <button id="download-file-button" class="btn btn-primary">
-                    📥 Download File
-                </button>
-                <button id="copy-file-url-button" class="btn btn-secondary">
-                    📋 Copy Link
-                </button>
+            <div class="content-info">
+                <p>📅 Retrieved: <span id="file-created-time"></span></p>
+                <p>⏰ Expires: <span id="file-expires-time"></span></p>
             </div>
         `;
         
@@ -2029,14 +2037,31 @@ class ClipboardApp {
             console.error('❌ Download button not found!');
         }
         
-        // Add copy URL event listener
-        const copyUrlButton = document.getElementById('copy-file-url-button');
-        if (copyUrlButton) {
-            copyUrlButton.addEventListener('click', () => {
-                const clipId = document.getElementById('clip-id-input').value.trim();
-                const fileUrl = `${window.location.origin}/file/${clipId}`;
-                this.copyToClipboard(fileUrl, '📋 File URL copied!');
-            });
+        // Set time stamps
+        const fileCreatedTime = document.getElementById('file-created-time');
+        const fileExpiresTime = document.getElementById('file-expires-time');
+        
+        if (fileCreatedTime) {
+            fileCreatedTime.textContent = new Date().toLocaleString();
+        }
+        
+        if (fileExpiresTime && data.expiresAt) {
+            try {
+                const expiresAtNumber = typeof data.expiresAt === 'string' ? parseInt(data.expiresAt, 10) : data.expiresAt;
+                const expiryDate = new Date(expiresAtNumber);
+                
+                if (!isNaN(expiryDate.getTime())) {
+                    const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
+                    const formattedDate = expiryDate.toLocaleString();
+                    fileExpiresTime.textContent = `${formattedDate} (${timeRemaining} remaining)`;
+                } else {
+                    fileExpiresTime.textContent = 'Invalid date';
+                }
+            } catch (error) {
+                fileExpiresTime.textContent = 'Error formatting date';
+            }
+        } else if (fileExpiresTime) {
+            fileExpiresTime.textContent = 'Not available';
         }
         
         // Show the content result
