@@ -1165,9 +1165,21 @@ class ClipboardApp {
         try {
             console.log('📥 Starting programmatic text file download from:', data.redirectTo);
             
-            // Extract URL secret and password for decryption  
-            const urlSecret = this.extractUrlSecret();
-            const password = this.getPasswordFromUser();
+            // Extract decryption keys based on clip type
+            let urlSecret = null;
+            let password = null;
+            
+            if (data.quickShareSecret) {
+                // Quick Share mode - use the secret from server response
+                urlSecret = data.quickShareSecret;
+                password = null;
+                console.log('🔑 Using Quick Share secret for decryption');
+            } else {
+                // Normal mode - extract from URL and user input
+                urlSecret = this.extractUrlSecret();
+                password = this.getPasswordFromUser();
+                console.log('🔑 Using URL secret and password for decryption');
+            }
 
             // Download the encrypted file
             const response = await fetch(data.redirectTo, {

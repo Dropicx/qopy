@@ -2273,7 +2273,7 @@ app.get('/api/clip/:clipId', [
       // Content stored as file - redirect to file endpoint for unified handling
       if (clip.content_type === 'text') {
         // Text content stored as file - redirect to file endpoint but mark as text
-        return res.json({
+        const response = {
           success: true,
           contentType: 'text',
           redirectTo: `/api/file/${clipId}`,
@@ -2283,7 +2283,14 @@ app.get('/api/clip/:clipId', [
           expiresAt: clip.expiration_time,
           oneTime: clip.one_time,
           isTextFile: true // Special flag to indicate this should be decrypted and shown as text
-        });
+        };
+        
+        // For Quick Share clips (4-digit ID), include the secret for decryption
+        if (clipId.length === 4 && clip.password_hash && clip.password_hash !== 'client-encrypted') {
+          response.quickShareSecret = clip.password_hash;
+        }
+        
+        return res.json(response);
       } else {
         // Regular file - redirect to file endpoint
         return res.json({
