@@ -318,9 +318,9 @@ class FileUploadManager {
                 const encryptedFileBlob = new Blob([encryptedFile]);
                 const encryptedFileObj = new File([encryptedFileBlob], file.name, { type: file.type });
                 
-                // Upload encrypted file as single chunk
-                console.log('📦 Uploading encrypted file as single chunk');
-                const result = await this.uploadChunk(uploadId, 0, encryptedFileObj, {});
+                // Upload encrypted file as single chunk (already encrypted, so no additional encryption)
+                console.log('📦 Uploading pre-encrypted file as single chunk');
+                const result = await this.uploadChunk(uploadId, 0, encryptedFileObj, { preEncrypted: true });
                 checksums[0] = result.checksum;
                 
                 // Update progress
@@ -368,8 +368,8 @@ class FileUploadManager {
         let chunkData = await chunk.arrayBuffer();
         console.log(`📦 Original chunk size: ${chunkData.byteLength} bytes`);
         
-        // Encrypt chunk if password or URL secret is provided
-        if (encryptionOptions.password || encryptionOptions.urlSecret) {
+        // Encrypt chunk if password or URL secret is provided (but not if already pre-encrypted)
+        if ((encryptionOptions.password || encryptionOptions.urlSecret) && !encryptionOptions.preEncrypted) {
             try {
                 console.log(`🔐 Encrypting chunk ${chunkNumber}...`);
                 const chunkBytes = new Uint8Array(chunkData);
@@ -386,6 +386,8 @@ class FileUploadManager {
                 // Note: This is not ideal for security, but prevents upload failures
                 // In production, you might want to fail the entire upload instead
             }
+        } else if (encryptionOptions.preEncrypted) {
+            console.log(`📦 Chunk ${chunkNumber} is already pre-encrypted, uploading as-is`);
         } else {
             console.log(`⚠️ No encryption options provided for chunk ${chunkNumber}, uploading unencrypted`);
         }
