@@ -455,9 +455,12 @@ class ClipboardApp {
         const passwordSection = document.getElementById('password-section');
         const passwordInput = document.getElementById('retrieve-password-input');
         
+        console.log('🔍 checkClipId called with clipId:', clipId, 'length:', clipId.length);
+        
         // Always hide password section by default
         if (passwordSection) {
             passwordSection.classList.add('hidden');
+            console.log('🔒 Hiding password section by default');
         }
         if (passwordInput) {
             passwordInput.value = '';
@@ -465,27 +468,41 @@ class ClipboardApp {
         
         if (clipId.length === 4 || clipId.length === 10) {
             try {
+                console.log('🔍 Fetching clip info for:', clipId);
                 const response = await fetch(`/api/clip/${clipId}/info`);
                 const data = await response.json();
+                
+                console.log('🔍 Clip info response:', data);
                 
                 if (response.ok) {
                     // Show password section ONLY for text content with passwords
                     // Files handle their own password logic in showRetrieveResult
                     if (data.hasPassword && data.contentType === 'text') {
+                        console.log('🔑 Showing password section for text content with password');
                         if (passwordSection) {
                             passwordSection.classList.remove('hidden');
                         }
                         if (passwordInput) {
                             passwordInput.focus();
                         }
+                    } else {
+                        console.log('🔒 Not showing password section:', {
+                            hasPassword: data.hasPassword,
+                            contentType: data.contentType,
+                            condition: data.hasPassword && data.contentType === 'text'
+                        });
                     }
                     // For files, we'll handle password display in showRetrieveResult
                 } else {
+                    console.log('❌ Clip not found or expired - password section stays hidden');
                     // Clip not found or expired - password section stays hidden
                 }
             } catch (error) {
+                console.error('❌ Error in checkClipId:', error);
                 // On error, password section stays hidden
             }
+        } else {
+            console.log('🔒 Clip ID not complete - password section stays hidden');
         }
         // If clip ID is not complete, password section stays hidden (default behavior)
     }
