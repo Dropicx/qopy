@@ -868,8 +868,10 @@ class ClipboardApp {
                 hasRedirectTo: !!data.redirectTo,
                 expiresAt: data.expiresAt,
                 oneTime: data.oneTime,
+                quickShareSecret: data.quickShareSecret,
                 keys: Object.keys(data)
             });
+            console.log('📡 Full API response:', data);
 
             if (response.ok) {
                 // Check if this is a text file stored as file (needs redirect to showRetrieveResult)

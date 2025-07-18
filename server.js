@@ -2288,7 +2288,10 @@ app.get('/api/clip/:clipId', [
         // For Quick Share clips (4-digit ID), include the secret for decryption
         if (clipId.length === 4 && clip.password_hash) {
           // For Quick Share, password_hash contains the actual secret (not 'client-encrypted')
+          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId, 'secret:', clip.password_hash);
           response.quickShareSecret = clip.password_hash;
+        } else {
+          console.log('🔑 Not adding quickShareSecret for clip:', clipId, 'length:', clipId.length, 'password_hash:', clip.password_hash);
         }
         
         return res.json(response);
@@ -2356,10 +2359,15 @@ app.get('/api/clip/:clipId', [
     // For Quick Share clips (4-digit ID), include the secret for decryption
     if (clipId.length === 4 && clip.password_hash) {
       // For Quick Share, password_hash contains the actual secret (not 'client-encrypted')
+      console.log('🔑 Adding quickShareSecret for 4-digit clip (inline):', clipId, 'secret:', clip.password_hash);
       response.quickShareSecret = clip.password_hash;
     } else if (clipId.length === 10) {
       // For normal clips, check if they have password protection
       response.hasPassword = clip.password_hash !== null && clip.password_hash !== 'client-encrypted';
+    }
+    
+    if (clipId.length === 4) {
+      console.log('🔑 Quick Share clip processing (inline):', clipId, 'password_hash:', clip.password_hash);
     }
 
     res.json(response);
