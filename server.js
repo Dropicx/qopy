@@ -625,16 +625,38 @@ function generateClipId(quickShare = false) {
 // Enhanced cleanup for expired clips and uploads
 async function cleanupExpiredClips() {
   try {
+    const now = Date.now();
+    
+    // Get clips that are about to be marked as expired to delete their files
+    const expiredClipsWithFiles = await pool.query(
+      'SELECT clip_id, file_path FROM clips WHERE expiration_time < $1 AND is_expired = false AND file_path IS NOT NULL',
+      [now]
+    );
+    
+    // Delete files for expired clips
+    let deletedFilesCount = 0;
+    for (const clip of expiredClipsWithFiles.rows) {
+      if (clip.file_path) {
+        const result = await safeDeleteFile(clip.file_path);
+        if (result.success) {
+          deletedFilesCount++;
+          console.log(`🧹 Deleted expired file: ${clip.file_path} (clip: ${clip.clip_id})`);
+        } else {
+          console.warn(`⚠️ Failed to delete expired file: ${clip.file_path} - ${result.reason}: ${result.error}`);
+        }
+      }
+    }
+    
     // Mark expired clips as expired instead of deleting them
     const markResult = await pool.query(
       'UPDATE clips SET is_expired = true WHERE expiration_time < $1 AND is_expired = false',
-      [Date.now()]
+      [now]
     );
     
     // Delete clips that have been expired for more than 7 days
     const deleteResult = await pool.query(
       'DELETE FROM clips WHERE is_expired = true AND expiration_time < $1',
-      [Date.now() - (7 * 24 * 60 * 60 * 1000)] // 7 days ago
+      [now - (7 * 24 * 60 * 60 * 1000)] // 7 days ago
     );
     
     // Check if we need to reset the sequence (if we're approaching the limit)
@@ -655,6 +677,10 @@ async function cleanupExpiredClips() {
       );
       
       console.log(`🔄 Reset SERIAL sequence to ${newStartValue} (was ${currentSequence})`);
+    }
+    
+    if (deletedFilesCount > 0) {
+      console.log(`🧹 Deleted ${deletedFilesCount} expired files`);
     }
     
     if (markResult.rowCount > 0) {
@@ -2627,11 +2653,11 @@ app.use((req, res) => {
 });
 
 // Set up periodic tasks
-// Comprehensive cleanup every 5 minutes
+// Comprehensive cleanup every minute
 const cleanupInterval = setInterval(async () => {
   await cleanupExpiredClips();
   await cleanupExpiredUploads();
-}, 5 * 60 * 1000); // Every 5 minutes
+}, 60 * 1000); // Every minute
 
 // Graceful shutdown handlers
 process.on('SIGTERM', () => {

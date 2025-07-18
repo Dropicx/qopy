@@ -19,7 +19,7 @@ Qopy is a privacy-first, secure temporary text sharing web application with mili
 - **Combined secrets** - URL secret + password combined for maximum security
 - **No password transmission** - passwords never leave the client
 - **Defense in depth** - Even weak passwords protected by URL secret
-- **Automatic expiration** with guaranteed cleanup every 5 minutes
+- **Automatic expiration** with guaranteed cleanup every minute
 - **One-time access** option for sensitive content
 - **Rate limiting** - Multi-layered protection against abuse
 
