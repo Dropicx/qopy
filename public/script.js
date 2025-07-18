@@ -1028,6 +1028,13 @@ class ClipboardApp {
             keys: Object.keys(data)
         });
 
+        // Check if this is a text file stored as file (needs programmatic download + decryption)
+        if (data.contentType === 'text' && data.redirectTo && data.isTextFile) {
+            console.log('📝 Detected text content stored as file, downloading and decrypting...');
+            await this.handleTextFileDownload(data);
+            return;
+        }
+
         // Check if this is a file redirect (for files stored on disk)
         if (data.contentType === 'file' && data.redirectTo) {
             console.log('📁 Detected file content with redirect, calling handleFileDownload');
@@ -1144,6 +1151,94 @@ class ClipboardApp {
         
         // Scroll to result
         document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Handle text file download and decryption
+    async handleTextFileDownload(data) {
+        try {
+            console.log('📥 Starting programmatic text file download from:', data.redirectTo);
+            
+            // Extract URL secret and password for decryption  
+            const urlSecret = this.extractUrlSecret();
+            const password = this.getPasswordFromUser();
+
+            // Download the encrypted file
+            const response = await fetch(data.redirectTo, {
+                method: 'GET'
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+            }
+
+            // Get the encrypted file as array buffer
+            const encryptedBuffer = await response.arrayBuffer();
+            const encryptedBytes = new Uint8Array(encryptedBuffer);
+            
+            console.log(`📥 Downloaded encrypted text file: ${encryptedBytes.length} bytes`);
+
+            // Decrypt the content (convert to array format like the API response)
+            const encryptedArray = Array.from(encryptedBytes);
+            const decryptedText = await this.decryptContent(encryptedArray, password, urlSecret);
+            
+            console.log('✅ Text file decrypted successfully');
+
+            // Display as text content
+            document.getElementById('retrieved-content').textContent = decryptedText;
+            
+            // Set metadata
+            document.getElementById('created-time').textContent = new Date().toLocaleString();
+            
+            // Format expiration time
+            try {
+                const expiresAt = data.expiresAt;
+                if (expiresAt) {
+                    const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
+                    const expiryDate = new Date(expiresAtNumber);
+                    
+                    if (!isNaN(expiryDate.getTime())) {
+                        const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
+                        const formattedDate = expiryDate.toLocaleString();
+                        document.getElementById('expires-time').textContent = `${formattedDate} (${timeRemaining} remaining)`;
+                    } else {
+                        document.getElementById('expires-time').textContent = 'Invalid date';
+                    }
+                } else {
+                    document.getElementById('expires-time').textContent = 'Not available';
+                }
+            } catch (error) {
+                document.getElementById('expires-time').textContent = 'Error formatting date';
+            }
+            
+            // Handle one-time notice
+            const oneTimeNotice = document.getElementById('one-time-notice');
+            if (data.oneTime) {
+                oneTimeNotice.classList.remove('hidden');
+            } else {
+                oneTimeNotice.classList.add('hidden');
+            }
+            
+            // Show text-related elements
+            this.showTextElements();
+            
+            // Show the result container
+            document.getElementById('content-result').classList.remove('hidden');
+            document.getElementById('content-result').style.display = 'block';
+            
+            // Scroll to result
+            document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
+
+        } catch (error) {
+            console.error('❌ Text file download/decryption error:', error);
+            
+            if (error.message.includes('password is incorrect')) {
+                this.showToast('❌ Wrong password or URL secret', 'error');
+            } else if (error.message.includes('corrupted')) {
+                this.showToast('❌ Content appears to be corrupted or tampered with', 'error');
+            } else {
+                this.showToast(`❌ Failed to decrypt text file: ${error.message}`, 'error');
+            }
+        }
     }
 
     // Check if a file requires password input

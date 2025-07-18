@@ -2270,23 +2270,31 @@ app.get('/api/clip/:clipId', [
         oneTime: clip.one_time
       });
     } else if (clip.file_path) {
-      // Content stored as file
-      try {
-        const fileContent = await fs.readFile(clip.file_path);
-        if (clip.content_type === 'text') {
-          // Text content stored as encrypted file - return as binary array for client-side decryption
-          responseContent = Array.from(fileContent);
-          contentMetadata.contentType = 'text'; // Keep content type as 'text' so client knows to display as text
-          console.log(`📖 Text file retrieved: ${clip.file_path} (${fileContent.length} bytes encrypted)`);
-        } else {
-          // Return as binary array for regular files
-          responseContent = Array.from(fileContent);
-          contentMetadata.contentType = 'binary';
-        }
-      } catch (error) {
-        return res.status(404).json({
-          error: 'Content not found',
-          message: 'The content file has been removed from storage'
+      // Content stored as file - redirect to file endpoint for unified handling
+      if (clip.content_type === 'text') {
+        // Text content stored as file - redirect to file endpoint but mark as text
+        return res.json({
+          success: true,
+          contentType: 'text',
+          redirectTo: `/api/file/${clipId}`,
+          filename: clip.original_filename,
+          filesize: clip.filesize,
+          mimeType: clip.mime_type || 'text/plain',
+          expiresAt: clip.expiration_time,
+          oneTime: clip.one_time,
+          isTextFile: true // Special flag to indicate this should be decrypted and shown as text
+        });
+      } else {
+        // Regular file - redirect to file endpoint
+        return res.json({
+          success: true,
+          contentType: 'file',
+          redirectTo: `/api/file/${clipId}`,
+          filename: clip.original_filename,
+          filesize: clip.filesize,
+          mimeType: clip.mime_type,
+          expiresAt: clip.expiration_time,
+          oneTime: clip.one_time
         });
       }
     } else if (clip.content) {
