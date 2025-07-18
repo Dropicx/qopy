@@ -905,6 +905,12 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             });
         }
 
+        // Ensure expiration_time is set (fallback to 24 hours if missing)
+        if (!session.expiration_time) {
+            console.warn(`⚠️ Missing expiration_time for session ${uploadId}, using 24 hours as fallback`);
+            session.expiration_time = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
+        }
+
         if (session.uploaded_chunks < session.total_chunks) {
             return res.status(400).json({
                 error: 'Upload incomplete',
@@ -1172,8 +1178,25 @@ app.post('/api/upload/initiate', [
 
         // Cache session data for quick access
         await setCache(`upload:${uploadId}`, {
-            uploadId, filename, filesize, mimeType, totalChunks, 
-            chunksUploaded: 0, checksums: []
+            uploadId, 
+            filename, 
+            original_filename: filename,
+            filesize, 
+            mime_type: mimeType, 
+            chunk_size: CHUNK_SIZE,
+            total_chunks: totalChunks, 
+            uploaded_chunks: 0,
+            expiration_time: expirationTime,
+            has_password: hasPassword,
+            one_time: oneTime,
+            quick_share: quickShare,
+            client_ip: clientIP,
+            created_at: Date.now(),
+            last_activity: Date.now(),
+            is_text_content: isTextContent || contentType === 'text',
+            original_content: originalContent,
+            status: 'uploading',
+            checksums: []
         });
 
         res.json({
