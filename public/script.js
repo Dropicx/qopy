@@ -875,7 +875,7 @@ class ClipboardApp {
 
             if (response.ok) {
                 // Check if this is a text file stored as file (needs redirect to showRetrieveResult)
-                if (data.contentType === 'text' && (data.redirectTo || data.hasContent)) {
+                if (data.contentType === 'text' && data.redirectTo) {
                     console.log('📝 Detected text content stored as file, calling showRetrieveResult directly');
                     await this.showRetrieveResult(data);
                     return;
@@ -1037,13 +1037,6 @@ class ClipboardApp {
             keys: Object.keys(data)
         });
 
-        // Check if this is text content with direct content (one-time access)
-        if (data.contentType === 'text' && data.hasContent && data.content) {
-            console.log('📝 Detected text content with direct content (one-time), decrypting...');
-            await this.handleDirectTextContent(data);
-            return;
-        }
-
         // Check if this is a text file stored as file (needs programmatic download + decryption)
         if (data.contentType === 'text' && data.redirectTo && data.isTextFile) {
             console.log('📝 Detected text content stored as file, downloading and decrypting...');
@@ -1170,89 +1163,6 @@ class ClipboardApp {
     }
 
     // Handle text file download and decryption
-    async handleDirectTextContent(data) {
-        try {
-            console.log('📥 Processing direct text content (one-time access)');
-            
-            // Extract decryption keys based on clip type
-            let urlSecret = null;
-            let password = null;
-            
-            if (data.quickShareSecret) {
-                // Quick Share mode - use the secret from server response
-                urlSecret = data.quickShareSecret;
-                password = null;
-                console.log('🔑 Using Quick Share secret for decryption');
-            } else {
-                // Normal mode - extract from URL and user input
-                urlSecret = this.extractUrlSecret();
-                password = this.getPasswordFromUser();
-                console.log('🔑 Using URL secret and password for decryption');
-            }
-
-            // Decrypt the content directly (it's already an array format)
-            const decryptedText = await this.decryptContent(data.content, password, urlSecret);
-            
-            console.log('✅ Direct text content decrypted successfully');
-
-            // Display as text content
-            document.getElementById('retrieved-content').textContent = decryptedText;
-            
-            // Set metadata
-            document.getElementById('created-time').textContent = new Date().toLocaleString();
-            
-            // Format expiration time
-            try {
-                const expiresAt = data.expiresAt;
-                if (expiresAt) {
-                    const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
-                    const expiryDate = new Date(expiresAtNumber);
-                    
-                    if (!isNaN(expiryDate.getTime())) {
-                        const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
-                        const formattedDate = expiryDate.toLocaleString();
-                        document.getElementById('expires-time').textContent = `${formattedDate} (${timeRemaining} remaining)`;
-                    } else {
-                        document.getElementById('expires-time').textContent = 'Invalid date';
-                    }
-                } else {
-                    document.getElementById('expires-time').textContent = 'Not available';
-                }
-            } catch (error) {
-                document.getElementById('expires-time').textContent = 'Error formatting date';
-            }
-            
-            // Handle one-time notice
-            const oneTimeNotice = document.getElementById('one-time-notice');
-            if (data.oneTime) {
-                oneTimeNotice.classList.remove('hidden');
-            } else {
-                oneTimeNotice.classList.add('hidden');
-            }
-            
-            // Show text-related elements
-            this.showTextElements();
-            
-            // Show the result container
-            document.getElementById('content-result').classList.remove('hidden');
-            document.getElementById('content-result').style.display = 'block';
-            
-            // Scroll to result
-            document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
-
-        } catch (error) {
-            console.error('❌ Direct text content decryption error:', error);
-            
-            if (error.message.includes('password is incorrect')) {
-                this.showToast('❌ Wrong password or URL secret', 'error');
-            } else if (error.message.includes('corrupted')) {
-                this.showToast('❌ Content appears to be corrupted or tampered with', 'error');
-            } else {
-                this.showToast(`❌ Failed to decrypt text content: ${error.message}`, 'error');
-            }
-        }
-    }
-
     async handleTextFileDownload(data) {
         try {
             console.log('📥 Starting programmatic text file download from:', data.redirectTo);

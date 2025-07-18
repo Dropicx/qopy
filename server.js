@@ -1865,9 +1865,12 @@ app.get('/api/file/:clipId', [
 
         await updateStatistics('file_accessed');
 
-        // Handle one-time access
+        // Handle one-time access - delete clip and schedule file deletion after response
+        let deleteFileAfterSend = false;
         if (clip.one_time) {
+            console.log('🔥 One-time file access, deleting clip from database:', clipId);
             await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
+            deleteFileAfterSend = true;
         }
 
         // Check if file exists
@@ -1899,6 +1902,18 @@ app.get('/api/file/:clipId', [
                 });
             }
         });
+
+        // Delete file after successful streaming for one-time access
+        if (deleteFileAfterSend) {
+            fileStream.on('end', async () => {
+                try {
+                    await fs.unlink(clip.file_path);
+                    console.log('🧹 Deleted one-time file after streaming:', clip.file_path);
+                } catch (fileError) {
+                    console.warn('⚠️ Could not delete one-time file:', fileError.message);
+                }
+            });
+        }
 
     } catch (error) {
         console.error('❌ Error downloading file:', error.message);
@@ -2297,94 +2312,43 @@ app.get('/api/clip/:clipId', [
         oneTime: clip.one_time
       });
     } else if (clip.file_path) {
-      // Content stored as file - for one-time access, load content directly instead of redirecting
-      if (clip.one_time) {
-        console.log('🔥 One-time access for file-stored content, loading directly:', clipId);
+      // Content stored as file - redirect to file endpoint for unified handling
+      if (clip.content_type === 'text') {
+        // Text content stored as file - redirect to file endpoint but mark as text
+        const response = {
+          success: true,
+          contentType: 'text',
+          redirectTo: `/api/file/${clipId}`,
+          filename: clip.original_filename,
+          filesize: clip.filesize,
+          mimeType: clip.mime_type || 'text/plain',
+          expiresAt: clip.expiration_time,
+          oneTime: clip.one_time,
+          isTextFile: true // Special flag to indicate this should be decrypted and shown as text
+        };
         
-        try {
-          // Load file content directly
-          const fileContent = await fs.readFile(clip.file_path);
-          
-          // Delete the clip from database immediately
-          await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
-          
-          // Also delete the physical file for one-time access
-          try {
-            await fs.unlink(clip.file_path);
-            console.log('🧹 Deleted one-time file:', clip.file_path);
-          } catch (fileError) {
-            console.warn('⚠️ Could not delete one-time file:', fileError.message);
-          }
-          
-          // Return content directly as array of bytes
-          const response = {
-            success: true,
-            content: Array.from(fileContent),
-            contentType: clip.content_type,
-            filename: clip.original_filename,
-            filesize: clip.filesize,
-            mimeType: clip.mime_type || 'text/plain',
-            expiresAt: clip.expiration_time,
-            oneTime: true,
-            hasContent: true,
-            hasFile: false,
-            hasRedirectTo: false
-          };
-          
-          // For Quick Share clips (4-digit ID), include the secret for decryption
-          if (clipId.length === 4 && clip.password_hash) {
-            console.log('🔑 Adding quickShareSecret for one-time 4-digit clip:', clipId);
-            response.quickShareSecret = clip.password_hash;
-          }
-          
-          return res.json(response);
-          
-        } catch (fileError) {
-          console.error('❌ Error loading one-time file content:', fileError.message);
-          return res.status(500).json({
-            error: 'File access error',
-            message: 'Could not load file content'
-          });
-        }
-      } else {
-        // Non-one-time access - redirect to file endpoint as usual
-        if (clip.content_type === 'text') {
-          // Text content stored as file - redirect to file endpoint but mark as text
-          const response = {
-            success: true,
-            contentType: 'text',
-            redirectTo: `/api/file/${clipId}`,
-            filename: clip.original_filename,
-            filesize: clip.filesize,
-            mimeType: clip.mime_type || 'text/plain',
-            expiresAt: clip.expiration_time,
-            oneTime: clip.one_time,
-            isTextFile: true // Special flag to indicate this should be decrypted and shown as text
-          };
-          
-          // For Quick Share clips (4-digit ID), include the secret for decryption
-          if (clipId.length === 4 && clip.password_hash) {
-            // For Quick Share, password_hash contains the actual secret (not 'client-encrypted')
-            console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId, 'secret:', clip.password_hash);
-            response.quickShareSecret = clip.password_hash;
-          } else {
-            console.log('🔑 Not adding quickShareSecret for clip:', clipId, 'length:', clipId.length, 'password_hash:', clip.password_hash);
-          }
-          
-          return res.json(response);
+        // For Quick Share clips (4-digit ID), include the secret for decryption
+        if (clipId.length === 4 && clip.password_hash) {
+          // For Quick Share, password_hash contains the actual secret (not 'client-encrypted')
+          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId, 'secret:', clip.password_hash);
+          response.quickShareSecret = clip.password_hash;
         } else {
-          // Regular file - redirect to file endpoint
-          return res.json({
-            success: true,
-            contentType: 'file',
-            redirectTo: `/api/file/${clipId}`,
-            filename: clip.original_filename,
-            filesize: clip.filesize,
-            mimeType: clip.mime_type,
-            expiresAt: clip.expiration_time,
-            oneTime: clip.one_time
-          });
+          console.log('🔑 Not adding quickShareSecret for clip:', clipId, 'length:', clipId.length, 'password_hash:', clip.password_hash);
         }
+        
+        return res.json(response);
+      } else {
+        // Regular file - redirect to file endpoint
+        return res.json({
+          success: true,
+          contentType: 'file',
+          redirectTo: `/api/file/${clipId}`,
+          filename: clip.original_filename,
+          filesize: clip.filesize,
+          mimeType: clip.mime_type,
+          expiresAt: clip.expiration_time,
+          oneTime: clip.one_time
+        });
       }
     } else if (clip.content) {
       // Content stored inline in database
