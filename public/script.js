@@ -1499,7 +1499,7 @@ class ClipboardApp {
         }
         
         // Hide any existing toasts
-        document.querySelectorAll('.toast').forEach(toast => {
+        document.querySelectorAll('#error-toast, #info-toast, #success-toast').forEach(toast => {
             toast.classList.add('hidden');
         });
         
@@ -1507,8 +1507,8 @@ class ClipboardApp {
         document.getElementById(messageId).textContent = message;
         document.getElementById(toastId).classList.remove('hidden');
         
-        // Auto-hide after 2 seconds for success/copy messages, 4 seconds for errors
-        const autoHideDelay = (type === 'success' || type === 'info') ? 2000 : 4000;
+        // Auto-hide after 3 seconds for success/copy messages, 4 seconds for errors
+        const autoHideDelay = (type === 'success' || type === 'info') ? 3000 : 4000;
         setTimeout(() => {
             document.getElementById(toastId).classList.add('hidden');
         }, autoHideDelay);

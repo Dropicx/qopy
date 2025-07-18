@@ -838,50 +838,7 @@ textarea:focus {
   font-weight: 600;
 }
 
-/* Toast Notifications */
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 16px 20px;
-  border-radius: 12px;
-  color: white;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  z-index: 1001;
-  max-width: 400px;
-  box-shadow: 0 4px 20px var(--shadow-heavy);
-  animation: slideIn 0.3s ease-out;
-}
 
-@keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-.toast.error {
-  background: var(--error-color);
-}
-
-.toast.success {
-  background: var(--success-color);
-}
-
-.toast-close {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 1.2rem;
-  cursor: pointer;
-  opacity: 0.8;
-  transition: opacity 0.3s ease;
-}
-
-.toast-close:hover {
-  opacity: 1;
-}
 
 /* Footer - Modern design */
 footer {
