@@ -1049,6 +1049,7 @@ class ClipboardApp {
         }
 
         // Check if this is a file by checking for filename and filesize (for multi-part uploads)
+        // BUT: If contentType is 'text', treat it as text content even if it has filename/filesize
         if (data.filename && data.filesize && data.contentType !== 'text') {
             console.log('📁 Detected file by filename/filesize, calling handleFileDownload');
             // Check if this file needs password
@@ -1057,6 +1058,14 @@ class ClipboardApp {
             this.hideAllTextElements();
             this.handleFileDownload(data);
             return;
+        }
+
+        // Special handling for text content that was uploaded as a file (e.g., .txt files)
+        // If contentType is 'text' but we have filename/filesize, treat it as text content
+        if (data.contentType === 'text' && data.filename && data.filesize) {
+            console.log('📝 Detected text content uploaded as file, processing as text');
+            // This is text content that was uploaded as a file (like .txt files)
+            // We should decrypt and display it as text, not download it
         }
 
         console.log('📝 Processing as text content');
