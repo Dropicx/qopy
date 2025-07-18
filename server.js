@@ -1811,7 +1811,7 @@ app.get('/api/file/:clipId/info', [
             mimeType: clip.mime_type,
             expiresAt: clip.expiration_time,
             oneTime: clip.one_time,
-            hasPassword: clip.password_hash !== null && clip.password_hash !== 'client-encrypted'
+            hasPassword: clip.password_hash === 'client-encrypted'
         });
 
     } catch (error) {
@@ -2248,8 +2248,8 @@ app.get('/api/clip/:clipId/info', [
     // Determine if clip has password based on ID length and password_hash content
     let hasPassword = false;
     if (clipId.length === 10) {
-      // For normal clips (10-digit), check if password_hash exists and is not 'client-encrypted'
-      hasPassword = clip.password_hash !== null && clip.password_hash !== 'client-encrypted';
+      // For normal clips (10-digit), check if password_hash is 'client-encrypted' (indicates password protection)
+      hasPassword = clip.password_hash === 'client-encrypted';
       console.log('🔍 Clip info debug:', {
         clipId,
         contentType: clip.content_type,
@@ -2449,7 +2449,7 @@ app.get('/api/clip/:clipId', [
       response.quickShareSecret = clip.password_hash;
     } else if (clipId.length === 10) {
       // For normal clips, check if they have password protection
-      response.hasPassword = clip.password_hash !== null && clip.password_hash !== 'client-encrypted';
+      response.hasPassword = clip.password_hash === 'client-encrypted';
     }
     
     if (clipId.length === 4) {
