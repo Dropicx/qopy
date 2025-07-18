@@ -90,11 +90,30 @@ async function initializeStorage() {
         // Railway volumes are mounted at the specified path and are writable
         const chunksDir = path.join(STORAGE_PATH, 'chunks');
         const filesDir = path.join(STORAGE_PATH, 'files');
+        const tempDir = path.join(STORAGE_PATH, 'temp');
         
         // Create directories with proper error handling
         await fs.ensureDir(chunksDir);
         await fs.ensureDir(filesDir);
-        await fs.ensureDir(path.join(STORAGE_PATH, 'temp'));
+        await fs.ensureDir(tempDir);
+        
+        // Fix permissions for upload directories
+        try {
+            // Get current user info
+            const { execSync } = require('child_process');
+            const uid = execSync('id -u', { encoding: 'utf8' }).trim();
+            const gid = execSync('id -g', { encoding: 'utf8' }).trim();
+            
+            console.log(`🔧 Current user: ${uid}:${gid}`);
+            
+            // Set proper ownership and permissions
+            execSync(`chown -R ${uid}:${gid} ${STORAGE_PATH}`);
+            execSync(`chmod -R 775 ${STORAGE_PATH}`);
+            
+            console.log(`✅ Fixed permissions for storage directories`);
+        } catch (permError) {
+            console.warn(`⚠️ Could not fix permissions (this is normal in some environments): ${permError.message}`);
+        }
         
         // Test write permissions
         const testFile = path.join(chunksDir, '.test');
@@ -104,7 +123,7 @@ async function initializeStorage() {
         console.log(`✅ Storage directories initialized at: ${STORAGE_PATH}`);
         console.log(`   - Chunks: ${chunksDir}`);
         console.log(`   - Files: ${filesDir}`);
-        console.log(`   - Temp: ${path.join(STORAGE_PATH, 'temp')}`);
+        console.log(`   - Temp: ${tempDir}`);
     } catch (error) {
         console.error('❌ Failed to initialize storage:', error);
         
@@ -650,6 +669,35 @@ async function cleanupExpiredClips() {
   }
 }
 
+// Helper function to safely delete files with permission handling
+async function safeDeleteFile(filePath) {
+    try {
+        // Check if file exists
+        const fileExists = await fs.pathExists(filePath);
+        if (!fileExists) {
+            return { success: true, reason: 'file_not_exists' };
+        }
+        
+        // Get file stats
+        const stats = await fs.stat(filePath);
+        
+        // Try to delete
+        await fs.unlink(filePath);
+        return { success: true, reason: 'deleted' };
+    } catch (error) {
+        // Handle specific error cases
+        if (error.code === 'ENOENT') {
+            return { success: true, reason: 'file_not_exists' };
+        } else if (error.code === 'EACCES' || error.code === 'EPERM') {
+            return { success: false, reason: 'permission_denied', error: error.message };
+        } else if (error.code === 'EBUSY' || error.code === 'ENOTEMPTY') {
+            return { success: false, reason: 'file_in_use', error: error.message };
+        } else {
+            return { success: false, reason: 'unknown_error', error: error.message };
+        }
+    }
+}
+
 // Cleanup expired uploads and orphaned files
 async function cleanupExpiredUploads() {
   try {
@@ -672,10 +720,9 @@ async function cleanupExpiredUploads() {
         );
         
         for (const chunk of chunks.rows) {
-          try {
-            await fs.unlink(chunk.storage_path);
-          } catch (error) {
-            console.warn(`⚠️ Failed to delete chunk file: ${chunk.storage_path}`);
+          const result = await safeDeleteFile(chunk.storage_path);
+          if (!result.success) {
+            console.warn(`⚠️ Failed to delete chunk file: ${chunk.storage_path} - ${result.reason}: ${result.error}`);
           }
         }
         
@@ -706,16 +753,37 @@ async function cleanupExpiredUploads() {
       )
     `, [now]);
     
+    let deletedCount = 0;
+    let failedCount = 0;
+    
     for (const file of orphanedFiles.rows) {
-      try {
-        await fs.unlink(file.file_path);
-      } catch (error) {
-        console.warn(`⚠️ Failed to delete orphaned file: ${file.file_path}`);
+      const result = await safeDeleteFile(file.file_path);
+      
+      if (result.success) {
+        if (result.reason === 'deleted') {
+          deletedCount++;
+          console.log(`✅ Successfully deleted orphaned file: ${file.file_path}`);
+        } else {
+          console.log(`ℹ️ Orphaned file already deleted: ${file.file_path}`);
+        }
+      } else {
+        failedCount++;
+        console.warn(`⚠️ Failed to delete orphaned file: ${file.file_path}`, {
+          reason: result.reason,
+          error: result.error
+        });
+        
+        // Log specific error types
+        if (result.reason === 'permission_denied') {
+          console.error(`🔒 Permission denied deleting file: ${file.file_path}`);
+        } else if (result.reason === 'file_in_use') {
+          console.error(`🔒 File in use or directory not empty: ${file.file_path}`);
+        }
       }
     }
     
     if (orphanedFiles.rows.length > 0) {
-      console.log(`🧹 Cleaned up ${orphanedFiles.rows.length} orphaned files`);
+      console.log(`🧹 Orphaned file cleanup: ${deletedCount} deleted, ${failedCount} failed, ${orphanedFiles.rows.length} total`);
     }
     
   } catch (error) {
@@ -820,90 +888,7 @@ async function assembleFile(uploadId, session) {
 
 // Multi-part upload endpoints
 
-// Initiate upload
-app.post('/api/upload/initiate', [
-    body('filename').isLength({ min: 1, max: 255 }).withMessage('Filename required'),
-    body('filesize').isInt({ min: 1, max: MAX_FILE_SIZE }).withMessage('Invalid filesize'),
-    body('mimeType').optional().isString().withMessage('Invalid mime type'),
-    body('expiration').isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration'),
-    body('hasPassword').optional().isBoolean(),
-    body('oneTime').optional().isBoolean(),
-    body('isTextContent').optional().isBoolean()
-], async (req, res) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                error: 'Validation failed',
-                details: errors.array()
-            });
-        }
 
-        const { filename, filesize, mimeType, expiration, hasPassword, oneTime, isTextContent } = req.body;
-        
-        const uploadId = generateUploadId();
-        const totalChunks = calculateChunks(filesize);
-        
-        const expirationTimes = {
-            '5min': 5 * 60 * 1000,
-            '15min': 15 * 60 * 1000,
-            '30min': 30 * 60 * 1000,
-            '1hr': 60 * 60 * 1000,
-            '6hr': 6 * 60 * 60 * 1000,
-            '24hr': 24 * 60 * 60 * 1000
-        };
-        
-        const expirationTime = Date.now() + expirationTimes[expiration];
-        
-        const sessionData = {
-            uploadId,
-            filename: filename.replace(/[^a-zA-Z0-9._-]/g, '_'), // Sanitize filename
-            original_filename: filename,
-            filesize,
-            mime_type: mimeType || 'application/octet-stream',
-            chunk_size: CHUNK_SIZE,
-            total_chunks: totalChunks,
-            uploaded_chunks: 0,
-            status: 'uploading',
-            has_password: hasPassword || false,
-            one_time: oneTime || false,
-            is_text_content: isTextContent || false,
-            expiration_time: expirationTime,
-            created_at: Date.now(),
-            last_activity: Date.now()
-        };
-
-        // Store in database
-        await pool.query(`
-            INSERT INTO upload_sessions 
-            (upload_id, filename, original_filename, filesize, mime_type, chunk_size, total_chunks, 
-             has_password, one_time, quick_share, is_text_content, expiration_time, created_at, last_activity)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-        `, [
-            uploadId, sessionData.filename, sessionData.original_filename, filesize, sessionData.mime_type,
-            CHUNK_SIZE, totalChunks, hasPassword || false, oneTime || false, 
-            false, isTextContent || false, expirationTime, Date.now(), Date.now()
-        ]);
-
-        // Cache in Redis
-        await createUploadSession(sessionData);
-
-        res.json({
-            success: true,
-            uploadId,
-            chunkSize: CHUNK_SIZE,
-            totalChunks,
-            uploadUrl: `/api/upload/chunk/${uploadId}`
-        });
-
-    } catch (error) {
-        console.error('❌ Error initiating upload:', error.message);
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Failed to initiate upload'
-        });
-    }
-});
 
 // Upload chunk
 app.post('/api/upload/chunk/:uploadId/:chunkNumber', upload.single('chunk'), async (req, res) => {
@@ -1237,6 +1222,7 @@ app.post('/api/upload/initiate', [
     body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
     body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean'),
     body('contentType').optional().isIn(['text', 'file']).withMessage('contentType must be text or file'),
+    body('isTextContent').optional().isBoolean().withMessage('isTextContent must be a boolean'),
     body('originalContent').optional().isString().withMessage('originalContent must be a string')
 ], async (req, res) => {
     try {
@@ -1248,7 +1234,7 @@ app.post('/api/upload/initiate', [
             });
         }
 
-        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'file', originalContent = null } = req.body;
+        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false, originalContent = null } = req.body;
         
         // Calculate chunks
         const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
@@ -1281,7 +1267,7 @@ app.post('/api/upload/initiate', [
             uploadId, filename, filename, filesize, mimeType,
             CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
             oneTime, quickShare, clientIP, Date.now(), Date.now(),
-            contentType === 'text', originalContent
+            isTextContent || contentType === 'text', originalContent
         ]);
 
         // Cache session data for quick access
@@ -1577,10 +1563,9 @@ app.post('/api/upload/complete/:uploadId', [
 
         // Clean up chunks after successful assembly
         for (const chunk of chunks) {
-            try {
-                await fs.unlink(chunk.storage_path);
-            } catch (error) {
-                console.warn('⚠️ Failed to delete chunk file:', chunk.storage_path);
+            const result = await safeDeleteFile(chunk.storage_path);
+            if (!result.success) {
+                console.warn(`⚠️ Failed to delete chunk file: ${chunk.storage_path} - ${result.reason}: ${result.error}`);
             }
         }
 
@@ -1715,10 +1700,9 @@ app.delete('/api/upload/:uploadId', [
         );
 
         for (const chunk of chunksResult.rows) {
-            try {
-                await fs.unlink(chunk.storage_path);
-            } catch (error) {
-                console.warn('⚠️ Failed to delete chunk file:', chunk.storage_path);
+            const result = await safeDeleteFile(chunk.storage_path);
+            if (!result.success) {
+                console.warn(`⚠️ Failed to delete chunk file: ${chunk.storage_path} - ${result.reason}: ${result.error}`);
             }
         }
 

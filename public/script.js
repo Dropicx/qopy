@@ -586,11 +586,13 @@ class ClipboardApp {
                 body: JSON.stringify({
                     filename: file.name,
                     filesize: file.size,
+                    mimeType: file.type || 'text/plain',
                     expiration: expiration,
                     oneTime: oneTime,
                     hasPassword: !!password,
                     quickShare: quickShare,
                     contentType: 'text',
+                    isTextContent: true,
                     originalContent: originalContent
                 })
             });

@@ -236,7 +236,9 @@ class FileUploadManager {
                 expiration: options.expiration || '24hr',
                 hasPassword: options.hasPassword || false,
                 oneTime: options.oneTime || false,
-                quickShare: options.quickShare || false
+                quickShare: options.quickShare || false,
+                contentType: 'file',
+                isTextContent: false
             })
         });
 
