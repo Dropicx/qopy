@@ -1813,8 +1813,8 @@ app.get('/api/file/:clipId', [
         }
 
         const result = await pool.query(
-            'SELECT * FROM clips WHERE clip_id = $1 AND content_type = $2 AND is_expired = false',
-            [clipId, 'file']
+            'SELECT * FROM clips WHERE clip_id = $1 AND file_path IS NOT NULL AND is_expired = false',
+            [clipId]
         );
 
         if (result.rows.length === 0) {
