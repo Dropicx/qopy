@@ -281,29 +281,25 @@ class ClipboardApp {
             // Extract URL secret from current URL if available
             const urlSecret = this.extractUrlSecret();
             
-            // If clip has password, check if we have the password via URL secret
+            // If clip has password, always show password field for user input
+            // Even with URL secret, password-protected clips need BOTH password + URL secret
             if (infoData.hasPassword) {
-                if (urlSecret) {
-                    // We have a URL secret, which might contain the password
-                    // Proceed with auto-retrieval using the URL secret
-                    console.log('🔑 Password-protected clip detected, but URL secret is present - proceeding with auto-retrieval');
-                } else {
-                    // No URL secret, show password field and wait for user input
-                    this.hideLoading('retrieve-loading');
-                    
-                    // Show password section and focus password input
-                    const passwordSection = document.getElementById('password-section');
-                    const passwordInput = document.getElementById('retrieve-password-input');
-                    
-                    if (passwordSection && passwordInput) {
-                        passwordSection.classList.remove('hidden');
-                        passwordInput.focus();
-                    }
-                    
-                    // Don't proceed with auto-retrieval for password-protected clips without URL secret
-                    // Let the user manually enter password and click retrieve
-                    return;
+                this.hideLoading('retrieve-loading');
+                
+                // Show password section and focus password input
+                const passwordSection = document.getElementById('password-section');
+                const passwordInput = document.getElementById('retrieve-password-input');
+                
+                if (passwordSection && passwordInput) {
+                    passwordSection.classList.remove('hidden');
+                    passwordInput.focus();
                 }
+                
+                console.log('🔑 Password-protected clip detected - showing password field (URL secret + password both required)');
+                
+                // Don't proceed with auto-retrieval for password-protected clips
+                // Let the user manually enter password and click retrieve
+                return;
             }
             
             // For Self-Destruct clips, we need to retrieve and show immediately
