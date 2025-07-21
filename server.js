@@ -1196,7 +1196,7 @@ app.post('/api/upload/initiate', [
     body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean'),
     body('contentType').optional().isIn(['text', 'file']).withMessage('contentType must be text or file'),
     body('isTextContent').optional().isBoolean().withMessage('isTextContent must be a boolean'),
-    // REMOVED: originalContent validation - never accept plaintext from client
+    body('originalContent').optional().isString().withMessage('originalContent must be a string')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -1207,7 +1207,7 @@ app.post('/api/upload/initiate', [
             });
         }
 
-        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
+        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false, originalContent = null } = req.body;
         
         // Calculate chunks
         const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
@@ -1234,13 +1234,13 @@ app.post('/api/upload/initiate', [
                 upload_id, filename, original_filename, filesize, mime_type, 
                 chunk_size, total_chunks, expiration_time, has_password, 
                 one_time, quick_share, client_ip, created_at, last_activity,
-                is_text_content
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                is_text_content, original_content
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         `, [
             uploadId, filename, filename, filesize, mimeType,
             CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
             oneTime, quickShare, clientIP, Date.now(), Date.now(),
-            isTextContent || contentType === 'text'
+            isTextContent || contentType === 'text', originalContent
         ]);
 
         // Cache session data for quick access
@@ -1261,6 +1261,7 @@ app.post('/api/upload/initiate', [
             created_at: Date.now(),
             last_activity: Date.now(),
             is_text_content: isTextContent || contentType === 'text',
+            original_content: originalContent,
             status: 'uploading',
             checksums: []
         });
@@ -1549,8 +1550,8 @@ app.post('/api/upload/complete/:uploadId', [
                 uploadId: uploadId,
                 chunksCount: session.total_chunks,
                 checksums: chunks.map(c => c.checksum),
-                isTextContent: true
-                // REMOVED: originalContent - never store plaintext on server
+                isTextContent: true,
+                originalContent: session.original_content
             };
 
             await pool.query(`
@@ -2757,195 +2758,127 @@ function gracefulShutdown() {
     }, 10000);
 }
 
-
-// Clean up existing problematic database structures
-async function cleanupExistingStructures(client) {
-    console.log('🧹 Cleaning up existing database structures...');
-    
+// Initialize and start server
+async function startServer() {
     try {
-        // Remove any existing original_content columns (security fix)
-        await client.query(`ALTER TABLE upload_sessions DROP COLUMN IF EXISTS original_content`);
-        console.log('✅ Removed original_content column (security fix)');
+        // Test database connection
+        const client = await pool.connect();
+        await client.query('SELECT NOW() as current_time');
         
-        // Drop any orphaned tables that might cause issues
-        await client.query(`DROP TABLE IF EXISTS file_chunks CASCADE`);
-        await client.query(`DROP TABLE IF EXISTS upload_sessions CASCADE`);
-        await client.query(`DROP TABLE IF EXISTS upload_statistics CASCADE`);
-        console.log('✅ Cleaned up orphaned tables');
-        
-        // Reset any problematic sequences
-        await client.query(`DROP SEQUENCE IF EXISTS upload_sessions_id_seq CASCADE`);
-        await client.query(`DROP SEQUENCE IF EXISTS file_chunks_id_seq CASCADE`);
-        console.log('✅ Reset sequences');
-        
-    } catch (error) {
-        console.warn(`⚠️ Cleanup warning: ${error.message}`);
-    }
-}
+        // Ensure storage directory exists
+        await initializeStorage();
 
-// Run complete database migration
-async function runDatabaseMigration(client) {
-    console.log('🏗️ Running database migration...');
-    
-    try {
-        // Create statistics table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS statistics (
-                id SERIAL PRIMARY KEY,
-                total_clips BIGINT DEFAULT 0,
-                total_accesses BIGINT DEFAULT 0,
-                quick_share_clips BIGINT DEFAULT 0,
-                password_protected_clips BIGINT DEFAULT 0,
-                one_time_clips BIGINT DEFAULT 0,
-                normal_clips BIGINT DEFAULT 0,
-                last_updated BIGINT DEFAULT 0
-            )
-        `);
-        console.log('✅ statistics table ready');
-
-        // Create upload_sessions table with correct schema
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS upload_sessions (
-                id SERIAL PRIMARY KEY,
-                upload_id VARCHAR(50) UNIQUE NOT NULL,
-                filename VARCHAR(255) NOT NULL,
-                original_filename VARCHAR(255) NOT NULL,
-                filesize BIGINT NOT NULL,
-                mime_type VARCHAR(100) NOT NULL,
-                chunk_size INTEGER NOT NULL DEFAULT 5242880,
-                total_chunks INTEGER NOT NULL,
-                uploaded_chunks INTEGER DEFAULT 0,
-                checksums TEXT[],
-                status VARCHAR(20) DEFAULT 'uploading',
-                expiration_time BIGINT NOT NULL,
-                has_password BOOLEAN DEFAULT false,
-                one_time BOOLEAN DEFAULT false,
-                quick_share BOOLEAN DEFAULT false,
-                is_text_content BOOLEAN DEFAULT false,
-                client_ip VARCHAR(45),
-                created_at BIGINT NOT NULL,
-                last_activity BIGINT NOT NULL,
-                completed_at BIGINT
-            )
-        `);
-        console.log('✅ upload_sessions table ready');
-
-        // Create file_chunks table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS file_chunks (
-                id SERIAL PRIMARY KEY,
-                upload_id VARCHAR(50) NOT NULL,
-                chunk_number INTEGER NOT NULL,
-                chunk_size INTEGER NOT NULL,
-                checksum VARCHAR(64) NOT NULL,
-                storage_path VARCHAR(500) NOT NULL,
-                created_at BIGINT NOT NULL,
-                UNIQUE(upload_id, chunk_number),
-                FOREIGN KEY (upload_id) REFERENCES upload_sessions(upload_id) ON DELETE CASCADE
-            )
-        `);
-        console.log('✅ file_chunks table ready');
-
-        // Create clips table with all necessary columns
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS clips (
-                id SERIAL PRIMARY KEY,
-                clip_id VARCHAR(10) UNIQUE NOT NULL,
-                content TEXT,
-                password_hash VARCHAR(255),
-                one_time BOOLEAN DEFAULT false,
-                quick_share BOOLEAN DEFAULT false,
-                expiration_time BIGINT NOT NULL,
-                access_count INTEGER DEFAULT 0,
-                max_accesses INTEGER DEFAULT 1,
-                client_ip VARCHAR(45),
-                created_at BIGINT NOT NULL,
-                last_accessed BIGINT,
-                accessed_at BIGINT,
-                content_type VARCHAR(20) DEFAULT 'text',
-                file_metadata JSONB,
-                file_path VARCHAR(500),
-                original_filename VARCHAR(255),
-                mime_type VARCHAR(100),
-                filesize BIGINT,
-                upload_id VARCHAR(50),
-                is_file BOOLEAN DEFAULT false,
-                is_expired BOOLEAN DEFAULT false
-            )
-        `);
-        console.log('✅ clips table ready');
-
-        // Add any missing columns to clips table
-        const clipsColumns = [
-            'ALTER TABLE clips ALTER COLUMN content DROP NOT NULL',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) DEFAULT \'text\'',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_metadata JSONB',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255)',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS upload_id VARCHAR(50)',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_file BOOLEAN DEFAULT false',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT false',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS accessed_at BIGINT'
+        // ========================================
+        // SPALTENABGLEICHUNG: upload_sessions
+        // ========================================
+        // Schema-Definition (CREATE TABLE):
+        const SCHEMA_COLUMNS = [
+            'id', 'upload_id', 'filename', 'original_filename', 'filesize', 
+            'mime_type', 'chunk_size', 'total_chunks', 'uploaded_chunks', 
+            'checksums', 'status', 'expiration_time', 'has_password', 
+            'one_time', 'quick_share', 'is_text_content', 'client_ip', 
+            'created_at', 'last_activity', 'completed_at'
         ];
 
-        for (const columnQuery of clipsColumns) {
-            try {
-                await client.query(columnQuery);
-            } catch (error) {
-                // Ignore errors for columns that already exist
-                if (!error.message.includes('already exists')) {
-                    console.warn(`⚠️ Column migration warning: ${error.message}`);
-                }
-            }
-        }
-        console.log('✅ clips table columns updated');
-
-        // Create indexes for performance
-        const indexes = [
-            'CREATE INDEX IF NOT EXISTS idx_upload_sessions_upload_id ON upload_sessions(upload_id)',
-            'CREATE INDEX IF NOT EXISTS idx_upload_sessions_status_expiration ON upload_sessions(status, expiration_time)',
-            'CREATE INDEX IF NOT EXISTS idx_upload_sessions_created_at ON upload_sessions(created_at)',
-            'CREATE INDEX IF NOT EXISTS idx_file_chunks_upload_chunk ON file_chunks(upload_id, chunk_number)',
-            'CREATE INDEX IF NOT EXISTS idx_file_chunks_created_at ON file_chunks(created_at)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_content_type ON clips(content_type)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_upload_id ON clips(upload_id)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_file_path ON clips(file_path)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_expiration ON clips(expiration_time)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_is_expired ON clips(is_expired)'
+        // Code-Verwendung (INSERT Statements):
+        const INSERT_COLUMNS_1 = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type', 
+            'chunk_size', 'total_chunks', 'has_password', 'one_time', 
+            'quick_share', 'is_text_content', 'expiration_time', 'created_at', 'last_activity'
         ];
 
-        for (const indexQuery of indexes) {
-            try {
-                await client.query(indexQuery);
-            } catch (error) {
-                console.warn(`⚠️ Index creation warning: ${error.message}`);
-            }
+        const INSERT_COLUMNS_2 = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type', 
+            'chunk_size', 'total_chunks', 'expiration_time', 'has_password', 
+            'one_time', 'quick_share', 'client_ip', 'created_at', 'last_activity'
+        ];
+
+        // Code-Verwendung (session. Eigenschaften):
+        const SESSION_PROPERTIES = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type',
+            'chunk_size', 'total_chunks', 'uploaded_chunks', 'status', 
+            'expiration_time', 'has_password', 'one_time', 'quick_share', 
+            'is_text_content', 'client_ip', 'created_at', 'last_activity', 'completed_at'
+        ];
+
+        // Prüfe auf fehlende Spalten im Schema
+        const missingInSchema = [...new Set([...INSERT_COLUMNS_1, ...INSERT_COLUMNS_2, ...SESSION_PROPERTIES])]
+            .filter(col => !SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im Schema: ${missingInSchema.join(', ')}`);
         }
-        console.log('✅ Database indexes created');
 
-        // Update existing expired clips
-        await client.query(`
-            UPDATE clips 
-            SET is_expired = true 
-            WHERE expiration_time < $1 AND is_expired = false
-        `, [Date.now()]);
-        console.log('✅ Updated expired clips');
+        // Prüfe auf ungenutzte Spalten im Schema
+        const unusedInSchema = SCHEMA_COLUMNS.filter(col => 
+            !INSERT_COLUMNS_1.includes(col) && 
+            !INSERT_COLUMNS_2.includes(col) && 
+            !SESSION_PROPERTIES.includes(col)
+        );
+        
+        if (unusedInSchema.length > 0) {
+            console.warn(`⚠️ Ungenutzte Spalten im Schema: ${unusedInSchema.join(', ')}`);
+        }
 
-        // Fix content_type for existing files
-        await client.query(`
-            UPDATE clips 
-            SET content_type = 'file' 
-            WHERE file_path IS NOT NULL AND content_type = 'text'
-        `);
-        console.log('✅ Fixed content types for existing files');
+        console.log('✅ Spaltenabgleichung upload_sessions abgeschlossen');
 
-    } catch (error) {
-        console.error('❌ Database migration failed:', error.message);
-        throw error;
-    }
-}
+        // ========================================
+        // SPALTENABGLEICHUNG: file_chunks
+        // ========================================
+        const CHUNKS_SCHEMA_COLUMNS = [
+            'id', 'upload_id', 'chunk_number', 'chunk_size', 'checksum', 
+            'storage_path', 'created_at'
+        ];
+
+        const CHUNKS_INSERT_COLUMNS = [
+            'upload_id', 'chunk_number', 'chunk_size', 'checksum', 'storage_path', 'created_at'
+        ];
+
+        const CHUNKS_SESSION_PROPERTIES = [
+            'upload_id', 'chunk_number', 'chunk_size', 'checksum', 'storage_path', 'created_at'
+        ];
+
+        const missingInChunksSchema = [...new Set([...CHUNKS_INSERT_COLUMNS, ...CHUNKS_SESSION_PROPERTIES])]
+            .filter(col => !CHUNKS_SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInChunksSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im file_chunks Schema: ${missingInChunksSchema.join(', ')}`);
+        }
+
+        // Prüfe auf ungenutzte Spalten im Schema
+        const unusedInChunksSchema = CHUNKS_SCHEMA_COLUMNS.filter(col => 
+            !CHUNKS_INSERT_COLUMNS.includes(col) && 
+            !CHUNKS_SESSION_PROPERTIES.includes(col)
+        );
+        
+        if (unusedInChunksSchema.length > 0) {
+            console.warn(`⚠️ Ungenutzte Spalten im file_chunks Schema: ${unusedInChunksSchema.join(', ')}`);
+        }
+
+        console.log('✅ Spaltenabgleichung file_chunks abgeschlossen');
+
+        // ========================================
+        // SPALTENABGLEICHUNG: clips
+        // ========================================
+        const CLIPS_SCHEMA_COLUMNS = [
+            'id', 'clip_id', 'content', 'password_hash', 'one_time', 'quick_share', 
+            'expiration_time', 'access_count', 'max_accesses', 'client_ip', 
+            'created_at', 'last_accessed', 'accessed_at', 'content_type', 'file_metadata', 
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'upload_id', 'is_file', 'is_expired'
+        ];
+
+        const CLIPS_INSERT_COLUMNS = [
+            'clip_id', 'content', 'expiration_time', 'password_hash', 'one_time', 'created_at',
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'file_metadata'
+        ];
+
+        const missingInClipsSchema = CLIPS_INSERT_COLUMNS.filter(col => !CLIPS_SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInClipsSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im clips Schema: ${missingInClipsSchema.join(', ')}`);
+        }
+
+        console.log('✅ Spaltenabgleichung clips abgeschlossen');
         
         // Create statistics table if it doesn't exist
         await client.query(`
@@ -2990,9 +2923,8 @@ async function runDatabaseMigration(client) {
         // Migrate existing upload_sessions table if needed
         try {
             await client.query(`ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS is_text_content BOOLEAN DEFAULT false`);
-            // SECURITY FIX: Remove original_content column if it exists (was storing plaintext)
-            await client.query(`ALTER TABLE upload_sessions DROP COLUMN IF EXISTS original_content`);
-            console.log('✅ upload_sessions table migration completed (security fix applied)');
+            await client.query(`ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS original_content TEXT`);
+            console.log('✅ upload_sessions table migration completed');
         } catch (migrationError) {
             console.warn(`⚠️ upload_sessions migration warning: ${migrationError.message}`);
         }
@@ -3217,100 +3149,12 @@ async function runDatabaseMigration(client) {
             }
         } catch (migrationError) {
             console.error('❌ Migration error:', migrationError.message);
-
-
-// Initialize and start server
-async function startServer() {
-    try {
-        // Test database connection
-        const client = await pool.connect();
-        await client.query('SELECT NOW() as current_time');
-        console.log('✅ Database connected successfully');
-        
-        // Ensure storage directory exists
-        await initializeStorage();
-        
-        // Clean up existing problematic structures
-        await cleanupExistingStructures(client);
-        
-        // Run complete database migration
-        await runDatabaseMigration(client);
-        
-        // Create upload_statistics table for monitoring
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS upload_statistics (
-                id SERIAL PRIMARY KEY,
-                date DATE NOT NULL,
-                total_uploads INTEGER DEFAULT 0,
-                total_file_size BIGINT DEFAULT 0,
-                completed_uploads INTEGER DEFAULT 0,
-                failed_uploads INTEGER DEFAULT 0,
-                text_clips INTEGER DEFAULT 0,
-                file_clips INTEGER DEFAULT 0,
-                avg_upload_time INTEGER DEFAULT 0,
-                UNIQUE(date)
-            )
-        `);
-
-        // Create cleanup procedure for expired uploads
-        await client.query(`
-            CREATE OR REPLACE FUNCTION cleanup_expired_uploads() RETURNS void AS $$
-            BEGIN
-                DELETE FROM upload_sessions WHERE expiration_time < EXTRACT(EPOCH FROM NOW()) * 1000;
-                DELETE FROM file_chunks WHERE upload_id NOT IN (SELECT upload_id FROM upload_sessions);
-            END;
-            $$ LANGUAGE plpgsql
-        `);
-
-        // Create statistics update function
-        await client.query(`
-            CREATE OR REPLACE FUNCTION update_upload_stats() RETURNS TRIGGER AS $$
-            BEGIN
-                IF TG_OP = 'INSERT' THEN
-                    INSERT INTO upload_statistics (date, total_uploads, total_file_size) 
-                    VALUES (CURRENT_DATE, 1, NEW.filesize)
-                    ON CONFLICT (date) 
-                    DO UPDATE SET 
-                        total_uploads = upload_statistics.total_uploads + 1,
-                        total_file_size = upload_statistics.total_file_size + NEW.filesize;
-                    RETURN NEW;
-                END IF;
-                
-                IF TG_OP = 'UPDATE' AND NEW.status = 'completed' AND OLD.status != 'completed' THEN
-                    INSERT INTO upload_statistics (date, completed_uploads) 
-                    VALUES (CURRENT_DATE, 1)
-                    ON CONFLICT (date) 
-                    DO UPDATE SET completed_uploads = upload_statistics.completed_uploads + 1;
-                    RETURN NEW;
-                END IF;
-                
-                RETURN NULL;
-            END;
-            $$ LANGUAGE plpgsql
-        `);
-
-        // Create trigger
-        await client.query(`DROP TRIGGER IF EXISTS trigger_upload_stats ON upload_sessions`);
-        await client.query(`
-            CREATE TRIGGER trigger_upload_stats
-                AFTER INSERT OR UPDATE ON upload_sessions
-                FOR EACH ROW EXECUTE FUNCTION update_upload_stats()
-        `);
-
-        // Insert initial statistics data
-        await client.query(`
-            INSERT INTO upload_statistics (date, total_uploads, total_file_size, completed_uploads, failed_uploads, text_clips, file_clips, avg_upload_time)
-            VALUES (CURRENT_DATE, 0, 0, 0, 0, 0, 0, 0)
-            ON CONFLICT (date) DO NOTHING
-        `);
-
-        console.log('✅ Database migration completed successfully!');
+        }
         
         client.release();
         
         app.listen(PORT, () => {
             console.log(`🚀 Qopy server running on port ${PORT}`);
-            console.log(`🔒 Security fix v2.1.0 applied - no plaintext storage`);
         });
     } catch (error) {
         console.error('❌ Failed to start server:', error.message);
