@@ -1195,8 +1195,7 @@ app.post('/api/upload/initiate', [
     body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
     body('quickShare').optional().isBoolean().withMessage('quickShare must be a boolean'),
     body('contentType').optional().isIn(['text', 'file']).withMessage('contentType must be text or file'),
-    body('isTextContent').optional().isBoolean().withMessage('isTextContent must be a boolean'),
-    body('originalContent').optional().isString().withMessage('originalContent must be a string')
+    body('isTextContent').optional().isBoolean().withMessage('isTextContent must be a boolean')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -1207,7 +1206,7 @@ app.post('/api/upload/initiate', [
             });
         }
 
-        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false, originalContent = null } = req.body;
+        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
         
         // Calculate chunks
         const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
@@ -1234,13 +1233,13 @@ app.post('/api/upload/initiate', [
                 upload_id, filename, original_filename, filesize, mime_type, 
                 chunk_size, total_chunks, expiration_time, has_password, 
                 one_time, quick_share, client_ip, created_at, last_activity,
-                is_text_content, original_content
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                is_text_content
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         `, [
             uploadId, filename, filename, filesize, mimeType,
             CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
             oneTime, quickShare, clientIP, Date.now(), Date.now(),
-            isTextContent || contentType === 'text', originalContent
+            isTextContent || contentType === 'text'
         ]);
 
         // Cache session data for quick access
@@ -1261,7 +1260,6 @@ app.post('/api/upload/initiate', [
             created_at: Date.now(),
             last_activity: Date.now(),
             is_text_content: isTextContent || contentType === 'text',
-            original_content: originalContent,
             status: 'uploading',
             checksums: []
         });
@@ -1550,8 +1548,7 @@ app.post('/api/upload/complete/:uploadId', [
                 uploadId: uploadId,
                 chunksCount: session.total_chunks,
                 checksums: chunks.map(c => c.checksum),
-                isTextContent: true,
-                originalContent: session.original_content
+                isTextContent: true
             };
 
             await pool.query(`
@@ -2923,8 +2920,9 @@ async function startServer() {
         // Migrate existing upload_sessions table if needed
         try {
             await client.query(`ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS is_text_content BOOLEAN DEFAULT false`);
-            await client.query(`ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS original_content TEXT`);
-            console.log('✅ upload_sessions table migration completed');
+            // Security migration: Remove original_content column (Zero-Knowledge principle)
+            await client.query(`ALTER TABLE upload_sessions DROP COLUMN IF EXISTS original_content`);
+            console.log('✅ upload_sessions table migration completed (original_content removed for security)');
         } catch (migrationError) {
             console.warn(`⚠️ upload_sessions migration warning: ${migrationError.message}`);
         }

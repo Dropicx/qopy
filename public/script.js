@@ -576,8 +576,7 @@ class ClipboardApp {
                 oneTime,
                 hasPassword: !!password, // This refers to user-entered password, not URL secret
                 quickShare,
-                contentType: 'text',
-                originalContent: originalContent
+                contentType: 'text'
             });
 
             // Create upload session
@@ -593,8 +592,7 @@ class ClipboardApp {
                     hasPassword: !!password,
                     quickShare: quickShare,
                     contentType: 'text',
-                    isTextContent: true,
-                    originalContent: originalContent
+                    isTextContent: true
                 })
             });
 
