@@ -171,7 +171,7 @@ class ClipboardApp {
         // New Paste button
         document.getElementById('new-paste-button').addEventListener('click', () => {
             if (confirm('Are you sure you want to create a new paste? This will clear the current content.')) {
-                this.goToHome();
+            this.goToHome();
             }
         });
 
@@ -576,8 +576,8 @@ class ClipboardApp {
                 oneTime,
                 hasPassword: !!password, // This refers to user-entered password, not URL secret
                 quickShare,
-                contentType: 'text',
-                originalContent: originalContent
+                contentType: 'text'
+                // REMOVED: originalContent - never send plaintext to server
             });
 
             // Create upload session
@@ -593,8 +593,8 @@ class ClipboardApp {
                     hasPassword: !!password,
                     quickShare: quickShare,
                     contentType: 'text',
-                    isTextContent: true,
-                    originalContent: originalContent
+                    isTextContent: true
+                    // REMOVED: originalContent - never send plaintext to server
                 })
             });
 

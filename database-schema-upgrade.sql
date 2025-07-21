@@ -159,3 +159,35 @@ BEGIN
     WHERE key = 'upload_sessions_active';
 END;
 $$ LANGUAGE plpgsql; 
+
+-- Qopy Database Security Fix - Remove original_content column
+-- Version: 2.1.0
+-- Date: 2025-01-XX
+--
+-- ⚠️  SECURITY FIX: Remove original_content column that was storing plaintext
+-- This column was a security vulnerability as it stored unencrypted content
+-- on the server, violating the zero-knowledge architecture principle.
+--
+-- To run manually:
+-- psql $DATABASE_URL -f database-schema-upgrade.sql
+
+-- Remove the original_content column from upload_sessions table
+-- This column was storing plaintext content, which violates security principles
+ALTER TABLE upload_sessions DROP COLUMN IF EXISTS original_content;
+
+-- Verify the column has been removed
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'upload_sessions' 
+        AND column_name = 'original_content'
+    ) THEN
+        RAISE EXCEPTION 'original_content column still exists - manual intervention required';
+    ELSE
+        RAISE NOTICE '✅ Successfully removed original_content column from upload_sessions table';
+    END IF;
+END $$;
+
+-- Add a comment to document this security fix
+COMMENT ON TABLE upload_sessions IS 'Upload sessions for multi-part file uploads. SECURITY: No plaintext content is stored - all content is client-side encrypted.'; 

@@ -12,6 +12,7 @@ Qopy is a privacy-first, secure temporary text sharing web application with mili
 - **Binary database storage** - encrypted content stored as BYTEA for efficiency
 - **Direct binary transmission** - no base64 overhead, raw bytes sent to server
 - **Client-side QR generation** - QR codes generated locally, no external API calls
+- **🔒 SECURITY FIXED** - Removed plaintext storage vulnerability (v2.1.0)
 
 ### Advanced Security Architecture
 - **URL secrets** - 16-character random secrets in URL fragments for enhanced protection
@@ -172,6 +173,19 @@ GET /health
 - ❌ **Direct API calls**: Server-side encryption only (content sent as plaintext)
 
 For maximum security, always use the web interface at `https://qopy.app` for client-side encryption.
+
+## 🔒 Security Fixes
+
+### Version 2.1.0 - Plaintext Storage Vulnerability Fixed
+**Issue**: The `originalContent` field was being sent to the server and stored in the database, violating the zero-knowledge architecture principle.
+
+**Fix**: 
+- Removed `originalContent` field from client-server communication
+- Removed `original_content` column from database
+- Updated automatic database migration to remove the column
+- All content is now truly client-side encrypted with no plaintext stored on server
+
+**Impact**: Enhanced security - server now truly never sees plaintext content.
 
 ## 🔧 Configuration
 
