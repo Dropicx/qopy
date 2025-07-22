@@ -272,13 +272,19 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             const password = this.getPasswordFromUser();
             
-            // For URL-based access (auto-retrieve), always generate a download token
-            // This ensures file clips are properly authenticated even with wrong/missing URL secrets
-            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-            console.log('🔐 Generated download token for auto-retrieve:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+            // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
+            let downloadToken = null;
+            let queryParams = '';
             
-            // Build query parameters for authentication
-            const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+            if (clipId.length === 10) {
+                // Normal clip: always generate download token for file authentication
+                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+                console.log('🔐 Generated download token for normal clip auto-retrieve:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+            } else {
+                // Quick Share (4-digit): no download token needed
+                console.log('⚡ Quick Share auto-retrieve - no download token needed:', clipId);
+            }
             
             // First, get clip info to check if it has password
             const infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
@@ -477,12 +483,19 @@ class ClipboardApp {
                 const urlSecret = this.extractUrlSecret();
                 const password = this.getPasswordFromUser();
                 
-                // Always generate download token for consistent file authentication
-                const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                console.log('🔐 Generated download token for checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+                // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
+                let downloadToken = null;
+                let queryParams = '';
                 
-                // Build query parameters for authentication
-                const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+                if (clipId.length === 10) {
+                    // Normal clip: generate download token for file authentication
+                    downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                    queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+                    console.log('🔐 Generated download token for normal clip checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+                } else {
+                    // Quick Share (4-digit): no download token needed
+                    console.log('⚡ Quick Share checkClipId - no download token needed:', clipId);
+                }
                 
                 console.log('🔍 Fetching clip info for:', clipId);
                 const response = await fetch(`/api/clip/${clipId}/info${queryParams}`);
@@ -906,12 +919,19 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             console.log('🔗 URL secret extracted:', urlSecret ? 'present' : 'none');
             
-            // Always generate download token for consistent file authentication
-            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-            console.log('🔐 Generated download token for retrieveContent:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+            // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
+            let downloadToken = null;
+            let queryParams = '';
             
-            // Build query parameters for authentication
-            const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+            if (clipId.length === 10) {
+                // Normal clip: generate download token for file authentication
+                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+                console.log('🔐 Generated download token for normal clip retrieveContent:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+            } else {
+                // Quick Share (4-digit): no download token needed
+                console.log('⚡ Quick Share retrieveContent - no download token needed:', clipId);
+            }
             
             // Always use GET - no password needed for server authentication
             // Content is already encrypted client-side

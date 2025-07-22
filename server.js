@@ -1012,9 +1012,34 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
 
         // Generate download token BEFORE JSON.stringify
         let downloadToken = null;
-        if (password && urlSecret) {
-            downloadToken = await generateDownloadToken(clipId, password, urlSecret);
-            console.log('🔐 Generated download token for clipId:', clipId, 'token length:', downloadToken.length);
+        
+        // For file uploads, generate token if urlSecret is present (password optional)
+        // For text uploads, handle Quick Share vs Normal mode differently
+        const isFileUpload = !session.is_text_content || session.original_filename !== `${uploadId.substring(0, 8)}.txt`;
+        
+        if (isFileUpload) {
+            // File uploads: generate token if urlSecret is present (password is optional)
+            if (urlSecret) {
+                downloadToken = await generateDownloadToken(clipId, password, urlSecret);
+                console.log('🔐 Generated download token for file upload:', clipId, 'hasPassword:', !!password, 'hasUrlSecret:', !!urlSecret);
+            } else {
+                console.log('⚠️ No urlSecret provided for file upload - no download token generated');
+            }
+        } else {
+            // Text uploads: handle Quick Share vs Normal mode
+            if (session.quick_share) {
+                // Quick Share: No download token needed - uses quickShareSecret in password_hash field
+                downloadToken = null;
+                console.log('⚡ Quick Share text upload - no download token needed (uses quickShareSecret)');
+            } else {
+                // Normal text: generate token if urlSecret is present (password is optional for URL-only protection)
+                if (urlSecret) {
+                    downloadToken = await generateDownloadToken(clipId, password, urlSecret);
+                    console.log('🔐 Generated download token for normal text upload:', clipId, 'hasPassword:', !!password, 'hasUrlSecret:', !!urlSecret);
+                } else {
+                    console.log('ℹ️ Normal text upload without urlSecret - no download token generated');
+                }
+            }
         }
 
         // Create file metadata object
@@ -1754,26 +1779,14 @@ async function validateDownloadToken(clipId, providedToken) {
                         console.log('🔄 Falling back to legacy validation for clipId:', clipId, 'isFileClip:', isFileClip);
                         
                         if (isFileClip) {
-                            // For file clips, be more strict - they should always have URL secrets
-                            console.log('📁 File clip without stored token - checking if legacy validation applies');
+                            // For file clips, be very strict - they should always have stored tokens
+                            console.log('📁 File clip without stored token - denying access for security');
                             
-                            if (clip.password_hash === 'client-encrypted') {
-                                // Password-protected file clip without stored token - deny for security
-                                console.log('❌ Password-protected file clip without stored token - denying access for security');
-                                return false;
-                            } else {
-                                // Non-password-protected file clip - but still need plausible token
-                                // Only allow if this looks like a genuine attempt (token has correct format)
-                                if (providedToken && providedToken.length === 64 && /^[a-f0-9]{64}$/.test(providedToken)) {
-                                    console.log('✅ File clip without stored token - allowing legacy access with plausible token format');
-                                    return true;
-                                } else {
-                                    console.log('❌ File clip without stored token - denying access due to invalid token format');
-                                    return false;
-                                }
-                            }
+                            // File clips created after the token system implementation should always have tokens
+                            // Deny access to maintain security - no legacy fallback for file clips
+                            return false;
                         } else {
-                            // For text clips, use the original permissive logic
+                            // For text clips, use the original permissive logic for backwards compatibility
                             if (clip.password_hash === 'client-encrypted') {
                                 // Password-protected text clip without stored token - deny for security
                                 console.log('❌ Password-protected text clip without stored token - denying access for security');
