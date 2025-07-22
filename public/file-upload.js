@@ -2300,14 +2300,12 @@ class FileDownloadManager {
             });
             
             const encoder = new TextEncoder();
-            const timestamp = Date.now();
-            const tokenData = `${clipId}:${password || ''}:${compatibleSecret || ''}:${timestamp}`;
+            const tokenData = `enhanced:${clipId}:${password || ''}:${compatibleSecret || ''}`;
             
             console.log('🔨 Token data assembly:', {
                 tokenDataLength: tokenData.length,
-                timestamp,
-                timestampFormatted: new Date(timestamp).toISOString(),
-                tokenDataPreview: tokenData.substring(0, 50) + '...'
+                tokenDataPreview: tokenData.substring(0, 50) + '...',
+                algorithm: 'Compatible (deterministic)'
             });
             
             const hashStart = performance.now();

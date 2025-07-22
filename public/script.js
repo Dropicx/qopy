@@ -2575,12 +2575,11 @@ class ClipboardApp {
             const isEnhancedPassphrase = urlSecret && urlSecret.length >= 40;
             
             if (isEnhancedPassphrase) {
-                // Use Compatible Token Algorithm for Enhanced Passphrase files
+                // Use Compatible Token Algorithm for Enhanced Passphrase files (deterministic, no timestamp)
                 console.log('🔐 Using Enhanced Compatible Token Algorithm');
                 
                 const encoder = new TextEncoder();
-                const timestamp = Date.now();
-                const tokenData = `${clipId}:${password || ''}:${urlSecret || ''}:${timestamp}`;
+                const tokenData = `enhanced:${clipId}:${password || ''}:${urlSecret || ''}`;
                 
                 const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(tokenData));
                 const hashArray = new Uint8Array(hashBuffer);
@@ -2593,7 +2592,7 @@ class ClipboardApp {
                     hasPassword: !!password,
                     secretType: 'Enhanced (43+ chars)',
                     tokenLength: token.length,
-                    algorithm: 'Compatible'
+                    algorithm: 'Compatible (deterministic)'
                 });
                 
                 return token;

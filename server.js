@@ -1692,19 +1692,59 @@ app.get('/file/:clipId', [
 async function generateDownloadToken(clipId, password, urlSecret) {
     const crypto = require('crypto');
     
-    let tokenData = clipId;
+    // Detect if this is an Enhanced Passphrase (44+ characters)
+    const isEnhancedPassphrase = urlSecret && urlSecret.length >= 40;
     
-    if (urlSecret) {
-        tokenData += ':' + urlSecret;
+    if (isEnhancedPassphrase) {
+        // Use Compatible Token Algorithm for Enhanced Passphrase files (deterministic, no timestamp)
+        console.log('🔐 Server: Using Enhanced Compatible Token Algorithm');
+        
+        const tokenData = `enhanced:${clipId}:${password || ''}:${urlSecret || ''}`;
+        
+        const hash = crypto.createHash('sha256');
+        hash.update(tokenData);
+        const hashHex = hash.digest('hex');
+        const token = hashHex.substring(0, 32); // 32 character token
+        
+        console.log('🔐 Server: Enhanced download token generated:', {
+            clipId: clipId,
+            hasUrlSecret: !!urlSecret,
+            hasPassword: !!password,
+            secretType: 'Enhanced (43+ chars)',
+            tokenLength: token.length,
+            algorithm: 'Compatible (deterministic)'
+        });
+        
+        return token;
+    } else {
+        // Use Legacy Token Algorithm for normal/legacy clips
+        console.log('🔐 Server: Using Legacy Token Algorithm');
+        
+        let tokenData = clipId;
+        
+        if (urlSecret) {
+            tokenData += ':' + urlSecret;
+        }
+        
+        if (password) {
+            tokenData += ':' + password;
+        }
+        
+        const hash = crypto.createHash('sha256');
+        hash.update(tokenData);
+        const token = hash.digest('hex');
+        
+        console.log('🔐 Server: Legacy download token generated:', {
+            clipId: clipId,
+            hasUrlSecret: !!urlSecret,
+            hasPassword: !!password,
+            secretType: urlSecret?.length === 16 ? 'Legacy (16 chars)' : 'Unknown',
+            tokenLength: token.length,
+            algorithm: 'Legacy'
+        });
+        
+        return token;
     }
-    
-    if (password) {
-        tokenData += ':' + password;
-    }
-    
-    const hash = crypto.createHash('sha256');
-    hash.update(tokenData);
-    return hash.digest('hex');
 }
 
 // Helper function to validate download token against clip
