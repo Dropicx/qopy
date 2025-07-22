@@ -213,6 +213,9 @@ class ClipboardApp {
         try {
             const path = window.location.pathname;
             
+            // Reset file request flag
+            this.isFileRequest = false;
+            
             // More robust pattern matching for clip URLs
             let clipId = null;
             
@@ -272,7 +275,19 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             const password = this.getPasswordFromUser();
             
-            if (clipId.length === 4) {
+            // Check if this is a file URL (from routing)
+            const isFileUrl = this.isFileRequest === true;
+            const isQuickShare = clipId.length === 4;
+            
+            console.log('🔍 Auto-retrieve info:', {
+                clipId, 
+                isFileUrl, 
+                isQuickShare, 
+                hasUrlSecret: !!urlSecret, 
+                hasPassword: !!password
+            });
+            
+            if (isQuickShare) {
                 // Quick Share (4-digit): no download token needed
                 console.log('⚡ Quick Share auto-retrieve - no download token needed:', clipId);
                 
@@ -297,6 +312,70 @@ class ClipboardApp {
                 if (response.ok) {
                     const data = await response.json();
                     await this.showRetrieveResult(data);
+                }
+                
+            } else if (isFileUrl && !isQuickShare) {
+                // File URL (not Quick Share): requires authentication, don't try without credentials
+                console.log('📁 File URL detected - checking credentials before API call:', clipId);
+                
+                if (!urlSecret) {
+                    // No URL secret - this file URL is invalid
+                    this.hideLoading('retrieve-loading');
+                    this.showToast('🔐 Access denied: Invalid file URL (missing secret)', 'error');
+                    return;
+                }
+                
+                if (!password) {
+                    // URL secret present but password missing - show password field
+                    this.hideLoading('retrieve-loading');
+                    
+                    const passwordSection = document.getElementById('password-section');
+                    const passwordInput = document.getElementById('retrieve-password-input');
+                    
+                    if (passwordSection && passwordInput) {
+                        passwordSection.classList.remove('hidden');
+                        passwordInput.focus();
+                    }
+                    
+                    console.log('🔑 File URL with URL secret but missing password - showing password field');
+                    this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
+                    return;
+                }
+                
+                // We have both URL secret and password - make authenticated request
+                console.log('🔑 File URL with complete credentials - making authenticated request');
+                
+                const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                const queryParams = `?downloadToken=${downloadToken}`;
+                
+                // Get clip info with authentication
+                const infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                const infoData = await infoResponse.json();
+                
+                if (!infoResponse.ok) {
+                    this.hideLoading('retrieve-loading');
+                    if (infoResponse.status === 401 || infoResponse.status === 403) {
+                        this.showToast('🔐 Access denied: Wrong password or URL secret', 'error');
+                    } else {
+                        this.showToast('❌ File not found or expired', 'error');
+                    }
+                    return;
+                }
+                
+                // Proceed with authenticated retrieval
+                const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    await this.showRetrieveResult(data);
+                } else {
+                    this.hideLoading('retrieve-loading');
+                    this.showToast('🔐 Authentication failed - please check your credentials', 'error');
                 }
                 
             } else {
