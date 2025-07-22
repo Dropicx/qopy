@@ -2381,9 +2381,10 @@ app.get('/api/clip/:clipId/info', [
     }
 
     const { clipId } = req.params;
+    const { downloadToken } = req.query; // Get download token from query params
 
     const result = await pool.query(
-      'SELECT clip_id, content_type, expiration_time, one_time, password_hash FROM clips WHERE clip_id = $1 AND is_expired = false',
+      'SELECT clip_id, content_type, expiration_time, one_time, password_hash, file_metadata FROM clips WHERE clip_id = $1 AND is_expired = false',
       [clipId]
     );
 
@@ -2395,6 +2396,33 @@ app.get('/api/clip/:clipId/info', [
     }
 
     const clip = result.rows[0];
+
+    // For file clips, require authentication
+    if (clip.content_type === 'file' || clip.file_path) {
+      console.log('🔐 File clip detected, validating download token for clipId:', clipId);
+      
+      if (!downloadToken) {
+        console.log('❌ No download token provided for file clip:', clipId);
+        return res.status(401).json({
+          error: 'Authentication required',
+          message: 'This file requires authentication. Please provide the correct URL with secret or password.',
+          requiresAuth: true
+        });
+      }
+
+      // Validate the download token
+      const isValidToken = await validateDownloadToken(clipId, downloadToken);
+      if (!isValidToken) {
+        console.log('❌ Invalid download token for file clip:', clipId);
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'Invalid credentials for this file. Please check your URL secret or password.',
+          requiresAuth: true
+        });
+      }
+
+      console.log('✅ Download token validated for file clip:', clipId);
+    }
 
     // Determine if clip has password based on ID length and password_hash content
     let hasPassword = false;
@@ -2453,6 +2481,7 @@ app.get('/api/clip/:clipId', [
     }
 
     const { clipId } = req.params;
+    const { downloadToken } = req.query; // Get download token from query params
 
     // Get clip from database
     const result = await pool.query(
@@ -2468,6 +2497,33 @@ app.get('/api/clip/:clipId', [
     }
 
     const clip = result.rows[0];
+
+    // For file clips, require authentication
+    if (clip.content_type === 'file' || clip.file_path) {
+      console.log('🔐 File clip detected in main endpoint, validating download token for clipId:', clipId);
+      
+      if (!downloadToken) {
+        console.log('❌ No download token provided for file clip:', clipId);
+        return res.status(401).json({
+          error: 'Authentication required',
+          message: 'This file requires authentication. Please provide the correct URL with secret or password.',
+          requiresAuth: true
+        });
+      }
+
+      // Validate the download token
+      const isValidToken = await validateDownloadToken(clipId, downloadToken);
+      if (!isValidToken) {
+        console.log('❌ Invalid download token for file clip:', clipId);
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'Invalid credentials for this file. Please check your URL secret or password.',
+          requiresAuth: true
+        });
+      }
+
+      console.log('✅ Download token validated for file clip in main endpoint:', clipId);
+    }
 
     // Update access count and timestamp
     await pool.query(`

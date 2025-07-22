@@ -268,8 +268,22 @@ class ClipboardApp {
 
             this.showLoading('retrieve-loading');
             
+            // Extract URL secret and password for potential authentication
+            const urlSecret = this.extractUrlSecret();
+            const password = this.getPasswordFromUser();
+            
+            // Generate download token for potential file authentication
+            let downloadToken = null;
+            if (urlSecret || password) {
+                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                console.log('🔐 Generated download token for auto-retrieve:', clipId);
+            }
+            
+            // Build query parameters for authentication
+            const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+            
             // First, get clip info to check if it has password
-            const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+            const infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
             const infoData = await infoResponse.json();
             
             if (!infoResponse.ok) {
@@ -277,9 +291,6 @@ class ClipboardApp {
                 this.hideLoading('retrieve-loading');
                 return;
             }
-            
-            // Extract URL secret from current URL if available
-            const urlSecret = this.extractUrlSecret();
             
             // If clip has password, always show password field for user input
             // Even with URL secret, password-protected clips need BOTH password + URL secret
@@ -306,7 +317,7 @@ class ClipboardApp {
             // since the clip will be deleted after the first API call
             const isSelfDestruct = infoData.oneTime;
             
-            const response = await fetch(`/api/clip/${clipId}`, {
+            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -327,7 +338,14 @@ class ClipboardApp {
                 // Show result immediately for all clips accessed via direct link
                 await this.showRetrieveResult(data);
             } else {
-                // For auto-retrieve, don't show error - let user manually retrieve
+                // For auto-retrieve, handle authentication errors gracefully
+                if (data.requiresAuth) {
+                    console.log('🔐 File requires authentication - not showing error for auto-retrieve');
+                    // Don't show error for auto-retrieve - let user manually enter credentials
+                } else {
+                    console.log('❌ API error in auto-retrieve:', data);
+                    // For other errors, don't show error - let user manually retrieve
+                }
             }
         } catch (error) {
             // For auto-retrieve, don't show error - let user manually retrieve
@@ -439,7 +457,7 @@ class ClipboardApp {
         const passwordSection = document.getElementById('password-section');
         const passwordInput = document.getElementById('retrieve-password-input');
         
-                    console.log('checkClipId called with clipId:', clipId, 'length:', clipId.length);
+        console.log('checkClipId called with clipId:', clipId, 'length:', clipId.length);
         
         // Always hide password section by default
         if (passwordSection) {
@@ -452,8 +470,22 @@ class ClipboardApp {
         
         if (clipId.length === 4 || clipId.length === 10) {
             try {
+                // Extract URL secret and password for potential authentication
+                const urlSecret = this.extractUrlSecret();
+                const password = this.getPasswordFromUser();
+                
+                // Generate download token for potential file authentication
+                let downloadToken = null;
+                if (urlSecret || password) {
+                    downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                    console.log('🔐 Generated download token for checkClipId:', clipId);
+                }
+                
+                // Build query parameters for authentication
+                const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+                
                 console.log('🔍 Fetching clip info for:', clipId);
-                const response = await fetch(`/api/clip/${clipId}/info`);
+                const response = await fetch(`/api/clip/${clipId}/info${queryParams}`);
                 const data = await response.json();
                 
                 console.log('🔍 Clip info response:', data);
@@ -868,10 +900,20 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             console.log('🔗 URL secret extracted:', urlSecret ? 'present' : 'none');
             
+            // Generate download token for potential file authentication
+            let downloadToken = null;
+            if (urlSecret || password) {
+                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                console.log('🔐 Generated download token for retrieveContent:', clipId);
+            }
+            
+            // Build query parameters for authentication
+            const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+            
             // Always use GET - no password needed for server authentication
             // Content is already encrypted client-side
-            console.log('📡 Making API request to:', `/api/clip/${clipId}`);
-            const response = await fetch(`/api/clip/${clipId}`, {
+            console.log('📡 Making API request to:', `/api/clip/${clipId}${queryParams}`);
+            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -959,6 +1001,16 @@ class ClipboardApp {
                 }
             } else {
                 console.error('❌ API error response:', data);
+                
+                // Handle file authentication errors specifically
+                if (data.requiresAuth) {
+                    if (response.status === 401) {
+                        throw new Error('🔐 This file requires authentication. Please check your URL for the secret or enter the correct password.');
+                    } else if (response.status === 403) {
+                        throw new Error('🔐 Access denied. Please check your URL secret or password for this file.');
+                    }
+                }
+                
                 if (data.message) {
                     throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
                 } else {
