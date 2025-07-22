@@ -2529,6 +2529,48 @@ class ClipboardApp {
                     console.log('📥 Attempting to decrypt file data');
                     decryptedData = await this.decryptFile(encryptedBytes, password, urlSecret);
                     console.log('🔓 File decrypted successfully, size:', decryptedData.length, 'bytes');
+                    
+                    // Extract metadata from decrypted data
+                    const { metadata, fileData } = await this.extractMetadata(decryptedData, urlSecret);
+                    if (metadata) {
+                        console.log('📋 Extracted metadata:', metadata);
+                        // Use original filename and mime type from metadata
+                        const originalFilename = metadata.filename || filename;
+                        const originalMimeType = metadata.mimeType || 'application/octet-stream';
+                        
+                        console.log('📁 Using original file info:', {
+                            filename: originalFilename,
+                            mimeType: originalMimeType,
+                            originalSize: metadata.size
+                        });
+                        
+                        // Create blob with correct mime type
+                        const blob = new Blob([fileData], { type: originalMimeType });
+                        console.log('📥 Blob created with mime type:', originalMimeType);
+                        
+                        // Create download link with original filename
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = originalFilename;
+                        
+                        console.log('📥 Triggering download with original filename:', originalFilename);
+                        
+                        // Trigger download
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        // Clean up
+                        window.URL.revokeObjectURL(url);
+                        
+                        console.log('✅ Download completed successfully with original filename');
+                        this.showToast('✅ File downloaded successfully!', 'success');
+                        return; // Exit early since we handled the download
+                    } else {
+                        console.log('📋 No metadata found, using provided filename');
+                        decryptedData = fileData; // Use file data without metadata
+                    }
                 } catch (decryptError) {
                     console.warn('⚠️ Decryption failed, downloading as-is:', decryptError.message);
                     decryptedData = encryptedBytes;
@@ -2539,8 +2581,8 @@ class ClipboardApp {
                 decryptedData = encryptedBytes;
             }
             
-            // Create blob from decrypted data
-            console.log('📥 Creating blob from data');
+            // Create blob from decrypted data (fallback if no metadata)
+            console.log('📥 Creating blob from data (fallback)');
             const blob = new Blob([decryptedData]);
             console.log('📥 Blob created, size:', blob.size, 'bytes');
             
@@ -2561,7 +2603,7 @@ class ClipboardApp {
             // Clean up
             window.URL.revokeObjectURL(url);
             
-            console.log('✅ Download completed successfully');
+            console.log('✅ Download completed successfully (fallback)');
             this.showToast('✅ File downloaded successfully!', 'success');
             
         } catch (error) {
@@ -2660,15 +2702,18 @@ class ClipboardApp {
         }
 
         try {
+            // For Enhanced Files, IV is deterministically derived, not stored
             // Extract IV (first 12 bytes) and encrypted data
             if (encryptedBytes.length < 12) {
                 throw new Error('File too small to be encrypted');
             }
 
-            const iv = encryptedBytes.slice(0, 12);
-            const encryptedData = encryptedBytes.slice(12);
+            // Derive IV deterministically (same as upload)
+            console.log('🔓 Deriving IV deterministically for Enhanced File');
+            const iv = await this.deriveCompatibleIV(password, urlSecret);
+            const encryptedData = encryptedBytes.slice(0); // Use all data (no IV prefix)
             
-            console.log('🔓 Extracted IV and encrypted data:', {
+            console.log('🔓 Derived IV and encrypted data:', {
                 ivLength: iv.length,
                 encryptedDataLength: encryptedData.length
             });
@@ -2741,12 +2786,17 @@ class ClipboardApp {
         }
         
         console.log('🔑 Deriving key with PBKDF2');
+        
+        // Use the same salt as the upload system for compatibility
+        const salt = 'qopy-enhanced-salt-v2';
+        console.log('🔑 Using compatible salt:', salt);
+        
         // Derive key using PBKDF2
         const derivedKey = await window.crypto.subtle.deriveKey(
             {
                 name: 'PBKDF2',
-                salt: encoder.encode('qopy-salt-v1'),
-                iterations: 100000,
+                salt: encoder.encode(salt),
+                iterations: 250000, // Same as upload system
                 hash: 'SHA-256'
             },
             keyMaterial,
@@ -2757,6 +2807,128 @@ class ClipboardApp {
         
         console.log('🔑 Key derivation successful');
         return derivedKey;
+    }
+
+    // Derive compatible IV (same as upload system)
+    async deriveCompatibleIV(password = null, urlSecret = null) {
+        console.log('🔐 deriveCompatibleIV called with:', {
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
+
+        const encoder = new TextEncoder();
+        
+        let keyMaterial;
+        if (password && urlSecret) {
+            // Combined mode
+            console.log('🔐 Using combined mode for IV derivation');
+            const combined = password + ':' + urlSecret;
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(combined),
+                'PBKDF2',
+                false,
+                ['deriveBits']
+            );
+        } else if (urlSecret) {
+            // Secret-only mode (Enhanced Files)
+            console.log('🔐 Using secret-only mode for IV derivation');
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(urlSecret),
+                'PBKDF2',
+                false,
+                ['deriveBits']
+            );
+        } else if (password) {
+            // Password-only mode
+            console.log('🔐 Using password-only mode for IV derivation');
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(password),
+                'PBKDF2',
+                false,
+                ['deriveBits']
+            );
+        } else {
+            throw new Error('Either password or secret must be provided for IV derivation');
+        }
+
+        // Derive IV using PBKDF2
+        const ivBits = await window.crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode('qopy-enhanced-iv-salt-v2'), // Same as upload
+                iterations: 100000, // Same as upload
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            96 // 12 bytes = 96 bits
+        );
+
+        const iv = new Uint8Array(ivBits);
+        console.log('🔐 Compatible IV derived successfully:', {
+            ivLength: iv.length,
+            ivPreview: Array.from(iv.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join(' ')
+        });
+
+        return iv;
+    }
+
+    // Extract metadata from file during download (compatible with upload system)
+    async extractMetadata(fileWithMetadata, urlSecret) {
+        try {
+            console.log('📋 extractMetadata called with:', {
+                dataSize: fileWithMetadata.length,
+                hasUrlSecret: !!urlSecret
+            });
+
+            if (fileWithMetadata.length < 4) {
+                console.log('📋 File too small for metadata');
+                return { metadata: null, fileData: fileWithMetadata };
+            }
+            
+            // Read metadata length (4 bytes, little-endian)
+            const metadataLength = new DataView(fileWithMetadata.buffer.slice(0, 4)).getUint32(0, true);
+            
+            console.log('📋 Metadata length from header:', metadataLength);
+            
+            if (metadataLength > fileWithMetadata.length - 4 || metadataLength > 1024) { // Sanity check
+                console.log('📋 No valid metadata found, treating as raw file');
+                return { metadata: null, fileData: fileWithMetadata };
+            }
+            
+            // Extract encrypted metadata
+            const encryptedMetadata = fileWithMetadata.slice(4, 4 + metadataLength);
+            const fileData = fileWithMetadata.slice(4 + metadataLength);
+            
+            console.log('📋 Extracted encrypted metadata and file data:', {
+                encryptedMetadataLength: encryptedMetadata.length,
+                fileDataLength: fileData.length
+            });
+            
+            // Decrypt metadata using same key as file content
+            const metadataKey = await this.generateDecryptionKey(null, urlSecret);
+            const metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
+            
+            console.log('📋 Decrypting metadata with derived key and IV');
+            
+            const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: metadataIV },
+                metadataKey,
+                encryptedMetadata
+            );
+            
+            const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
+            const metadata = JSON.parse(metadataJson);
+            
+            console.log('📋 Successfully extracted metadata:', metadata);
+            return { metadata, fileData };
+            
+        } catch (error) {
+            console.warn('⚠️ Failed to extract metadata (wrong key or corrupted):', error.message);
+            return { metadata: null, fileData: fileWithMetadata };
+        }
     }
 }
 
