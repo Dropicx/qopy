@@ -1693,7 +1693,7 @@ async function generateDownloadToken(clipId, password, urlSecret) {
 async function validateDownloadToken(clipId, providedToken) {
     try {
         const result = await pool.query(
-            'SELECT password_hash, content_type FROM clips WHERE clip_id = $1 AND is_expired = false',
+            'SELECT password_hash, content_type, file_path FROM clips WHERE clip_id = $1 AND is_expired = false',
             [clipId]
         );
         
@@ -1702,6 +1702,7 @@ async function validateDownloadToken(clipId, providedToken) {
         }
         
         const clip = result.rows[0];
+        const isFileClip = clip.content_type === 'file' || clip.file_path;
         
         // For Quick Share clips (4-digit), the password_hash contains the secret
         if (clipId.length === 4 && clip.password_hash) {
@@ -1750,29 +1751,62 @@ async function validateDownloadToken(clipId, providedToken) {
                         console.log('❌ No download token found in metadata for clipId:', clipId, 'metadata keys:', Object.keys(metadata));
                         
                         // Fallback for clips created before token system was implemented
-                        // We can't validate without the original password/urlSecret, so we fall back to legacy behavior
-                        console.log('🔄 Falling back to legacy validation for clipId:', clipId);
+                        console.log('🔄 Falling back to legacy validation for clipId:', clipId, 'isFileClip:', isFileClip);
                         
-                        // For clips without stored tokens, check if this is a password-protected clip
-                        if (clip.password_hash === 'client-encrypted') {
-                            // Password-protected clip without stored token - we can't validate, so deny
-                            console.log('❌ Password-protected clip without stored token - denying access for security');
-                            return false;
+                        if (isFileClip) {
+                            // For file clips, be more strict - they should always have URL secrets
+                            console.log('📁 File clip without stored token - checking if legacy validation applies');
+                            
+                            if (clip.password_hash === 'client-encrypted') {
+                                // Password-protected file clip without stored token - deny for security
+                                console.log('❌ Password-protected file clip without stored token - denying access for security');
+                                return false;
+                            } else {
+                                // Non-password-protected file clip - but still need plausible token
+                                // Only allow if this looks like a genuine attempt (token has correct format)
+                                if (providedToken && providedToken.length === 64 && /^[a-f0-9]{64}$/.test(providedToken)) {
+                                    console.log('✅ File clip without stored token - allowing legacy access with plausible token format');
+                                    return true;
+                                } else {
+                                    console.log('❌ File clip without stored token - denying access due to invalid token format');
+                                    return false;
+                                }
+                            }
                         } else {
-                            // Non-password-protected clip - allow access for backwards compatibility
-                            console.log('✅ Non-password-protected clip without stored token - allowing access for backwards compatibility');
-                            return true;
+                            // For text clips, use the original permissive logic
+                            if (clip.password_hash === 'client-encrypted') {
+                                // Password-protected text clip without stored token - deny for security
+                                console.log('❌ Password-protected text clip without stored token - denying access for security');
+                                return false;
+                            } else {
+                                // Non-password-protected text clip - allow for backwards compatibility
+                                console.log('✅ Non-password-protected text clip without stored token - allowing access for backwards compatibility');
+                                return true;
+                            }
                         }
                     }
                 } else {
                     console.log('❌ No file_metadata found for clipId:', clipId);
+                    
+                    // If no metadata exists, apply different logic for files vs text
+                    if (isFileClip) {
+                        console.log('📁 File clip without metadata - denying access for security');
+                        return false;
+                    }
                 }
             } catch (error) {
                 console.error('❌ Error checking file metadata for download token:', error);
+                if (isFileClip) {
+                    // For file clips, deny on errors for security
+                    return false;
+                }
             }
             
-            // No stored token found - for backwards compatibility, allow if no password protection
-            return clip.password_hash === null || clip.password_hash === 'client-encrypted';
+            // Fallback for text clips: allow if no password protection
+            if (!isFileClip) {
+                console.log('📝 Text clip fallback - allowing if no password protection');
+                return clip.password_hash === null || clip.password_hash !== 'client-encrypted';
+            }
         }
         
         return false;

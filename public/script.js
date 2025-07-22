@@ -272,12 +272,10 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             const password = this.getPasswordFromUser();
             
-            // Generate download token for potential file authentication
-            let downloadToken = null;
-            if (urlSecret || password) {
-                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                console.log('🔐 Generated download token for auto-retrieve:', clipId);
-            }
+            // For URL-based access (auto-retrieve), always generate a download token
+            // This ensures file clips are properly authenticated even with wrong/missing URL secrets
+            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+            console.log('🔐 Generated download token for auto-retrieve:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
             
             // Build query parameters for authentication
             const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
@@ -287,6 +285,11 @@ class ClipboardApp {
             const infoData = await infoResponse.json();
             
             if (!infoResponse.ok) {
+                // For authentication errors, show specific message
+                if (infoResponse.status === 401 || infoResponse.status === 403) {
+                    console.log('🔐 File requires authentication - access denied for wrong credentials');
+                    this.showToast('🔐 Access denied: Invalid URL or missing credentials', 'error');
+                }
                 // Clip not found or expired, don't try to decrypt
                 this.hideLoading('retrieve-loading');
                 return;
@@ -474,12 +477,9 @@ class ClipboardApp {
                 const urlSecret = this.extractUrlSecret();
                 const password = this.getPasswordFromUser();
                 
-                // Generate download token for potential file authentication
-                let downloadToken = null;
-                if (urlSecret || password) {
-                    downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                    console.log('🔐 Generated download token for checkClipId:', clipId);
-                }
+                // Always generate download token for consistent file authentication
+                const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                console.log('🔐 Generated download token for checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
                 
                 // Build query parameters for authentication
                 const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
@@ -510,7 +510,13 @@ class ClipboardApp {
                     }
                     // For files, we'll handle password display in showRetrieveResult
                 } else {
-                    console.log('❌ Clip not found or expired - password section stays hidden');
+                    // For authentication errors, show specific message
+                    if (response.status === 401 || response.status === 403) {
+                        console.log('🔐 Authentication failed for clipId:', clipId);
+                        // Don't show error toast here to avoid interrupting user input
+                    } else {
+                        console.log('❌ Clip not found or expired - password section stays hidden');
+                    }
                     // Clip not found or expired - password section stays hidden
                 }
             } catch (error) {
@@ -900,12 +906,9 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             console.log('🔗 URL secret extracted:', urlSecret ? 'present' : 'none');
             
-            // Generate download token for potential file authentication
-            let downloadToken = null;
-            if (urlSecret || password) {
-                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                console.log('🔐 Generated download token for retrieveContent:', clipId);
-            }
+            // Always generate download token for consistent file authentication
+            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+            console.log('🔐 Generated download token for retrieveContent:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
             
             // Build query parameters for authentication
             const queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
