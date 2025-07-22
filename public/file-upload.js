@@ -360,7 +360,7 @@ class FileUploadManager {
         
         // Encrypt metadata with compatible secret using AES-GCM
         const metadataKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
-        const metadataIV = await this.deriveCompatibleIV(compatibleSecret, null, 'qopy-metadata-salt');
+        const metadataIV = await this.deriveCompatibleIV(null, compatibleSecret, 'qopy-metadata-salt');
         
         const encryptedMetadata = await window.crypto.subtle.encrypt(
             {
@@ -2127,7 +2127,7 @@ class FileDownloadManager {
             console.log('🔓 Decrypting metadata with compatible keys...');
             const keyGenStart = performance.now();
             const metadataKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
-            const metadataIV = await this.deriveCompatibleIV(compatibleSecret, null, 'qopy-metadata-salt');
+            const metadataIV = await this.deriveCompatibleIV(null, compatibleSecret, 'qopy-metadata-salt');
             const keyGenTime = performance.now() - keyGenStart;
             
             console.log('🔑 Metadata decryption keys generated:', {
