@@ -1906,19 +1906,46 @@ async function validateDownloadToken(clipId, providedToken) {
                     const rawMetadata = metadataResult.rows[0].file_metadata;
                     console.log('🔍 Raw file_metadata for clipId:', clipId, 'type:', typeof rawMetadata, 'value:', rawMetadata);
                     
-                    try {
-                        const metadata = JSON.parse(rawMetadata);
-                        console.log('📝 Parsed metadata successfully:', metadata);
-                        
-                        if (metadata.downloadToken) {
-                            console.log('✅ Found stored download token for clipId:', clipId, 'comparing with provided token');
-                            return providedToken === metadata.downloadToken;
-                        } else {
-                            console.log('❌ No download token found in metadata for clipId:', clipId);
+                    let metadata;
+                    
+                    // Check if it's already an object or if it's a JSON string
+                    if (typeof rawMetadata === 'object') {
+                        // Already parsed by PostgreSQL
+                        metadata = rawMetadata;
+                        console.log('📝 Using metadata as object (already parsed by PostgreSQL):', metadata);
+                    } else {
+                        // Need to parse JSON string
+                        try {
+                            metadata = JSON.parse(rawMetadata);
+                            console.log('📝 Parsed metadata from JSON string successfully:', metadata);
+                        } catch (parseError) {
+                            console.error('❌ Failed to parse file_metadata as JSON for clipId:', clipId, 'error:', parseError.message, 'raw data:', rawMetadata);
+                            return false;
                         }
-                    } catch (parseError) {
-                        console.error('❌ Failed to parse file_metadata as JSON for clipId:', clipId, 'error:', parseError.message, 'raw data:', rawMetadata);
-                        return false;
+                    }
+                    
+                    if (metadata.downloadToken) {
+                        console.log('✅ Found stored download token for clipId:', clipId, 'comparing with provided token');
+                        console.log('🔐 Stored token:', metadata.downloadToken);
+                        console.log('🔐 Provided token:', providedToken);
+                        return providedToken === metadata.downloadToken;
+                    } else {
+                        console.log('❌ No download token found in metadata for clipId:', clipId, 'metadata keys:', Object.keys(metadata));
+                        
+                        // Fallback for clips created before token system was implemented
+                        // We can't validate without the original password/urlSecret, so we fall back to legacy behavior
+                        console.log('🔄 Falling back to legacy validation for clipId:', clipId);
+                        
+                        // For clips without stored tokens, check if this is a password-protected clip
+                        if (clip.password_hash === 'client-encrypted') {
+                            // Password-protected clip without stored token - we can't validate, so deny
+                            console.log('❌ Password-protected clip without stored token - denying access for security');
+                            return false;
+                        } else {
+                            // Non-password-protected clip - allow access for backwards compatibility
+                            console.log('✅ Non-password-protected clip without stored token - allowing access for backwards compatibility');
+                            return true;
+                        }
                     }
                 } else {
                     console.log('❌ No file_metadata found for clipId:', clipId);

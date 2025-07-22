@@ -321,7 +321,7 @@ class ClipboardApp {
                 const passwordSection = document.getElementById('password-section');
                 if (passwordSection) {
                     passwordSection.classList.add('hidden');
-                    console.log('🔒 Hiding password section in autoRetrieveClip (no password required)');
+                    console.log('Hiding password section in autoRetrieveClip (no password required)');
                 }
                 
                 // Show result immediately for all clips accessed via direct link
@@ -439,12 +439,12 @@ class ClipboardApp {
         const passwordSection = document.getElementById('password-section');
         const passwordInput = document.getElementById('retrieve-password-input');
         
-        console.log('🔍 checkClipId called with clipId:', clipId, 'length:', clipId.length);
+                    console.log('checkClipId called with clipId:', clipId, 'length:', clipId.length);
         
         // Always hide password section by default
         if (passwordSection) {
             passwordSection.classList.add('hidden');
-            console.log('🔒 Hiding password section by default');
+            console.log('Hiding password section by default');
         }
         if (passwordInput) {
             passwordInput.value = '';
@@ -501,7 +501,7 @@ class ClipboardApp {
 
         // Enhanced validation with specific error messages
         if (!content) {
-            this.showToast('❌ Please enter some content to share', 'error');
+            this.showToast('Please enter some content to share', 'error');
             document.getElementById('content-input').focus();
             return;
         }
