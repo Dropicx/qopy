@@ -1277,7 +1277,7 @@ class FileUploadManager {
             console.log('🏁 Completing upload...');
             const completeStart = performance.now();
             
-            const completeResponse = await fetch(`/api/upload/${uploadId}/complete`, {
+            const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
                 method: 'POST'
             });
             
