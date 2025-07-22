@@ -1638,7 +1638,7 @@ class FileUploadManager {
         const isEnhanced = urlFragment?.length >= 40;
         
         // Use the main success modal instead of a separate upload-success div
-        document.getElementById('share-url').value = result.url;
+        document.getElementById('share-url').value = finalUrl;
         document.getElementById('clip-id').value = result.clipId;
         
         // Hide clip ID section for file uploads (since they use 10-character IDs with URL secrets)
@@ -1663,7 +1663,7 @@ class FileUploadManager {
                 
                 // Generate QR code using the qrcode.js library
                 new QRCode(tempContainer, {
-                    text: result.url,
+                    text: finalUrl,
                     width: 200,
                     height: 200,
                     colorDark: '#000000',
