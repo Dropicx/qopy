@@ -2810,56 +2810,108 @@ class ClipboardApp {
     }
 
     // Derive compatible IV (same as upload system)
-    async deriveCompatibleIV(password = null, urlSecret = null) {
+    async deriveCompatibleIV(password = null, secret = null, customSalt = null) {
         console.log('🔐 deriveCompatibleIV called with:', {
             hasPassword: !!password,
-            hasUrlSecret: !!urlSecret
+            hasSecret: !!secret,
+            customSalt
         });
 
         const encoder = new TextEncoder();
         
+        // Detect format (same as upload)
+        const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
+        const isEnhancedPassphrase = secret && secret.length >= 40;
+        
         let keyMaterial;
-        if (password && urlSecret) {
+        let salt;
+        let iterations;
+        let mode;
+        
+        if (password && secret) {
             // Combined mode
-            console.log('🔐 Using combined mode for IV derivation');
-            const combined = password + ':' + urlSecret;
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(combined),
-                'PBKDF2',
-                false,
-                ['deriveBits']
-            );
-        } else if (urlSecret) {
-            // Secret-only mode (Enhanced Files)
-            console.log('🔐 Using secret-only mode for IV derivation');
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(urlSecret),
-                'PBKDF2',
-                false,
-                ['deriveBits']
-            );
-        } else if (password) {
-            // Password-only mode
-            console.log('🔐 Using password-only mode for IV derivation');
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(password),
-                'PBKDF2',
-                false,
-                ['deriveBits']
-            );
+            if (isOldUrlSecret) {
+                // Legacy format: urlSecret:password
+                const combined = secret + ':' + password;
+                mode = 'LEGACY_COMBINED_IV';
+                console.log('🔐 Legacy IV derivation (combined mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(combined),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-iv-salt-v1';
+                iterations = 100000;
+            } else if (isEnhancedPassphrase) {
+                // Enhanced format: passphrase:password
+                const combined = secret + ':' + password;
+                mode = 'ENHANCED_COMBINED_IV';
+                console.log('🔐 Enhanced IV derivation (combined mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(combined),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-enhanced-iv-salt-v2';
+                iterations = 100000;
+            } else {
+                throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
+            }
+        } else if (secret) {
+            // Secret-only mode
+            if (isOldUrlSecret) {
+                mode = 'LEGACY_SECRET_ONLY_IV';
+                console.log('🔐 Legacy IV derivation (secret-only mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(secret),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-iv-salt-v1';
+                iterations = 100000;
+            } else if (isEnhancedPassphrase) {
+                mode = 'ENHANCED_SECRET_ONLY_IV';
+                console.log('🔐 Enhanced IV derivation (secret-only mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(secret),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-enhanced-iv-salt-v2';
+                iterations = 100000;
+            } else {
+                throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
+            }
         } else {
             throw new Error('Either password or secret must be provided for IV derivation');
         }
+
+        console.log('🔍 [DEBUG] IV PBKDF2 Configuration:', {
+            mode,
+            salt,
+            iterations,
+            hashAlgorithm: 'SHA-256',
+            outputBits: 96
+        });
 
         // Derive IV using PBKDF2
         const ivBits = await window.crypto.subtle.deriveBits(
             {
                 name: 'PBKDF2',
-                salt: encoder.encode('qopy-enhanced-iv-salt-v2'), // Same as upload
-                iterations: 100000, // Same as upload
+                salt: encoder.encode(salt),
+                iterations: iterations,
                 hash: 'SHA-256'
             },
             keyMaterial,
@@ -2868,6 +2920,7 @@ class ClipboardApp {
 
         const iv = new Uint8Array(ivBits);
         console.log('🔐 Compatible IV derived successfully:', {
+            mode,
             ivLength: iv.length,
             ivPreview: Array.from(iv.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join(' ')
         });
@@ -2973,6 +3026,12 @@ class ClipboardApp {
             // Decrypt metadata using compatible key generation (same as upload)
             const metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
             const metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
+            
+            console.log('📋 Metadata decryption parameters:', {
+                keyType: 'compatible',
+                ivSalt: 'qopy-metadata-salt',
+                ivPreview: Array.from(metadataIV.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join(' ')
+            });
             
             console.log('📋 Decrypting metadata with derived key and IV');
             
