@@ -1647,20 +1647,44 @@ class FileUploadManager {
             clipIdSection.style.display = 'none';
         }
         
-        // Generate QR code
-        if (typeof window.generateQRCode === 'function') {
-            window.generateQRCode(result.url);
-        } else if (this.app && typeof this.app.generateQRCode === 'function') {
-            this.app.generateQRCode(result.url);
-        } else {
-            // Fallback QR code generation
+        // Generate QR code using the correct method
+        try {
             const qrCodeImg = document.getElementById('qr-code');
             if (qrCodeImg && window.QRCode) {
-                qrCodeImg.innerHTML = '';
-                window.QRCode.toCanvas(qrCodeImg, result.url, { width: 200, height: 200 }, (error) => {
-                    if (error) console.error('QR code generation failed:', error);
+                // Clear any existing QR code
+                qrCodeImg.style.display = 'none';
+                
+                // Create a temporary container for QR code generation
+                const tempContainer = document.createElement('div');
+                tempContainer.style.position = 'absolute';
+                tempContainer.style.left = '-9999px';
+                tempContainer.style.top = '-9999px';
+                document.body.appendChild(tempContainer);
+                
+                // Generate QR code using the qrcode.js library
+                new QRCode(tempContainer, {
+                    text: result.url,
+                    width: 200,
+                    height: 200,
+                    colorDark: '#000000',
+                    colorLight: '#FFFFFF',
+                    correctLevel: QRCode.CorrectLevel.M
                 });
+                
+                // Wait a moment for the QR code to be generated
+                setTimeout(() => {
+                    const generatedImg = tempContainer.querySelector('img');
+                    if (generatedImg) {
+                        qrCodeImg.src = generatedImg.src;
+                        qrCodeImg.style.display = 'block';
+                    }
+                    // Clean up temporary container
+                    document.body.removeChild(tempContainer);
+                }, 100);
             }
+        } catch (error) {
+            console.warn('QR code generation failed:', error);
+            this.showToast('QR code generation failed, but URL is available', 'info');
         }
         
         // Set expiry time
