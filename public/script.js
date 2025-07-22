@@ -649,14 +649,34 @@ class ClipboardApp {
                 console.log(`[TextUpload] Uploaded chunk ${uploadedChunks}/${totalChunks}`);
             }
 
+            // Generate download token for later authentication
+            let downloadToken = null;
+            if (!quickShare) {
+                // For normal clips, generate download token based on clipId + secrets
+                // We need to generate a temporary clipId to compute the token
+                // This will be validated against the actual clipId on the server
+                const tempClipId = 'TEMP123456'; // Will be replaced by server with actual clipId
+                downloadToken = await this.generateDownloadToken(tempClipId, password, urlSecret);
+                console.log('🔐 Generated download token for upload completion');
+            }
+
             // Complete upload
             console.log(`[TextUpload] Completing upload for uploadId=${uploadId}`);
+            const completePayload = {
+                quickShareSecret: quickShareSecret
+            };
+            
+            // Add download token for normal clips
+            if (downloadToken) {
+                completePayload.downloadToken = downloadToken;
+                completePayload.password = password;
+                completePayload.urlSecret = urlSecret;
+            }
+            
             const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    quickShareSecret: quickShareSecret
-                })
+                body: JSON.stringify(completePayload)
             });
 
             const completeData = await completeResponse.json();
@@ -2039,6 +2059,15 @@ class ClipboardApp {
                     </button>
                 </div>
             </div>
+            <div class="one-time-file-notice hidden" id="one-time-file-notice">
+                <div class="notice-box warning">
+                    <span class="notice-icon">🔥</span>
+                    <span class="notice-text">
+                        <strong>Self-Destruct File:</strong> This file will be permanently deleted after download. 
+                        Make sure to save it to your device before the download completes.
+                    </span>
+                </div>
+            </div>
             <div class="content-info">
                 <p>📅 Retrieved: <span id="file-created-time"></span></p>
                 <p>⏰ Expires: <span id="file-expires-time"></span></p>
@@ -2060,6 +2089,15 @@ class ClipboardApp {
         
         if (filesizeElement) {
             filesizeElement.textContent = this.formatFileSize(filesize);
+        }
+        
+        // Show one-time notice if applicable
+        const oneTimeFileNotice = document.getElementById('one-time-file-notice');
+        if (data.oneTime && oneTimeFileNotice) {
+            console.log('🔥 Showing one-time file warning for file download');
+            oneTimeFileNotice.classList.remove('hidden');
+        } else if (oneTimeFileNotice) {
+            oneTimeFileNotice.classList.add('hidden');
         }
         
         // Add download event listener
@@ -2139,9 +2177,21 @@ class ClipboardApp {
                 urlSecret: urlSecret ? 'present' : 'none'
             });
             
-            // Start download
-            console.log('📥 Making download request to:', `/api/file/${clipId}`);
-            const response = await fetch(`/api/file/${clipId}`);
+            // Generate download token for authentication
+            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+            console.log('🔐 Generated download token for authentication');
+            
+            // Start download with authentication
+            console.log('📥 Making authenticated download request to:', `/api/file/${clipId}`);
+            const response = await fetch(`/api/file/${clipId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    downloadToken: downloadToken
+                })
+            });
             
             console.log('📥 Download response status:', response.status);
             console.log('📥 Download response headers:', Object.fromEntries(response.headers.entries()));
@@ -2149,6 +2199,9 @@ class ClipboardApp {
             if (!response.ok) {
                 const error = await response.json();
                 console.error('❌ Download API error:', error);
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('❌ Access denied: Wrong password or URL secret');
+                }
                 throw new Error(error.message || 'Download failed');
             }
 
@@ -2205,6 +2258,47 @@ class ClipboardApp {
         } catch (error) {
             console.error('❌ Download failed:', error);
             throw error;
+        }
+    }
+
+    // Generate download token for authentication
+    async generateDownloadToken(clipId, password, urlSecret) {
+        try {
+            // Create a combined secret for token generation
+            let tokenData = clipId; // Always include clip ID
+            
+            // Add URL secret if available
+            if (urlSecret) {
+                tokenData += ':' + urlSecret;
+            }
+            
+            // Add password if available
+            if (password) {
+                tokenData += ':' + password;
+            }
+            
+            // Generate SHA-256 hash of the combined data
+            const encoder = new TextEncoder();
+            const data = encoder.encode(tokenData);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = new Uint8Array(hashBuffer);
+            
+            // Convert to hex string
+            const token = Array.from(hashArray)
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+            
+            console.log('🔐 Download token generated from:', {
+                clipId: clipId,
+                hasUrlSecret: !!urlSecret,
+                hasPassword: !!password,
+                tokenLength: token.length
+            });
+            
+            return token;
+        } catch (error) {
+            console.error('❌ Failed to generate download token:', error);
+            throw new Error('Failed to generate authentication token');
         }
     }
 

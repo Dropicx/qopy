@@ -931,8 +931,13 @@ async function assembleFile(uploadId, session) {
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
     try {
         const { uploadId } = req.params;
-        const { quickShareSecret } = req.body;
-        console.log('🔑 Upload complete request body:', { quickShareSecret: quickShareSecret });
+        const { quickShareSecret, downloadToken, password, urlSecret } = req.body;
+        console.log('🔑 Upload complete request body:', { 
+            quickShareSecret: quickShareSecret,
+            hasDownloadToken: !!downloadToken,
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
         
         const session = await getUploadSession(uploadId);
         if (!session) {
@@ -1022,7 +1027,9 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
                 uploadId,
                 originalUploadSession: true,
                 originalFileSize: session.filesize, // Store original size in metadata
-                actualFileSize: actualFileSize
+                actualFileSize: actualFileSize,
+                downloadToken: downloadToken && password && urlSecret ? 
+                    await generateDownloadToken(clipId, password, urlSecret) : null
             })
         ]);
 
@@ -1836,8 +1843,78 @@ app.get('/file/:clipId', [
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Download file API
-app.get('/api/file/:clipId', [
+// Helper function to generate download token (same algorithm as client)
+async function generateDownloadToken(clipId, password, urlSecret) {
+    const crypto = require('crypto');
+    
+    let tokenData = clipId;
+    
+    if (urlSecret) {
+        tokenData += ':' + urlSecret;
+    }
+    
+    if (password) {
+        tokenData += ':' + password;
+    }
+    
+    const hash = crypto.createHash('sha256');
+    hash.update(tokenData);
+    return hash.digest('hex');
+}
+
+// Helper function to validate download token against clip
+async function validateDownloadToken(clipId, providedToken) {
+    try {
+        const result = await pool.query(
+            'SELECT password_hash, content_type FROM clips WHERE clip_id = $1 AND is_expired = false',
+            [clipId]
+        );
+        
+        if (result.rows.length === 0) {
+            return false;
+        }
+        
+        const clip = result.rows[0];
+        
+        // For Quick Share clips (4-digit), the password_hash contains the secret
+        if (clipId.length === 4 && clip.password_hash) {
+            const expectedToken = await generateDownloadToken(clipId, null, clip.password_hash);
+            return providedToken === expectedToken;
+        }
+        
+        // For normal clips (10-digit), check if we have a stored download token
+        // This was computed during upload and stored for validation
+        if (clipId.length === 10) {
+            // Try to find a stored download token in the file_metadata
+            try {
+                const metadataResult = await pool.query(
+                    'SELECT file_metadata FROM clips WHERE clip_id = $1 AND is_expired = false',
+                    [clipId]
+                );
+                
+                if (metadataResult.rows.length > 0 && metadataResult.rows[0].file_metadata) {
+                    const metadata = JSON.parse(metadataResult.rows[0].file_metadata);
+                    if (metadata.downloadToken) {
+                        return providedToken === metadata.downloadToken;
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error checking file metadata for download token:', error);
+            }
+            
+            // No stored token found - for backwards compatibility, allow if no password protection
+            return clip.password_hash === null || clip.password_hash === 'client-encrypted';
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('❌ Error validating download token:', error);
+        return false;
+    }
+}
+
+// Authenticated file download API (POST with token)
+app.post('/api/file/:clipId', [
     param('clipId').custom((value) => {
         if (value.length !== 4 && value.length !== 10) {
             throw new Error('Clip ID must be 4 or 10 characters');
@@ -1846,7 +1923,8 @@ app.get('/api/file/:clipId', [
             throw new Error('Clip ID must contain only uppercase letters and numbers');
         }
         return true;
-    })
+    }),
+    body('downloadToken').isString().isLength({ min: 64, max: 64 }).withMessage('Download token must be 64 characters')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -1858,19 +1936,23 @@ app.get('/api/file/:clipId', [
         }
 
         const { clipId } = req.params;
+        const { downloadToken } = req.body;
 
-        // Debug: Log was wir in der DB finden
-        console.log(`🔍 Download-Request für clipId: ${clipId}`);
-        const debugResult = await pool.query(
-            'SELECT clip_id, content_type, file_path, is_expired FROM clips WHERE clip_id = $1',
-            [clipId]
-        );
-        if (debugResult.rows.length === 0) {
-            console.log(`❌ Kein Clip mit dieser ID gefunden!`);
-        } else {
-            console.log('🔍 DB-Clip:', debugResult.rows[0]);
+        console.log(`🔐 Authenticated download request for clipId: ${clipId}`);
+
+        // Validate download token
+        const tokenValid = await validateDownloadToken(clipId, downloadToken);
+        if (!tokenValid) {
+            console.log(`❌ Invalid download token for clipId: ${clipId}`);
+            return res.status(401).json({
+                error: 'Authentication failed',
+                message: 'Invalid download token - wrong password or URL secret'
+            });
         }
 
+        console.log(`✅ Download token validated for clipId: ${clipId}`);
+
+        // Continue with existing download logic...
         const result = await pool.query(
             'SELECT * FROM clips WHERE clip_id = $1 AND file_path IS NOT NULL AND is_expired = false',
             [clipId]
@@ -1945,12 +2027,32 @@ app.get('/api/file/:clipId', [
         }
 
     } catch (error) {
-        console.error('❌ Error downloading file:', error.message);
+        console.error('❌ Error in authenticated file download:', error.message);
         res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to download file'
         });
     }
+});
+
+// Legacy file download API (GET) - kept for backwards compatibility but returns 410 Gone
+app.get('/api/file/:clipId', [
+    param('clipId').custom((value) => {
+        if (value.length !== 4 && value.length !== 10) {
+            throw new Error('Clip ID must be 4 or 10 characters');
+        }
+        if (!/^[A-Z0-9]+$/.test(value)) {
+            throw new Error('Clip ID must contain only uppercase letters and numbers');
+        }
+        return true;
+    })
+], async (req, res) => {
+    // Return 410 Gone for security - unauthenticated downloads no longer allowed
+    res.status(410).json({
+        error: 'Unauthenticated downloads disabled',
+        message: 'File downloads now require authentication. Please use the web interface.',
+        hint: 'This security measure prevents unauthorized access to encrypted files.'
+    });
 });
 
 // ==========================================

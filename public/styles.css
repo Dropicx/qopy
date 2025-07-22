@@ -2093,4 +2093,43 @@ footer p {
   .file-download-actions .btn {
     min-width: auto;
   }
-} 
+}
+
+/* One-Time File Warning Notice */
+.one-time-file-notice {
+  margin: 1rem 0;
+}
+
+.notice-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.notice-box.warning {
+  border-left: 4px solid var(--warning-color);
+  background: rgba(255, 167, 38, 0.1);
+}
+
+.notice-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.notice-text {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.notice-text strong {
+  color: var(--warning-color);
+  font-weight: 600;
+}
