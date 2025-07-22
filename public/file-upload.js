@@ -1830,6 +1830,43 @@ class FileUploadManager {
         
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
+
+    // Toast Notifications
+    showToast(message, type = 'error') {
+        let toastId, messageId;
+        
+        if (type === 'error') {
+            toastId = 'error-toast';
+            messageId = 'error-message';
+        } else if (type === 'success' || type === 'info') {
+            // Use success toast for both success and info messages
+            toastId = 'success-toast';
+            messageId = 'success-toast-message';
+        }
+        
+        // Hide any existing toasts
+        document.querySelectorAll('#error-toast, #info-toast, #success-toast').forEach(toast => {
+            toast.classList.add('hidden');
+        });
+        
+        // Show new toast
+        const messageElement = document.getElementById(messageId);
+        const toastElement = document.getElementById(toastId);
+        
+        if (messageElement && toastElement) {
+            messageElement.textContent = message;
+            toastElement.classList.remove('hidden');
+            
+            // Auto-hide after 3 seconds for success/copy messages, 4 seconds for errors
+            const autoHideDelay = (type === 'success' || type === 'info') ? 3000 : 4000;
+            setTimeout(() => {
+                toastElement.classList.add('hidden');
+            }, autoHideDelay);
+        } else {
+            // Fallback to console if toast elements don't exist
+            console.log(`Toast (${type}): ${message}`);
+        }
+    }
 }
 
 // File Download Manager with Backward-Compatible Security
