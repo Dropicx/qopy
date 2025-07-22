@@ -1230,7 +1230,7 @@ class FileUploadManager {
                 formData.append('chunkIndex', chunkIndex.toString());
 
                 const chunkRequestStart = performance.now();
-                const response = await fetch(`/api/upload/${uploadId}/chunk`, {
+                const response = await fetch(`/api/upload/chunk/${uploadId}/${chunkIndex}`, {
                     method: 'POST',
                     body: formData
                 });
