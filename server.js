@@ -2281,7 +2281,8 @@ app.get('/api/clip/:clipId/info', [
         return res.status(401).json({
           error: 'Authentication required',
           message: 'This file requires authentication. Please provide the correct URL with secret or password.',
-          requiresAuth: true
+          requiresAuth: true,
+          hasPassword: clip.password_hash !== null
         });
       }
 
@@ -2292,7 +2293,8 @@ app.get('/api/clip/:clipId/info', [
         return res.status(403).json({
           error: 'Access denied',
           message: 'Invalid credentials for this file. Please check your URL secret or password.',
-          requiresAuth: true
+          requiresAuth: true,
+          hasPassword: clip.password_hash !== null
         });
       }
 
@@ -2387,7 +2389,8 @@ app.get('/api/clip/:clipId', [
         return res.status(401).json({
           error: 'Authentication required',
           message: 'This file requires authentication. Please provide the correct URL with secret or password.',
-          requiresAuth: true
+          requiresAuth: true,
+          hasPassword: clip.password_hash !== null
         });
       }
 
@@ -2398,7 +2401,8 @@ app.get('/api/clip/:clipId', [
         return res.status(403).json({
           error: 'Access denied',
           message: 'Invalid credentials for this file. Please check your URL secret or password.',
-          requiresAuth: true
+          requiresAuth: true,
+          hasPassword: clip.password_hash !== null
         });
       }
 

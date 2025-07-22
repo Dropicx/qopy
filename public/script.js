@@ -356,20 +356,30 @@ class ClipboardApp {
                     }
                     
                 } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password) {
-                    // Authentication failed with URL secret only - password required
-                    console.log('🔑 File requires password - showing password field');
+                    // Authentication failed with URL secret only - check if password required
+                    const fileRequiresPassword = infoData?.hasPassword === true;
                     
-                    this.hideLoading('retrieve-loading');
-                    
-                    const passwordSection = document.getElementById('password-section');
-                    const passwordInput = document.getElementById('retrieve-password-input');
-                    
-                    if (passwordSection && passwordInput) {
-                        passwordSection.classList.remove('hidden');
-                        passwordInput.focus();
+                    if (fileRequiresPassword) {
+                        // File requires password - show password field
+                        console.log('🔑 File requires password - showing password field');
+                        
+                        this.hideLoading('retrieve-loading');
+                        
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordInput.focus();
+                        }
+                        
+                        this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
+                    } else {
+                        // File doesn't require password - wrong URL secret
+                        console.log('🔑 File does not require password - wrong URL secret');
+                        this.hideLoading('retrieve-loading');
+                        this.showToast('🔐 Access denied: Wrong URL secret', 'error');
                     }
-                    
-                    this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
                     return;
                     
                 } else if ((infoResponse.status === 401 || infoResponse.status === 403) && password) {
@@ -492,26 +502,29 @@ class ClipboardApp {
                         }
                         
                     } else {
-                        // Missing password or URL secret - show password field
+                        // Missing password or URL secret - check if clip requires password
                         this.hideLoading('retrieve-loading');
                         
-                        const passwordSection = document.getElementById('password-section');
-                        const passwordInput = document.getElementById('retrieve-password-input');
+                        // Check if the server indicates this clip needs a password
+                        const clipRequiresPassword = infoData?.hasPassword === true;
                         
-                        if (passwordSection && passwordInput) {
-                            passwordSection.classList.remove('hidden');
-                            passwordInput.focus();
-                        }
-                        
-                        if (!password && urlSecret) {
-                            console.log('🔑 URL secret found but password missing - showing password field');
-                            this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
-                        } else if (!urlSecret) {
-                            console.log('🔑 No URL secret found - this file requires both URL secret and password');
-                            this.showToast('🔐 Access denied: Invalid URL or missing credentials', 'error');
+                        if (clipRequiresPassword) {
+                            // This clip requires a password - show password field
+                            console.log('🔑 Clip requires password - showing password field');
+                            
+                            const passwordSection = document.getElementById('password-section');
+                            const passwordInput = document.getElementById('retrieve-password-input');
+                            
+                            if (passwordSection && passwordInput) {
+                                passwordSection.classList.remove('hidden');
+                                passwordInput.focus();
+                            }
+                            
+                            this.showToast('🔐 This clip requires a password. Please enter it below.', 'info');
                         } else {
-                            console.log('🔑 Missing credentials - showing password field');
-                            this.showToast('🔐 This file requires authentication. Please enter the password.', 'info');
+                            // This clip doesn't require a password - it's a wrong URL secret
+                            console.log('🔑 Clip does not require password - wrong URL secret');
+                            this.showToast('🔐 Access denied: Wrong URL secret', 'error');
                         }
                         
                         return;
