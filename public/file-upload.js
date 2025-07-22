@@ -276,11 +276,8 @@ class FileUploadManager {
             this.showProgressUI(true);
             this.updateProgress(0, 0, uploadSession.totalChunks);
 
-            // Upload chunks
-            await this.uploadChunks(this.selectedFile, uploadSession);
-
-            // Complete upload
-            const result = await this.completeUpload(uploadSession.uploadId);
+            // Upload chunks (this also completes the upload)
+            const result = await this.uploadChunks(this.selectedFile, uploadSession);
             
             console.log('✅ Upload completed:', result);
             this.showUploadSuccess(result);
