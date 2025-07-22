@@ -1002,6 +1002,24 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             passwordHash = null;
         }
 
+        // Generate download token BEFORE JSON.stringify
+        let downloadToken = null;
+        if (password && urlSecret) {
+            downloadToken = await generateDownloadToken(clipId, password, urlSecret);
+            console.log('🔐 Generated download token for clipId:', clipId, 'token length:', downloadToken.length);
+        }
+
+        // Create file metadata object
+        const fileMetadata = {
+            uploadId,
+            originalUploadSession: true,
+            originalFileSize: session.filesize, // Store original size in metadata
+            actualFileSize: actualFileSize,
+            downloadToken: downloadToken
+        };
+
+        console.log('📝 Storing file_metadata:', fileMetadata);
+
         // Store clip in database
         await pool.query(`
             INSERT INTO clips 
@@ -1022,14 +1040,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             session.mime_type,
             actualFileSize, // Use actual file size (encrypted if applicable)
             isFile,
-            JSON.stringify({
-                uploadId,
-                originalUploadSession: true,
-                originalFileSize: session.filesize, // Store original size in metadata
-                actualFileSize: actualFileSize,
-                downloadToken: password && urlSecret ? 
-                    await generateDownloadToken(clipId, password, urlSecret) : null
-            })
+            JSON.stringify(fileMetadata)
         ]);
 
         // Update statistics
@@ -1892,10 +1903,25 @@ async function validateDownloadToken(clipId, providedToken) {
                 );
                 
                 if (metadataResult.rows.length > 0 && metadataResult.rows[0].file_metadata) {
-                    const metadata = JSON.parse(metadataResult.rows[0].file_metadata);
-                    if (metadata.downloadToken) {
-                        return providedToken === metadata.downloadToken;
+                    const rawMetadata = metadataResult.rows[0].file_metadata;
+                    console.log('🔍 Raw file_metadata for clipId:', clipId, 'type:', typeof rawMetadata, 'value:', rawMetadata);
+                    
+                    try {
+                        const metadata = JSON.parse(rawMetadata);
+                        console.log('📝 Parsed metadata successfully:', metadata);
+                        
+                        if (metadata.downloadToken) {
+                            console.log('✅ Found stored download token for clipId:', clipId, 'comparing with provided token');
+                            return providedToken === metadata.downloadToken;
+                        } else {
+                            console.log('❌ No download token found in metadata for clipId:', clipId);
+                        }
+                    } catch (parseError) {
+                        console.error('❌ Failed to parse file_metadata as JSON for clipId:', clipId, 'error:', parseError.message, 'raw data:', rawMetadata);
+                        return false;
                     }
+                } else {
+                    console.log('❌ No file_metadata found for clipId:', clipId);
                 }
             } catch (error) {
                 console.error('❌ Error checking file metadata for download token:', error);
