@@ -1720,7 +1720,7 @@ async function validateDownloadToken(clipId, providedToken) {
         }
         
         const clip = result.rows[0];
-        const isFileClip = clip.content_type === 'file' || clip.file_path;
+        const isFileClip = clip.content_type === 'file'; // Only actual file uploads
         
         // For Quick Share clips (4-digit), the password_hash contains the secret
         if (clipId.length === 4 && clip.password_hash) {
@@ -2269,11 +2269,25 @@ app.get('/api/clip/:clipId/info', [
 
     const clip = result.rows[0];
 
+    // Debug: Show what we actually got from database
+    console.log('🔍 Info endpoint clip debug:', {
+      clipId: clipId,
+      content_type: clip.content_type,
+      file_path: !!clip.file_path,
+      password_hash: !!clip.password_hash
+    });
+
     // For file clips, require authentication (but exclude Quick Share)
     const isQuickShare = clipId.length === 4;
-    const isFileClip = clip.content_type === 'file' || clip.file_path;
+    const isActualFileClip = clip.content_type === 'file'; // Only actual file uploads need strict authentication
     
-    if (isFileClip && !isQuickShare) {
+    console.log('🔍 Info endpoint logic check:', {
+      isQuickShare,
+      isActualFileClip,
+      willRequireAuth: isActualFileClip && !isQuickShare
+    });
+    
+    if (isActualFileClip && !isQuickShare) {
       console.log('🔐 File clip detected, validating download token for clipId:', clipId);
       
       if (!downloadToken) {
@@ -2299,7 +2313,7 @@ app.get('/api/clip/:clipId/info', [
       }
 
       console.log('✅ Download token validated for file clip:', clipId);
-    } else if (isQuickShare && isFileClip) {
+    } else if (isQuickShare && isActualFileClip) {
       console.log('⚡ Quick Share file clip - no authentication required:', clipId);
     }
 
@@ -2377,11 +2391,25 @@ app.get('/api/clip/:clipId', [
 
     const clip = result.rows[0];
 
+    // Debug: Show what we actually got from database
+    console.log('🔍 Main endpoint clip debug:', {
+      clipId: clipId,
+      content_type: clip.content_type,
+      file_path: !!clip.file_path,
+      password_hash: !!clip.password_hash
+    });
+
     // For file clips, require authentication (but exclude Quick Share)
     const isQuickShare = clipId.length === 4;
-    const isFileClip = clip.content_type === 'file' || clip.file_path;
+    const isActualFileClip = clip.content_type === 'file'; // Only actual file uploads need strict authentication
     
-    if (isFileClip && !isQuickShare) {
+    console.log('🔍 Main endpoint logic check:', {
+      isQuickShare,
+      isActualFileClip,
+      willRequireAuth: isActualFileClip && !isQuickShare
+    });
+    
+    if (isActualFileClip && !isQuickShare) {
       console.log('🔐 File clip detected in main endpoint, validating download token for clipId:', clipId);
       
       if (!downloadToken) {
@@ -2407,7 +2435,7 @@ app.get('/api/clip/:clipId', [
       }
 
       console.log('✅ Download token validated for file clip in main endpoint:', clipId);
-    } else if (isQuickShare && isFileClip) {
+    } else if (isQuickShare && isActualFileClip) {
       console.log('⚡ Quick Share file clip in main endpoint - no authentication required:', clipId);
     }
 
