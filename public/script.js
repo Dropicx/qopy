@@ -580,6 +580,7 @@ class ClipboardApp {
                     return;
                 }
             }
+        }
             
         } catch (error) {
             console.error('❌ Error in autoRetrieveClip:', error);
