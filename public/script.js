@@ -1220,12 +1220,34 @@ class ClipboardApp {
                 console.log('🔑 Using URL secret and password for decryption');
             }
 
-            // Download the encrypted file
+            // Download the encrypted file using new authenticated method
+            console.log('📥 Downloading encrypted file using authenticated method');
+            
+            // Extract clipId from redirectTo URL (e.g., "/api/file/H6LEGF78SB" -> "H6LEGF78SB")
+            const clipId = data.redirectTo.split('/').pop();
+            console.log('🔍 Extracted clipId from redirectTo:', clipId);
+            
+            // Generate download token for authentication
+            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+            console.log('🔐 Generated download token for text file download');
+            
+            // Make authenticated POST request
             const response = await fetch(data.redirectTo, {
-                method: 'GET'
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    downloadToken: downloadToken
+                })
             });
 
             if (!response.ok) {
+                const error = await response.json();
+                console.error('❌ Text file download API error:', error);
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('❌ Access denied: Wrong password or URL secret for text file');
+                }
                 throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
             }
 
