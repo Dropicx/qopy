@@ -1632,46 +1632,56 @@ class FileUploadManager {
             finalUrl += '#' + urlFragment;
         }
         
-        // Show success message with compatible security info
-        const successDiv = document.getElementById('upload-success');
+        // Show success message using the main success modal
         const originalMetadata = this.currentUploadSession?.originalMetadata || {};
         const secretType = urlFragment?.length >= 40 ? 'Enhanced (256-bit)' : 'Legacy (128-bit)';
         const isEnhanced = urlFragment?.length >= 40;
         
-        successDiv.innerHTML = `
-            <div class="upload-result">
-                <h3>✅ File Upload Successful!</h3>
-                <div class="file-info">
-                    <p><strong>Original File:</strong> ${originalMetadata.filename || 'Unknown'}</p>
-                    <p><strong>Size:</strong> ${this.formatFileSize(originalMetadata.size || 0)}</p>
-                    <p><strong>Security:</strong> ${secretType} encryption</p>
-                    <p><strong>Zero-Knowledge:</strong> Anonymous filename, encrypted metadata</p>
-                </div>
-                <div class="share-link">
-                    <label for="share-url">Share Link (${secretType} Security):</label>
-                    <div class="url-container">
-                        <input type="text" id="share-url" value="${finalUrl}" readonly>
-                        <button onclick="navigator.clipboard.writeText('${finalUrl}'); this.textContent='✓ Copied!'">Copy Link</button>
-                    </div>
-                </div>
-                <div class="security-notice">
-                    <p><strong>Security Notice:</strong></p>
-                    <ul>
-                        ${isEnhanced ? 
-                            '<li>🔐 Enhanced 256-bit entropy passphrase (Proton Drive style)</li>' +
-                            '<li>🔒 Enhanced PBKDF2 with 250,000 iterations</li>' :
-                            '<li>🔐 Legacy 128-bit URL secret (compatible mode)</li>' +
-                            '<li>🔒 Standard PBKDF2 with 100,000 iterations</li>'
-                        }
-                        <li>🕵️ Zero-knowledge: Server cannot decrypt your data</li>
-                        <li>🔗 Full decryption key is embedded in the URL fragment</li>
-                        <li>🔄 Backward compatible with text sharing system</li>
-                    </ul>
-                </div>
-            </div>
-        `;
+        // Use the main success modal instead of a separate upload-success div
+        document.getElementById('share-url').value = result.url;
+        document.getElementById('clip-id').value = result.clipId;
         
-        successDiv.style.display = 'block';
+        // Hide clip ID section for file uploads (since they use 10-character IDs with URL secrets)
+        const clipIdSection = document.getElementById('clip-id-section');
+        if (clipIdSection) {
+            clipIdSection.style.display = 'none';
+        }
+        
+        // Generate QR code
+        if (typeof window.generateQRCode === 'function') {
+            window.generateQRCode(result.url);
+        } else if (this.app && typeof this.app.generateQRCode === 'function') {
+            this.app.generateQRCode(result.url);
+        } else {
+            // Fallback QR code generation
+            const qrCodeImg = document.getElementById('qr-code');
+            if (qrCodeImg && window.QRCode) {
+                qrCodeImg.innerHTML = '';
+                window.QRCode.toCanvas(qrCodeImg, result.url, { width: 200, height: 200 }, (error) => {
+                    if (error) console.error('QR code generation failed:', error);
+                });
+            }
+        }
+        
+        // Set expiry time
+        if (result.expiresAt) {
+            const expiryDate = new Date(result.expiresAt);
+            const expiryElement = document.getElementById('expiry-time');
+            if (expiryElement) {
+                expiryElement.textContent = expiryDate.toLocaleString();
+            }
+        }
+        
+        // Show the main success modal
+        const successModal = document.getElementById('success-modal');
+        if (successModal) {
+            successModal.classList.remove('hidden');
+        }
+        
+        // Also show a toast notification for file upload success
+        this.showToast(`✅ File uploaded successfully! Original: ${originalMetadata.filename || 'Unknown'} (${this.formatFileSize(originalMetadata.size || 0)})`, 'success');
+        
+        // File upload success is now handled by the main success modal above
         
         // Clear the current upload session
         this.currentUploadSession = null;
