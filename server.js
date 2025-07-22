@@ -3080,14 +3080,14 @@ async function startServer() {
                 WHERE file_path IS NOT NULL AND content_type = 'text'
             `);
             
-            // Remove unused columns (content, client_ip, last_accessed, upload_id)
-            try {
-                // Check which unused columns exist before trying to drop them
-                const unusedColumnsCheck = await client.query(`
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'clips' AND column_name IN ('content', 'client_ip', 'last_accessed', 'upload_id')
-                `);
+                            // Remove unused columns (content, client_ip, last_accessed, upload_id, max_accesses)
+                try {
+                    // Check which unused columns exist before trying to drop them
+                    const unusedColumnsCheck = await client.query(`
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'clips' AND column_name IN ('content', 'client_ip', 'last_accessed', 'upload_id', 'max_accesses')
+                    `);
                 
                 const existingUnusedColumns = unusedColumnsCheck.rows.map(row => row.column_name);
                 
