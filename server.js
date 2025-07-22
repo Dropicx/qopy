@@ -983,18 +983,11 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         // Create clip - use quick_share setting for text content, normal IDs for files
         const clipId = generateClipId(session.is_text_content ? session.quick_share : false);
         
-        // Handle text content conversion
-        let content = null;
+        // All content is now stored as files (no database content storage)
         let isFile = true;
         
         if (session.is_text_content) {
-            // For text content, keep file on disk (like regular files) but mark as text type
-            content = null;  // No database storage for text content
-            isFile = true;   // File is stored on disk
-            
             console.log(`📝 Text content stored as file: ${filePath} (${actualFileSize} bytes encrypted)`);
-            
-            // DON'T delete the file - keep it like regular files
         }
 
         // Handle Quick Share secret and password hash
@@ -1053,20 +1046,20 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
 
         console.log('📝 Storing file_metadata:', fileMetadata);
 
-        // Store clip in database
+        // Store clip in database (content column removed - all content stored as files)
         await pool.query(`
             INSERT INTO clips 
-            (clip_id, content, content_type, expiration_time, password_hash, one_time, created_at,
+            (clip_id, content_type, expiration_time, password_hash, one_time, quick_share, created_at,
              file_path, original_filename, mime_type, filesize, is_file, file_metadata)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         `, [
             clipId,
-            content, // null for all files (including text stored as files)
             // Keep content_type = 'text' for text content, even when stored as file
             session.is_text_content ? 'text' : 'file',
             session.expiration_time,
             passwordHash, // Use the calculated password hash (Quick Share secret or 'client-encrypted')
             session.one_time,
+            session.quick_share, // Add quick_share from session
             Date.now(),
             isFile ? filePath : null,
             session.original_filename,
@@ -2953,15 +2946,15 @@ async function startServer() {
         // SPALTENABGLEICHUNG: clips
         // ========================================
         const CLIPS_SCHEMA_COLUMNS = [
-            'id', 'clip_id', 'content', 'password_hash', 'one_time', 'quick_share', 
-            'expiration_time', 'access_count', 'max_accesses', 'client_ip', 
-            'created_at', 'last_accessed', 'accessed_at', 'content_type', 'file_metadata', 
-            'file_path', 'original_filename', 'mime_type', 'filesize', 'upload_id', 'is_file', 'is_expired'
+            'id', 'clip_id', 'password_hash', 'one_time', 'quick_share', 
+            'expiration_time', 'access_count', 'max_accesses', 
+            'created_at', 'accessed_at', 'content_type', 'file_metadata', 
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'is_expired'
         ];
 
         const CLIPS_INSERT_COLUMNS = [
-            'clip_id', 'content', 'expiration_time', 'password_hash', 'one_time', 'created_at',
-            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'file_metadata'
+            'clip_id', 'expiration_time', 'password_hash', 'one_time', 'quick_share', 'created_at',
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'file_metadata', 'content_type'
         ];
 
         const missingInClipsSchema = CLIPS_INSERT_COLUMNS.filter(col => !CLIPS_SCHEMA_COLUMNS.includes(col));
@@ -3042,30 +3035,25 @@ async function startServer() {
             CREATE TABLE IF NOT EXISTS clips (
                 id SERIAL PRIMARY KEY,
                 clip_id VARCHAR(10) UNIQUE NOT NULL,
-                content TEXT,
                 password_hash VARCHAR(255),
                 one_time BOOLEAN DEFAULT false,
                 quick_share BOOLEAN DEFAULT false,
                 expiration_time BIGINT NOT NULL,
                 access_count INTEGER DEFAULT 0,
                 max_accesses INTEGER DEFAULT 1,
-                client_ip VARCHAR(45),
-                created_at BIGINT NOT NULL,
-                last_accessed BIGINT
+                created_at BIGINT NOT NULL
             )
         `);
 
         // Extend clips table for file metadata (only if table exists)
         try {
-            // Make content column nullable for file uploads
-            await client.query(`ALTER TABLE clips ALTER COLUMN content DROP NOT NULL`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) DEFAULT 'text'`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_metadata JSONB`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255)`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT`);
-            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS upload_id VARCHAR(50)`);
+            // upload_id column removed - was never used, uploadId stored in file_metadata JSON instead
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_file BOOLEAN DEFAULT false`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT false`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS accessed_at BIGINT`);
@@ -3083,6 +3071,41 @@ async function startServer() {
                 SET content_type = 'file' 
                 WHERE file_path IS NOT NULL AND content_type = 'text'
             `);
+            
+            // Remove unused columns (content, client_ip, last_accessed, upload_id)
+            try {
+                // Check which unused columns exist before trying to drop them
+                const unusedColumnsCheck = await client.query(`
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'clips' AND column_name IN ('content', 'client_ip', 'last_accessed', 'upload_id')
+                `);
+                
+                const existingUnusedColumns = unusedColumnsCheck.rows.map(row => row.column_name);
+                
+                                 for (const columnName of existingUnusedColumns) {
+                     // Drop index first if it exists (specifically for upload_id column)
+                     if (columnName === 'upload_id') {
+                         try {
+                             await client.query(`DROP INDEX IF EXISTS idx_clips_upload_id`);
+                             console.log('🗑️ Removed unused index idx_clips_upload_id');
+                         } catch (indexError) {
+                             console.warn(`⚠️ Could not remove index: ${indexError.message}`);
+                         }
+                     }
+                     
+                     await client.query(`ALTER TABLE clips DROP COLUMN ${columnName}`);
+                     console.log(`🗑️ Removed unused ${columnName} column from clips table`);
+                 }
+                
+                if (existingUnusedColumns.length === 0) {
+                    console.log('ℹ️ All unused columns already removed from clips table');
+                } else {
+                    console.log(`🧹 Cleaned up ${existingUnusedColumns.length} unused columns: ${existingUnusedColumns.join(', ')}`);
+                }
+            } catch (dropError) {
+                console.warn(`⚠️ Could not remove unused columns: ${dropError.message}`);
+            }
             
             console.log('✅ Clips table extended with file metadata columns');
         } catch (alterError) {
@@ -3125,7 +3148,6 @@ async function startServer() {
             'CREATE INDEX IF NOT EXISTS idx_file_chunks_created_at ON file_chunks(created_at)',
             'CREATE INDEX IF NOT EXISTS idx_upload_statistics_date ON upload_statistics(date)',
             'CREATE INDEX IF NOT EXISTS idx_clips_content_type ON clips(content_type)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_upload_id ON clips(upload_id)',
             'CREATE INDEX IF NOT EXISTS idx_clips_file_path ON clips(file_path)'
         ];
 

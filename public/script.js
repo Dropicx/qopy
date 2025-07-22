@@ -272,92 +272,147 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             const password = this.getPasswordFromUser();
             
-            // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
-            let downloadToken = null;
-            let queryParams = '';
-            
-            if (clipId.length === 10) {
-                // Normal clip: always generate download token for file authentication
-                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
-                console.log('🔐 Generated download token for normal clip auto-retrieve:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
-            } else {
+            if (clipId.length === 4) {
                 // Quick Share (4-digit): no download token needed
                 console.log('⚡ Quick Share auto-retrieve - no download token needed:', clipId);
-            }
-            
-            // First, get clip info to check if it has password
-            const infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
-            const infoData = await infoResponse.json();
-            
-            if (!infoResponse.ok) {
-                // For authentication errors, show specific message
-                if (infoResponse.status === 401 || infoResponse.status === 403) {
-                    console.log('🔐 File requires authentication - access denied for wrong credentials');
-                    this.showToast('🔐 Access denied: Invalid URL or missing credentials', 'error');
-                }
-                // Clip not found or expired, don't try to decrypt
-                this.hideLoading('retrieve-loading');
-                return;
-            }
-            
-            // If clip has password, always show password field for user input
-            // Even with URL secret, password-protected clips need BOTH password + URL secret
-            if (infoData.hasPassword) {
-                this.hideLoading('retrieve-loading');
                 
-                // Show password section and focus password input
-                const passwordSection = document.getElementById('password-section');
-                const passwordInput = document.getElementById('retrieve-password-input');
+                // First, get clip info to check if it has password
+                const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                const infoData = await infoResponse.json();
                 
-                if (passwordSection && passwordInput) {
-                    passwordSection.classList.remove('hidden');
-                    passwordInput.focus();
+                if (!infoResponse.ok) {
+                    // Clip not found or expired, don't try to decrypt
+                    this.hideLoading('retrieve-loading');
+                    return;
                 }
                 
-                console.log('🔑 Password-protected clip detected - showing password field (URL secret + password both required)');
+                // Quick Share never has passwords, proceed with retrieval
+                const response = await fetch(`/api/clip/${clipId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
                 
-                // Don't proceed with auto-retrieval for password-protected clips
-                // Let the user manually enter password and click retrieve
-                return;
-            }
-            
-            // For Self-Destruct clips, we need to retrieve and show immediately
-            // since the clip will be deleted after the first API call
-            const isSelfDestruct = infoData.oneTime;
-            
-            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // Hide password section since we know this clip doesn't have a password
-                // (we checked infoData.hasPassword above)
-                const passwordSection = document.getElementById('password-section');
-                if (passwordSection) {
-                    passwordSection.classList.add('hidden');
-                    console.log('Hiding password section in autoRetrieveClip (no password required)');
+                if (response.ok) {
+                    const data = await response.json();
+                    await this.showRetrieveResult(data);
                 }
                 
-                // Show result immediately for all clips accessed via direct link
-                await this.showRetrieveResult(data);
             } else {
-                // For auto-retrieve, handle authentication errors gracefully
-                if (data.requiresAuth) {
-                    console.log('🔐 File requires authentication - not showing error for auto-retrieve');
-                    // Don't show error for auto-retrieve - let user manually enter credentials
+                // Normal clip (10-digit): Try without token first, then with token if needed
+                console.log('🔐 Normal clip auto-retrieve - trying without token first:', clipId);
+                
+                // First attempt: get clip info WITHOUT download token
+                let infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                let infoData = await infoResponse.json();
+                
+                if (infoResponse.ok) {
+                    // No authentication required - proceed normally
+                    console.log('✅ No authentication required for clip:', clipId);
+                    
+                    // Check if clip has password
+                    if (infoData.hasPassword) {
+                        this.hideLoading('retrieve-loading');
+                        
+                        // Show password section and focus password input
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordInput.focus();
+                        }
+                        
+                        console.log('🔑 Password-protected clip detected - showing password field');
+                        return;
+                    }
+                    
+                    // No password required, proceed with retrieval
+                    const response = await fetch(`/api/clip/${clipId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        await this.showRetrieveResult(data);
+                    }
+                    
+                } else if (infoResponse.status === 401 || infoResponse.status === 403) {
+                    // Authentication required (likely a file clip)
+                    console.log('🔐 Authentication required for clip:', clipId, 'checking if password available');
+                    
+                    if (password && urlSecret) {
+                        // We have both password and URL secret - generate token and try again
+                        console.log('🔑 Password and URL secret available - generating token and retrying');
+                        
+                        const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                        const queryParams = `?downloadToken=${downloadToken}`;
+                        
+                        // Retry with authentication
+                        infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                        infoData = await infoResponse.json();
+                        
+                        if (infoResponse.ok) {
+                            // Proceed with authenticated retrieval
+                            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                }
+                            });
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                await this.showRetrieveResult(data);
+                            } else {
+                                console.error('❌ Authenticated retrieval failed:', response.status);
+                                this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                            }
+                        } else {
+                            console.error('❌ Authenticated info request failed:', infoResponse.status);
+                            this.showToast('🔐 Access denied: Invalid credentials', 'error');
+                        }
+                        
+                    } else {
+                        // Missing password or URL secret - show password field
+                        this.hideLoading('retrieve-loading');
+                        
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordInput.focus();
+                        }
+                        
+                        if (!password && urlSecret) {
+                            console.log('🔑 URL secret found but password missing - showing password field');
+                            this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
+                        } else if (!urlSecret) {
+                            console.log('🔑 No URL secret found - this file requires both URL secret and password');
+                            this.showToast('🔐 Access denied: Invalid URL or missing credentials', 'error');
+                        } else {
+                            console.log('🔑 Missing credentials - showing password field');
+                            this.showToast('🔐 This file requires authentication. Please enter the password.', 'info');
+                        }
+                        
+                        return;
+                    }
                 } else {
-                    console.log('❌ API error in auto-retrieve:', data);
-                    // For other errors, don't show error - let user manually retrieve
+                    // Other error (clip not found, expired, etc.)
+                    console.log('❌ Clip not found or expired:', clipId);
+                    this.hideLoading('retrieve-loading');
+                    return;
                 }
             }
+            
         } catch (error) {
-            // For auto-retrieve, don't show error - let user manually retrieve
+            console.error('❌ Error in autoRetrieveClip:', error);
+            this.showToast('❌ Failed to retrieve content', 'error');
         } finally {
             this.hideLoading('retrieve-loading');
         }
