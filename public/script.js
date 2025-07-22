@@ -424,12 +424,60 @@ class ClipboardApp {
                     }
                 }
             } else {
-                // Normal clip (10-digit): Try without token first, then with token if needed
-                console.log('🔐 Normal clip auto-retrieve - trying without token first:', clipId);
-                
-                // First attempt: get clip info WITHOUT download token
-                let infoResponse = await fetch(`/api/clip/${clipId}/info`);
-                let infoData = await infoResponse.json();
+                // Normal clip (10-digit): Check if we have credentials and use them directly for efficiency
+                if (urlSecret) {
+                    // We have URL secret - use token directly (avoids unnecessary 401)
+                    console.log('🔐 Normal clip with URL secret - using token directly:', clipId);
+                    
+                    const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                    const queryParams = `?downloadToken=${downloadToken}`;
+                    
+                    let infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    let infoData = await infoResponse.json();
+                    
+                    if (infoResponse.ok) {
+                        // Authentication successful - proceed with retrieval
+                        console.log('✅ Authentication successful for clip:', clipId);
+                        const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            await this.showRetrieveResult(data);
+                        } else {
+                            console.error('❌ Authenticated retrieval failed:', response.status);
+                            this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                        }
+                    } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password && infoData?.hasPassword === true) {
+                        // Authentication failed but server indicates password required
+                        console.log('🔑 Authentication failed - password required');
+                        this.hideLoading('retrieve-loading');
+                        
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordInput.focus();
+                        }
+                        
+                        this.showToast('🔐 This clip requires a password. Please enter it below.', 'info');
+                    } else {
+                        // Authentication failed with wrong credentials
+                        console.error('❌ Authentication failed - invalid credentials:', infoResponse.status);
+                        this.hideLoading('retrieve-loading');
+                        this.showToast('🔐 Access denied: Invalid URL secret or password', 'error');
+                    }
+                } else {
+                    // No URL secret - try without token first (for legacy clips or clips without URL secrets)
+                    console.log('🔐 Normal clip without URL secret - trying without token first:', clipId);
+                    
+                    let infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                    let infoData = await infoResponse.json();
                 
                 if (infoResponse.ok) {
                     // No authentication required - proceed normally
