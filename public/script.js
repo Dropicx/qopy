@@ -2484,9 +2484,13 @@ class ClipboardApp {
                 urlSecret: urlSecret ? 'present' : 'none'
             });
             
-            // Generate download token for authentication
+            // Generate download token for authentication (Enhanced Files don't need tokens)
             const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
             console.log('🔐 Generated download token for authentication');
+            
+            // Prepare request body based on token type
+            const requestBody = downloadToken !== null ? { downloadToken } : {};
+            console.log('📥 Request body:', requestBody);
             
             // Start download with authentication
             console.log('📥 Making authenticated download request to:', `/api/file/${clipId}`);
@@ -2495,9 +2499,7 @@ class ClipboardApp {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    downloadToken: downloadToken
-                })
+                body: JSON.stringify(requestBody)
             });
             
             console.log('📥 Download response status:', response.status);

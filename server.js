@@ -1693,26 +1693,10 @@ async function generateDownloadToken(clipId, password, urlSecret) {
     const isEnhancedPassphrase = urlSecret && urlSecret.length >= 40;
     
     if (isEnhancedPassphrase) {
-        // Use Compatible Token Algorithm for Enhanced Passphrase files (deterministic, no timestamp)
-        console.log('🔐 Server: Using Enhanced Compatible Token Algorithm');
-        
-        const tokenData = `enhanced:${clipId}:${password || ''}:${urlSecret || ''}`;
-        
-        const hash = crypto.createHash('sha256');
-        hash.update(tokenData);
-        const hashHex = hash.digest('hex');
-        const token = hashHex.substring(0, 32); // 32 character token
-        
-        console.log('🔐 Server: Enhanced download token generated:', {
-            clipId: clipId,
-            hasUrlSecret: !!urlSecret,
-            hasPassword: !!password,
-            secretType: 'Enhanced (43+ chars)',
-            tokenLength: token.length,
-            algorithm: 'Compatible (deterministic)'
-        });
-        
-        return token;
+        // Enhanced Files (Zero-Knowledge): No download token needed
+        // Files are directly downloadable (encrypted) and client decrypts with URL fragment
+        console.log('🔐 Server: Enhanced File (Zero-Knowledge): No download token needed - direct download of encrypted file');
+        return null;
     } else {
         // Use Legacy Token Algorithm for normal/legacy clips
         console.log('🔐 Server: Using Legacy Token Algorithm');
@@ -1846,7 +1830,18 @@ app.post('/api/file/:clipId', [
         }
         return true;
     }),
-    body('downloadToken').optional().isString().isLength({ min: 64, max: 64 }).withMessage('Download token must be 64 characters')
+    body('downloadToken').optional().custom((value, { req }) => {
+        // If downloadToken is provided, it must be a 64-character string
+        if (value !== undefined && value !== null) {
+            if (typeof value !== 'string') {
+                throw new Error('Download token must be a string');
+            }
+            if (value.length !== 64) {
+                throw new Error('Download token must be 64 characters');
+            }
+        }
+        return true;
+    })
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
