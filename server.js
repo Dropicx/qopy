@@ -931,10 +931,9 @@ async function assembleFile(uploadId, session) {
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
     try {
         const { uploadId } = req.params;
-        const { quickShareSecret, downloadToken, password, urlSecret } = req.body;
+        const { quickShareSecret, password, urlSecret } = req.body;
         console.log('🔑 Upload complete request body:', { 
             quickShareSecret: quickShareSecret,
-            hasDownloadToken: !!downloadToken,
             hasPassword: !!password,
             hasUrlSecret: !!urlSecret
         });
@@ -1028,7 +1027,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
                 originalUploadSession: true,
                 originalFileSize: session.filesize, // Store original size in metadata
                 actualFileSize: actualFileSize,
-                downloadToken: downloadToken && password && urlSecret ? 
+                downloadToken: password && urlSecret ? 
                     await generateDownloadToken(clipId, password, urlSecret) : null
             })
         ]);

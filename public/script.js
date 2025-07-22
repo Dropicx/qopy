@@ -649,28 +649,17 @@ class ClipboardApp {
                 console.log(`[TextUpload] Uploaded chunk ${uploadedChunks}/${totalChunks}`);
             }
 
-            // Generate download token for later authentication
-            let downloadToken = null;
-            if (!quickShare) {
-                // For normal clips, generate download token based on clipId + secrets
-                // We need to generate a temporary clipId to compute the token
-                // This will be validated against the actual clipId on the server
-                const tempClipId = 'TEMP123456'; // Will be replaced by server with actual clipId
-                downloadToken = await this.generateDownloadToken(tempClipId, password, urlSecret);
-                console.log('🔐 Generated download token for upload completion');
-            }
-
             // Complete upload
             console.log(`[TextUpload] Completing upload for uploadId=${uploadId}`);
             const completePayload = {
                 quickShareSecret: quickShareSecret
             };
             
-            // Add download token for normal clips
-            if (downloadToken) {
-                completePayload.downloadToken = downloadToken;
+            // Add authentication parameters for normal clips (server will generate token)
+            if (!quickShare && (password || urlSecret)) {
                 completePayload.password = password;
                 completePayload.urlSecret = urlSecret;
+                console.log('🔐 Sending authentication parameters for token generation');
             }
             
             const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
