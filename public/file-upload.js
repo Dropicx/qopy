@@ -540,7 +540,7 @@ class FileUploadManager {
             
             let keyMaterial;
             if (password && urlSecret) {
-                // Password + URL secret mode
+                // Password + URL secret mode - MUST match script.js format
                 const combined = urlSecret + ':' + password;
                 console.log('🔑 Using password + URL secret mode');
                 keyMaterial = await window.crypto.subtle.importKey(
@@ -600,6 +600,7 @@ class FileUploadManager {
         
         let keyMaterial;
         if (password && urlSecret) {
+            // MUST match script.js format
             const combined = urlSecret + ':' + password;
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
@@ -636,12 +637,24 @@ class FileUploadManager {
     }
 
     async completeUpload(uploadId) {
+        // Get form settings for download token generation
+        const hasPassword = document.getElementById('file-password-checkbox')?.checked || false;
+        const password = hasPassword ? document.getElementById('file-password-input')?.value?.trim() : null;
+        const urlSecret = this.currentUploadSession?.urlSecret || null;
+        
+        console.log('🔐 Sending authentication parameters for token generation:', {
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
+        
         const response = await fetch(`/api/upload/complete/${uploadId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+                password: password,
+                urlSecret: urlSecret
                 // checksums can be omitted, server will validate automatically
             })
         });
@@ -873,17 +886,40 @@ class FileDownloadManager {
 
     async downloadFile(clipId, filename) {
         try {
-            console.log('📥 Starting download:', clipId);
+            console.log('📥 Starting authenticated download:', clipId);
             
             // Extract URL secret from current URL
             const urlSecret = this.extractUrlSecret();
             const password = this.getPasswordFromUser();
             
-            // Start download
-            const response = await fetch(`/api/file/${clipId}`);
+            console.log('📥 Encryption keys:', { 
+                hasUrlSecret: !!urlSecret, 
+                hasPassword: !!password,
+                urlSecret: urlSecret ? 'present' : 'none'
+            });
+            
+            // Generate download token for authentication
+            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+            console.log('🔐 Generated download token for authentication');
+            
+            // Start authenticated download using POST method
+            console.log('📥 Making authenticated download request to:', `/api/file/${clipId}`);
+            const response = await fetch(`/api/file/${clipId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    downloadToken: downloadToken
+                })
+            });
             
             if (!response.ok) {
                 const error = await response.json();
+                console.error('❌ Download API error:', error);
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('❌ Access denied: Wrong password or URL secret for file');
+                }
                 throw new Error(error.message || 'Download failed');
             }
 
@@ -931,7 +967,7 @@ class FileDownloadManager {
             throw error;
         }
     }
-
+    
     // Extract URL secret from current URL fragment
     extractUrlSecret() {
         const hash = window.location.hash;
@@ -985,8 +1021,8 @@ class FileDownloadManager {
         
         let keyMaterial;
         if (password && urlSecret) {
-            // Password + URL secret mode
-            const combined = password + '|' + urlSecret;
+            // Password + URL secret mode - MUST match script.js format
+            const combined = urlSecret + ':' + password;
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
                 encoder.encode(combined),
@@ -1029,6 +1065,25 @@ class FileDownloadManager {
             false,
             ['encrypt', 'decrypt']
         );
+    }
+    
+    // Generate download token (same algorithm as script.js)
+    async generateDownloadToken(clipId, password, urlSecret) {
+        let tokenData = clipId;
+        
+        if (urlSecret) {
+            tokenData += ':' + urlSecret;
+        }
+        
+        if (password) {
+            tokenData += ':' + password;
+        }
+        
+        const encoder = new TextEncoder();
+        const data = encoder.encode(tokenData);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 }
 

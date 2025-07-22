@@ -409,13 +409,21 @@ const corsOptions = {
             allowedOrigins.push(
                 'https://qopy.app',
                 'https://qopy-production.up.railway.app',
-                'https://qopy-staging.up.railway.app'
+                'https://qopy-staging.up.railway.app',
+                'https://qopy-dev.up.railway.app'
             );
             
-            // Allow any Railway.app subdomain for flexibility
-                    if (origin.includes('.railway.app')) {
-            return callback(null, true);
-        }
+            // More secure Railway.app subdomain validation
+            if (origin.endsWith('.railway.app')) {
+                const railwayPattern = /^https:\/\/qopy-[a-zA-Z0-9\-]+(\.up)?\.railway\.app$/;
+                if (railwayPattern.test(origin)) {
+                    console.log(`✅ Allowed Railway origin: ${origin}`);
+                    return callback(null, true);
+                } else {
+                    console.warn(`🚫 Rejected Railway origin (invalid pattern): ${origin}`);
+                    return callback(new Error('Invalid Railway domain pattern'));
+                }
+            }
         }
         
         if (allowedOrigins.includes(origin)) {
@@ -1455,200 +1463,9 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
     }
 });
 
-// Complete upload
-app.post('/api/upload/complete/:uploadId', [
-    param('uploadId').isString().isLength({ min: 16, max: 16 }).withMessage('Invalid upload ID'),
-    body('checksums').optional().isArray().withMessage('Checksums must be an array')
-], async (req, res) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                error: 'Validation failed',
-                details: errors.array()
-            });
-        }
-
-        const { uploadId } = req.params;
-        const { checksums, quickShareSecret } = req.body;
-        console.log('🔑 Upload complete request body:', { checksums: !!checksums, quickShareSecret: quickShareSecret });
-
-        // Get upload session directly from database (not cache) to ensure all fields are available
-        const sessionResult = await pool.query(
-            'SELECT * FROM upload_sessions WHERE upload_id = $1 AND status = $2',
-            [uploadId, 'uploading']
-        );
-
-        if (sessionResult.rows.length === 0) {
-            return res.status(404).json({
-                error: 'Upload session not found',
-                message: 'Invalid or expired upload session'
-            });
-        }
-
-        const session = sessionResult.rows[0];
-        console.log('🔑 Upload session details:', { 
-            uploadId: session.upload_id, 
-            quick_share: session.quick_share, 
-            has_password: session.has_password,
-            is_text_content: session.is_text_content
-        });
-
-        // Ensure expiration_time is set (fallback to 24 hours if missing)
-        if (!session.expiration_time) {
-            console.warn(`⚠️ Missing expiration_time for session ${uploadId}, using 24 hours as fallback`);
-            session.expiration_time = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
-        }
-
-        // Verify all chunks are uploaded
-        if (session.uploaded_chunks !== session.total_chunks) {
-            return res.status(400).json({
-                error: 'Upload incomplete',
-                message: `Only ${session.uploaded_chunks} of ${session.total_chunks} chunks uploaded`
-            });
-        }
-
-        // Get all chunks for this upload
-        const chunksResult = await pool.query(
-            'SELECT * FROM file_chunks WHERE upload_id = $1 ORDER BY chunk_number',
-            [uploadId]
-        );
-
-        const chunks = chunksResult.rows;
-
-        // Verify checksums if provided
-        if (checksums && checksums.length === chunks.length) {
-            for (let i = 0; i < chunks.length; i++) {
-                if (chunks[i].checksum !== checksums[i]) {
-                    return res.status(400).json({
-                        error: 'Checksum mismatch',
-                        message: `Chunk ${i} checksum mismatch`
-                    });
-                }
-            }
-        }
-
-        // Assemble file from chunks
-        const finalFilePath = path.join(STORAGE_PATH, 'files', `${uploadId}.file`);
-        const writeStream = fs.createWriteStream(finalFilePath);
-
-        for (const chunk of chunks) {
-            const chunkData = await fs.readFile(chunk.storage_path);
-            writeStream.write(chunkData);
-        }
-        
-        // Wait for stream to finish
-        await new Promise((resolve, reject) => {
-            writeStream.end((error) => {
-                if (error) reject(error);
-                else resolve();
-            });
-        });
-
-        // Generate clip ID
-        const clipId = generateClipId(session.quick_share);
-
-        // Handle Quick Share secret if provided
-        let passwordHash = null;
-        if (session.quick_share && quickShareSecret) {
-            console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
-            passwordHash = quickShareSecret;
-        } else if (session.has_password) {
-            passwordHash = 'client-encrypted';
-        }
-
-        // Create clip entry based on content type
-        if (session.is_text_content) {
-            // Text content - store as file but mark as text
-            const file_metadata = {
-                originalName: session.original_filename,
-                uploadId: uploadId,
-                chunksCount: session.total_chunks,
-                checksums: chunks.map(c => c.checksum),
-                isTextContent: true
-            };
-
-            await pool.query(`
-                INSERT INTO clips (
-                    clip_id, content_type, file_path, original_filename, 
-                    mime_type, filesize, file_metadata, upload_id,
-                    expiration_time, password_hash, one_time, created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            `, [
-                clipId, 'text', finalFilePath, session.original_filename,
-                session.mime_type, session.filesize, JSON.stringify(file_metadata), uploadId,
-                session.expiration_time, passwordHash, session.one_time, Date.now()
-            ]);
-        } else {
-            // File content
-            const file_metadata = {
-                originalName: session.original_filename,
-                uploadId: uploadId,
-                chunksCount: session.total_chunks,
-                checksums: chunks.map(c => c.checksum)
-            };
-
-            await pool.query(`
-                INSERT INTO clips (
-                    clip_id, content_type, file_path, original_filename, 
-                    mime_type, filesize, file_metadata, upload_id,
-                    expiration_time, password_hash, one_time, created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            `, [
-                clipId, 'file', finalFilePath, session.original_filename,
-                session.mime_type, session.filesize, JSON.stringify(file_metadata), uploadId,
-                session.expiration_time, passwordHash, session.one_time, Date.now()
-            ]);
-        }
-
-        // Update upload session status
-        await pool.query(`
-            UPDATE upload_sessions 
-            SET status = $1, completed_at = $2
-            WHERE upload_id = $3
-        `, ['completed', Date.now(), uploadId]);
-
-        // Clean up chunks after successful assembly
-        for (const chunk of chunks) {
-            const result = await safeDeleteFile(chunk.storage_path);
-            if (!result.success) {
-                console.warn(`⚠️ Failed to delete chunk file: ${chunk.storage_path} - ${result.reason}: ${result.error}`);
-            }
-        }
-
-        // Delete chunk records
-        await pool.query('DELETE FROM file_chunks WHERE upload_id = $1', [uploadId]);
-
-        // Clear cache
-        if (redis) {
-            await redis.del(`upload:${uploadId}`);
-        }
-
-        // Update statistics
-        await updateStatistics('file_upload_completed');
-        await updateStatistics('file_clips_created');
-
-        res.json({
-            success: true,
-            clipId,
-            url: `${req.protocol}://${req.get('host')}/${session.is_text_content ? 'clip' : 'file'}/${clipId}`,
-            filename: session.original_filename,
-            filesize: session.filesize,
-            mimeType: session.mime_type,
-            expiresAt: session.expiration_time,
-            oneTime: session.one_time,
-            quickShare: session.quick_share,
-            contentType: session.is_text_content ? 'text' : 'file'
-        });
-
-    } catch (error) {
-        console.error('❌ Error completing upload:', error.message);
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Failed to complete upload'
-        });
-    }
-});
+// ===== DUPLICATE ENDPOINT REMOVED FOR CONSISTENCY =====
+// The redundant upload/complete endpoint has been removed to prevent conflicts.
+// Only the primary endpoint (with download token support) remains active.
 
 // Get upload status
 app.get('/api/upload/:uploadId/status', [
