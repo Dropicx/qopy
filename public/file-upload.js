@@ -304,7 +304,14 @@ class FileUploadManager {
         const array = new Uint8Array(16); // 16 bytes = 32 hex chars
         window.crypto.getRandomValues(array);
         const hash = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-        return `${hash}.bin`; // Generic .bin extension
+        
+        // Options for anonymous filename:
+        // return `${hash}.bin`;     // Generic binary file
+        // return `${hash}`;         // No extension (current)
+        // return `${hash}.enc`;     // Encrypted file
+        // return `${hash}.qopy`;    // Custom extension
+        
+        return `${hash}`; // No extension - clean anonymous filename
     }
 
     // Add minimal padding only for very small files to obscure tiny content
@@ -1074,7 +1081,6 @@ class FileUploadManager {
                 body: JSON.stringify({
                     filename: anonymousFilename,
                     filesize: fileWithMetadata.length,
-                    mimeType: 'application/octet-stream',
                     expiration: options.expiration || '24hr',
                     hasPassword: options.hasPassword || false,
                     oneTime: options.oneTime || false,

@@ -1185,10 +1185,7 @@ function generateUploadId() {
     return uuidv4().replace(/-/g, '').substring(0, 16).toUpperCase();
 }
 
-// Calculate SHA256 checksum for chunk validation
-function calculateChecksum(data) {
-    return crypto.createHash('sha256').update(data).digest('hex');
-}
+// Checksum calculation removed - not needed for security
 
 // Cache helper functions
 async function setCache(key, value, ttl = 3600) {
@@ -1229,7 +1226,7 @@ app.use('/api/upload', uploadLimiter);
 app.post('/api/upload/initiate', [
     body('filename').isString().isLength({ min: 1, max: 255 }).withMessage('Valid filename required'),
     body('filesize').isInt({ min: 1, max: MAX_FILE_SIZE }).withMessage(`File size must be between 1 byte and ${MAX_FILE_SIZE} bytes`),
-    body('mimeType').isString().isLength({ min: 1, max: 100 }).withMessage('Valid MIME type required'),
+    body('mimeType').optional().isString().isLength({ min: 1, max: 100 }).withMessage('Valid MIME type required'),
     body('expiration').optional().isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
     body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
     body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
@@ -1246,7 +1243,7 @@ app.post('/api/upload/initiate', [
             });
         }
 
-        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
+        const { filename, filesize, mimeType = 'application/octet-stream', expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
         
         // Calculate chunks
         const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
@@ -1301,7 +1298,7 @@ app.post('/api/upload/initiate', [
             last_activity: Date.now(),
             is_text_content: isTextContent || contentType === 'text',
             status: 'uploading',
-            checksums: []
+            status: 'uploading'
         });
 
         res.json({
@@ -1423,9 +1420,6 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
             });
         }
 
-        // Calculate checksum
-        const checksum = calculateChecksum(chunkData);
-        
         // Store chunk to file system
         const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${chunkNum}.chunk`);
         await fs.writeFile(chunkPath, chunkData);
@@ -1433,11 +1427,11 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
         // Clean up temporary uploaded file
         await fs.unlink(req.file.path);
 
-        // Store chunk metadata in database
+        // Store chunk metadata in database (no checksum needed)
         await pool.query(`
-            INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-        `, [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]);
+            INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, storage_path, created_at)
+            VALUES ($1, $2, $3, $4, $5)
+        `, [uploadId, chunkNum, chunkData.length, chunkPath, Date.now()]);
 
         // Update upload session
         await pool.query(`
@@ -1464,7 +1458,6 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
             success: true,
             chunkNumber: chunkNum,
             received: true,
-            checksum,
             uploadedChunks: session.uploaded_chunks + 1,
             totalChunks: session.total_chunks
         });
@@ -2937,7 +2930,7 @@ async function startServer() {
         const SCHEMA_COLUMNS = [
             'id', 'upload_id', 'filename', 'original_filename', 'filesize', 
             'mime_type', 'chunk_size', 'total_chunks', 'uploaded_chunks', 
-            'checksums', 'status', 'expiration_time', 'has_password', 
+            'status', 'expiration_time', 'has_password', 
             'one_time', 'quick_share', 'is_text_content', 'client_ip', 
             'created_at', 'last_activity', 'completed_at'
         ];
@@ -2988,7 +2981,7 @@ async function startServer() {
         // SPALTENABGLEICHUNG: file_chunks
         // ========================================
         const CHUNKS_SCHEMA_COLUMNS = [
-            'id', 'upload_id', 'chunk_number', 'chunk_size', 'checksum', 
+            'id', 'upload_id', 'chunk_number', 'chunk_size', 
             'storage_path', 'created_at'
         ];
 
@@ -3099,7 +3092,6 @@ async function startServer() {
                 upload_id VARCHAR(50) NOT NULL,
                 chunk_number INTEGER NOT NULL,
                 chunk_size INTEGER NOT NULL,
-                checksum VARCHAR(64) NOT NULL,
                 storage_path VARCHAR(500) NOT NULL,
                 created_at BIGINT NOT NULL,
                 UNIQUE(upload_id, chunk_number),
