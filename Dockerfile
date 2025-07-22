@@ -50,8 +50,9 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --chown=qopy:nodejs . .
 
 # Create necessary directories with proper permissions
-RUN mkdir -p data logs && \
-    chown -R qopy:nodejs data logs
+RUN mkdir -p data logs uploads/files uploads/chunks uploads/temp && \
+    chown -R qopy:nodejs data logs uploads && \
+    chmod -R 775 data logs uploads
 
 # Remove unnecessary files but keep scripts
 RUN rm -f start.sh

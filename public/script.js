@@ -79,6 +79,10 @@ class ClipboardApp {
             this.switchTab('share');
         });
 
+        document.getElementById('file-tab').addEventListener('click', () => {
+            this.switchTab('file');
+        });
+
         document.getElementById('retrieve-tab').addEventListener('click', () => {
             this.switchTab('retrieve');
         });
@@ -166,7 +170,9 @@ class ClipboardApp {
 
         // New Paste button
         document.getElementById('new-paste-button').addEventListener('click', () => {
-            this.goToHome();
+            if (confirm('Are you sure you want to create a new paste? This will clear the current content.')) {
+                this.goToHome();
+            }
         });
 
         // Logo/Title click to return to home
@@ -207,6 +213,9 @@ class ClipboardApp {
         try {
             const path = window.location.pathname;
             
+            // Reset file request flag
+            this.isFileRequest = false;
+            
             // More robust pattern matching for clip URLs
             let clipId = null;
             
@@ -217,6 +226,18 @@ class ClipboardApp {
             // Check for /clip/ABC1 pattern (4-char Quick Share ID)
             else if (path.startsWith('/clip/') && path.length === 10) {
                 clipId = path.substring(6);
+            }
+            // Check for /file/ABC123 pattern (10-char file ID)
+            else if (path.startsWith('/file/') && path.length === 16) {
+                clipId = path.substring(6);
+                // Mark this as a file request
+                this.isFileRequest = true;
+            }
+            // Check for /file/ABC1 pattern (4-char file ID)
+            else if (path.startsWith('/file/') && path.length === 10) {
+                clipId = path.substring(6);
+                // Mark this as a file request
+                this.isFileRequest = true;
             }
             // Check for /ABC123 pattern (direct 10-char ID)
             else if (path.length === 11 && path.startsWith('/') && /^[A-Z0-9]{10}$/.test(path.substring(1))) {
@@ -250,87 +271,320 @@ class ClipboardApp {
 
             this.showLoading('retrieve-loading');
             
-            // First, get clip info to check if it has password
-            const infoResponse = await fetch(`/api/clip/${clipId}/info`);
-            const infoData = await infoResponse.json();
-            
-            if (!infoResponse.ok) {
-                // Clip not found or expired, don't try to decrypt
-                this.hideLoading('retrieve-loading');
-                return;
-            }
-            
-            // If clip has password, don't auto-decrypt - just prepare UI
-            if (infoData.hasPassword) {
-                this.hideLoading('retrieve-loading');
-                
-                // Show password section and focus password input
-                const passwordSection = document.getElementById('password-section');
-                const passwordInput = document.getElementById('retrieve-password-input');
-                
-                if (passwordSection && passwordInput) {
-                    passwordSection.classList.remove('hidden');
-                    passwordInput.focus();
-                }
-                return;
-            }
-            
-            // For Self-Destruct clips, we need to retrieve and show immediately
-            // since the clip will be deleted after the first API call
-            const isSelfDestruct = infoData.oneTime;
-            
-            // Extract URL secret from current URL if available
+            // Extract URL secret and password for potential authentication
             const urlSecret = this.extractUrlSecret();
+            const password = this.getPasswordFromUser();
             
-            const response = await fetch(`/api/clip/${clipId}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+            // Check if this is a file URL (from routing)
+            const isFileUrl = this.isFileRequest === true;
+            const isQuickShare = clipId.length === 4;
+            
+            console.log('🔍 Auto-retrieve info:', {
+                clipId, 
+                isFileUrl, 
+                isQuickShare, 
+                hasUrlSecret: !!urlSecret, 
+                hasPassword: !!password
             });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // Decrypt the content before showing
-                try {
-                    let decryptedContent;
+            
+            if (isQuickShare) {
+                // Quick Share (4-digit): no download token needed
+                console.log('⚡ Quick Share auto-retrieve - no download token needed:', clipId);
+                
+                // First, get clip info to check if it has password
+                const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                const infoData = await infoResponse.json();
+                
+                if (!infoResponse.ok) {
+                    // Clip not found or expired, don't try to decrypt
+                    this.hideLoading('retrieve-loading');
+                    return;
+                }
+                
+                // Quick Share never has passwords, proceed with retrieval
+                const response = await fetch(`/api/clip/${clipId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    await this.showRetrieveResult(data);
+                }
+                
+            } else if (isFileUrl && !isQuickShare) {
+                // File URL (not Quick Share): requires authentication, check URL secret first
+                console.log('📁 File URL detected - checking credentials before API call:', clipId);
+                
+                if (!urlSecret) {
+                    // No URL secret - this file URL is invalid
+                    this.hideLoading('retrieve-loading');
+                    this.showToast('🔐 Access denied: Invalid file URL (missing secret)', 'error');
+                    return;
+                }
+                
+                // First try with just URL secret (no password) - many files don't need passwords
+                console.log('🔑 File URL with URL secret - trying authentication without password first');
+                
+                let downloadToken = await this.generateDownloadToken(clipId, null, urlSecret);
+                let queryParams = `?downloadToken=${downloadToken}`;
+                
+                // Get clip info with URL secret only
+                let infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                let infoData = await infoResponse.json();
+                
+                if (infoResponse.ok) {
+                    // Success with URL secret only - no password needed
+                    console.log('✅ File accessible with URL secret only - no password required');
                     
-                    // Check if this is a Quick Share (4-digit ID) or normal clip
-                    if (clipId.length === 4) {
-                        // Quick Share: Use the secret from server response
-                        const quickShareSecret = data.quickShareSecret || data.password_hash;
-                        if (!quickShareSecret) {
-                            throw new Error('Quick Share secret not found');
+                    // Proceed with authenticated retrieval
+                    const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
                         }
-                        decryptedContent = await this.decryptContent(data.content, null, quickShareSecret);
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        await this.showRetrieveResult(data);
                     } else {
-                        // Normal mode: Decrypt the content
-                        decryptedContent = await this.decryptContent(data.content, null, urlSecret);
+                        this.hideLoading('retrieve-loading');
+                        this.showToast('❌ Failed to load file', 'error');
                     }
                     
-                    // Create a new data object with decrypted content but preserve other properties
-                    const resultData = {
-                        ...data,
-                        content: decryptedContent
-                    };
+                } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password) {
+                    // Authentication failed with URL secret only - check if password required
+                    const fileRequiresPassword = infoData?.hasPassword === true;
                     
-                    // Hide password section since content was successfully retrieved without password
-                    const passwordSection = document.getElementById('password-section');
-                    if (passwordSection) {
-                        passwordSection.classList.add('hidden');
+                    if (fileRequiresPassword) {
+                        // File requires password - show password field
+                        console.log('🔑 File requires password - showing password field');
+                        
+                        this.hideLoading('retrieve-loading');
+                        
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordInput.focus();
+                        }
+                        
+                        this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
+                    } else {
+                        // File doesn't require password - wrong URL secret
+                        console.log('🔑 File does not require password - wrong URL secret');
+                        this.hideLoading('retrieve-loading');
+                        this.showToast('🔐 Access denied: Wrong URL secret', 'error');
+                    }
+                    return;
+                    
+                } else if ((infoResponse.status === 401 || infoResponse.status === 403) && password) {
+                    // Authentication failed with URL secret only, but we have a password - try with both
+                    console.log('🔑 URL secret failed, trying with password too');
+                    
+                    downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                    queryParams = `?downloadToken=${downloadToken}`;
+                    
+                    // Retry with both URL secret and password
+                    infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    infoData = await infoResponse.json();
+                    
+                    if (infoResponse.ok) {
+                        // Proceed with authenticated retrieval
+                        const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            await this.showRetrieveResult(data);
+                        } else {
+                            this.hideLoading('retrieve-loading');
+                            this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                        }
+                    } else {
+                        this.hideLoading('retrieve-loading');
+                        this.showToast('🔐 Access denied: Wrong password or URL secret', 'error');
                     }
                     
-                    // Show result immediately for all clips accessed via direct link
-                    this.showRetrieveResult(resultData);
-                } catch (decryptError) {
-                    // For auto-retrieve, don't show error - let user manually retrieve
+                } else {
+                    // Other error (file not found, expired, etc.)
+                    this.hideLoading('retrieve-loading');
+                    if (infoResponse.status === 404) {
+                        this.showToast('❌ File not found or expired', 'error');
+                    } else {
+                        this.showToast('❌ Failed to access file', 'error');
+                    }
                 }
             } else {
-                // For auto-retrieve, don't show error - let user manually retrieve
+                // Normal clip (10-digit): Check if we have credentials and use them directly for efficiency
+                if (urlSecret) {
+                    // We have URL secret - use token directly (avoids unnecessary 401)
+                    console.log('🔐 Normal clip with URL secret - using token directly:', clipId);
+                    
+                    const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                    const queryParams = `?downloadToken=${downloadToken}`;
+                    
+                    let infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    let infoData = await infoResponse.json();
+                    
+                    if (infoResponse.ok) {
+                        // Authentication successful - proceed with retrieval
+                        console.log('✅ Authentication successful for clip:', clipId);
+                        const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            await this.showRetrieveResult(data);
+                        } else {
+                            console.error('❌ Authenticated retrieval failed:', response.status);
+                            this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                        }
+                    } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password && infoData?.hasPassword === true) {
+                        // Authentication failed but server indicates password required
+                        console.log('🔑 Authentication failed - password required');
+                        this.hideLoading('retrieve-loading');
+                        
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordInput.focus();
+                        }
+                        
+                        this.showToast('🔐 This clip requires a password. Please enter it below.', 'info');
+                    } else {
+                        // Authentication failed with wrong credentials
+                        console.error('❌ Authentication failed - invalid credentials:', infoResponse.status);
+                        this.hideLoading('retrieve-loading');
+                        this.showToast('🔐 Access denied: Invalid URL secret or password', 'error');
+                    }
+                } else {
+                    // No URL secret - try without token first (for legacy clips or clips without URL secrets)
+                    console.log('🔐 Normal clip without URL secret - trying without token first:', clipId);
+                    
+                    let infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                    let infoData = await infoResponse.json();
+                
+                if (infoResponse.ok) {
+                    // No authentication required - proceed normally
+                    console.log('✅ No authentication required for clip:', clipId);
+                    
+                    // Check if clip has password
+                    if (infoData.hasPassword) {
+                        this.hideLoading('retrieve-loading');
+                        
+                        // Show password section and focus password input
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordInput.focus();
+                        }
+                        
+                        console.log('🔑 Password-protected clip detected - showing password field');
+                        return;
+                    }
+                    
+                    // No password required, proceed with retrieval
+                    const response = await fetch(`/api/clip/${clipId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        await this.showRetrieveResult(data);
+                    }
+                    
+                } else if (infoResponse.status === 401 || infoResponse.status === 403) {
+                    // Authentication required (likely a file clip)
+                    console.log('🔐 Authentication required for clip:', clipId, 'checking if password available');
+                    
+                    if (urlSecret) {
+                        // We have URL secret - generate token and try again (password optional)
+                        console.log('🔑 URL secret available - generating token and retrying with credentials:', { hasPassword: !!password, hasUrlSecret: !!urlSecret });
+                        
+                        const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                        const queryParams = `?downloadToken=${downloadToken}`;
+                        
+                        // Retry with authentication
+                        infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                        infoData = await infoResponse.json();
+                        
+                        if (infoResponse.ok) {
+                            // Authentication successful - proceed with retrieval
+                            console.log('✅ Authentication successful for clip:', clipId);
+                            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                }
+                            });
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                await this.showRetrieveResult(data);
+                            } else {
+                                console.error('❌ Authenticated retrieval failed:', response.status);
+                                this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                            }
+                        } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password && infoData?.hasPassword === true) {
+                            // Authentication failed but server indicates password required
+                            console.log('🔑 Authentication failed - password required');
+                            this.hideLoading('retrieve-loading');
+                            
+                            const passwordSection = document.getElementById('password-section');
+                            const passwordInput = document.getElementById('retrieve-password-input');
+                            
+                            if (passwordSection && passwordInput) {
+                                passwordSection.classList.remove('hidden');
+                                passwordInput.focus();
+                            }
+                            
+                            this.showToast('🔐 This clip requires a password. Please enter it below.', 'info');
+                        } else {
+                            // Authentication failed with wrong credentials
+                            console.error('❌ Authentication failed - invalid credentials:', infoResponse.status);
+                            this.hideLoading('retrieve-loading');
+                            this.showToast('🔐 Access denied: Invalid URL secret or password', 'error');
+                        }
+                        
+                    } else {
+                        // No URL secret - this shouldn't happen for normal clips
+                        console.log('❌ No URL secret available for normal clip');
+                        this.hideLoading('retrieve-loading');
+                        this.showToast('🔐 Access denied: Invalid URL (missing secret)', 'error');
+                        return;
+                    }
+                } else {
+                    // Other error (clip not found, expired, etc.)
+                    console.log('❌ Clip not found or expired:', clipId);
+                    this.hideLoading('retrieve-loading');
+                    return;
+                }
             }
+        }
+            
         } catch (error) {
-            // For auto-retrieve, don't show error - let user manually retrieve
+            console.error('❌ Error in autoRetrieveClip:', error);
+            this.showToast('❌ Failed to retrieve content', 'error');
         } finally {
             this.hideLoading('retrieve-loading');
         }
@@ -371,22 +625,16 @@ class ClipboardApp {
                 }
             }
             
-            // Ensure password field is visible in retrieve tab if URL secret is present
+            // Ensure password field is hidden by default in retrieve tab
             if (tab === 'retrieve') {
-                const urlSecret = this.extractUrlSecret();
                 const passwordSection = document.getElementById('password-section');
                 
-                // Hide password section by default
+                // Hide password section by default - it will be shown only if server indicates password is required
                 if (passwordSection) {
                     passwordSection.classList.add('hidden');
                 }
                 
-                // Only show if URL secret is present (indicates password-protected clip)
-                if (urlSecret) {
-                    if (passwordSection) {
-                        passwordSection.classList.remove('hidden');
-                    }
-                }
+                console.log('🔒 Password section hidden by default in retrieve tab');
             }
 
             // Focus appropriate input after a short delay
@@ -439,9 +687,12 @@ class ClipboardApp {
         const passwordSection = document.getElementById('password-section');
         const passwordInput = document.getElementById('retrieve-password-input');
         
+        console.log('checkClipId called with clipId:', clipId, 'length:', clipId.length);
+        
         // Always hide password section by default
         if (passwordSection) {
             passwordSection.classList.add('hidden');
+            console.log('Hiding password section by default');
         }
         if (passwordInput) {
             passwordInput.value = '';
@@ -449,26 +700,65 @@ class ClipboardApp {
         
         if (clipId.length === 4 || clipId.length === 10) {
             try {
-                const response = await fetch(`/api/clip/${clipId}/info`);
+                // Extract URL secret and password for potential authentication
+                const urlSecret = this.extractUrlSecret();
+                const password = this.getPasswordFromUser();
+                
+                // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
+                let downloadToken = null;
+                let queryParams = '';
+                
+                if (clipId.length === 10) {
+                    // Normal clip: generate download token for file authentication
+                    downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                    queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+                    console.log('🔐 Generated download token for normal clip checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+                } else {
+                    // Quick Share (4-digit): no download token needed
+                    console.log('⚡ Quick Share checkClipId - no download token needed:', clipId);
+                }
+                
+                console.log('🔍 Fetching clip info for:', clipId);
+                const response = await fetch(`/api/clip/${clipId}/info${queryParams}`);
                 const data = await response.json();
                 
+                console.log('🔍 Clip info response:', data);
+                
                 if (response.ok) {
-                    // Show password section ONLY if clip has password
-                    if (data.hasPassword) {
+                    // Show password section ONLY for text content with passwords
+                    // Files handle their own password logic in showRetrieveResult
+                    if (data.hasPassword && data.contentType === 'text') {
+                        console.log('🔑 Showing password section for text content with password');
                         if (passwordSection) {
                             passwordSection.classList.remove('hidden');
                         }
                         if (passwordInput) {
                             passwordInput.focus();
                         }
+                    } else {
+                        console.log('🔒 Not showing password section:', {
+                            hasPassword: data.hasPassword,
+                            contentType: data.contentType,
+                            condition: data.hasPassword && data.contentType === 'text'
+                        });
                     }
-                    // If no password, password section stays hidden (default behavior)
+                    // For files, we'll handle password display in showRetrieveResult
                 } else {
+                    // For authentication errors, show specific message
+                    if (response.status === 401 || response.status === 403) {
+                        console.log('🔐 Authentication failed for clipId:', clipId);
+                        // Don't show error toast here to avoid interrupting user input
+                    } else {
+                        console.log('❌ Clip not found or expired - password section stays hidden');
+                    }
                     // Clip not found or expired - password section stays hidden
                 }
             } catch (error) {
+                console.error('❌ Error in checkClipId:', error);
                 // On error, password section stays hidden
             }
+        } else {
+            console.log('🔒 Clip ID not complete - password section stays hidden');
         }
         // If clip ID is not complete, password section stays hidden (default behavior)
     }
@@ -483,7 +773,7 @@ class ClipboardApp {
 
         // Enhanced validation with specific error messages
         if (!content) {
-            this.showToast('❌ Please enter some content to share', 'error');
+            this.showToast('Please enter some content to share', 'error');
             document.getElementById('content-input').focus();
             return;
         }
@@ -519,73 +809,215 @@ class ClipboardApp {
         shareButton.disabled = true;
 
         try {
-            let encryptedContent;
-            let urlSecret = null;
+            // Convert text to file-like object for multi-part upload
+            const textBlob = new Blob([content], { type: 'text/plain; charset=utf-8' });
+            const randomHash = this.generateRandomHash();
+            const textFile = new File([textBlob], `${randomHash}.txt`, { type: 'text/plain; charset=utf-8' });
             
-            if (quickShare) {
-                // Quick Share: Generate random secret, encrypt content, and send secret to server
-                const quickShareSecret = this.generateRandomSecret();
-                encryptedContent = await this.encryptContent(content, null, quickShareSecret);
-                // Store the secret to send to server (will be stored in password_hash column)
-                this.currentQuickShareSecret = quickShareSecret;
-                urlSecret = null;
-            } else if (!password) {
-                // Normal clip without password: generate and use URL secret
-                urlSecret = this.generateUrlSecret();
-                encryptedContent = await this.encryptContent(content, null, urlSecret);
-            } else {
-                // Normal mode: Use encryption with password and URL secret
-                urlSecret = this.generateUrlSecret();
-                encryptedContent = await this.encryptContent(content, password, urlSecret);
-            }
+            // Use the existing file upload system for text
+            await this.uploadTextAsFile(textFile, content, password, expiration, oneTime, quickShare);
             
-            // Convert Uint8Array to regular array for JSON serialization
-            const contentArray = Array.from(encryptedContent);
-            
-            // Prepare request body
-            const requestBody = {
-                content: contentArray,
-                expiration,
-                oneTime,
-                hasPassword: !!password, // Just indicate if password protection is used
-                quickShare
-            };
-
-            // For Quick Share, include the secret to be stored in password_hash column
-            if (quickShare && this.currentQuickShareSecret) {
-                requestBody.quickShareSecret = this.currentQuickShareSecret;
-            }
-
-            const response = await fetch('/api/share', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // For all normal clips (not Quick Share), always add the URL secret as fragment
-                const shareUrl = (!quickShare) ? `${data.url}#${urlSecret}` : data.url;
-                data.url = shareUrl;
-                this.showShareResult(data);
-            } else {
-                if (data.details && data.details.length > 0) {
-                    const errorMessages = data.details.map(detail => detail.msg).join(', ');
-                    throw new Error(`❌ Server validation failed: ${errorMessages}`);
-                } else if (data.message) {
-                    throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
-                } else {
-                    throw new Error(`❌ ${data.error || 'Failed to create clip'}`);
-                }
-            }
         } catch (error) {
             this.showToast(error.message || 'Failed to create share link', 'error');
         } finally {
             this.hideLoading('loading');
             shareButton.disabled = false;
+        }
+    }
+
+    // Upload text as file using multi-part upload system
+    async uploadTextAsFile(file, originalContent, password, expiration, oneTime, quickShare) {
+        try {
+            let urlSecret = null;
+            let quickShareSecret = null;
+            
+            // Determine encryption method based on mode
+            if (quickShare) {
+                quickShareSecret = this.generateRandomSecret();
+                urlSecret = null;
+            } else if (!password) {
+                urlSecret = this.generateUrlSecret();
+            } else {
+                urlSecret = this.generateUrlSecret();
+            }
+
+            console.log('[TextUpload] Initiating upload session:', {
+                filename: file.name,
+                filesize: file.size,
+                expiration,
+                oneTime,
+                hasPassword: !!password, // This refers to user-entered password, not URL secret
+                quickShare,
+                contentType: 'text'
+            });
+
+            // Create upload session
+            const sessionResponse = await fetch('/api/upload/initiate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: file.name,
+                    filesize: file.size,
+                    mimeType: file.type || 'text/plain',
+                    expiration: expiration,
+                    oneTime: oneTime,
+                    hasPassword: !!password,
+                    quickShare: quickShare,
+                    contentType: 'text',
+                    isTextContent: true
+                })
+            });
+
+            const sessionData = await sessionResponse.json();
+            console.log('[TextUpload] Session response:', sessionData);
+            if (!sessionResponse.ok) {
+                throw new Error(sessionData.message || 'Failed to create upload session');
+            }
+
+            const { uploadId, totalChunks } = sessionData;
+            console.log(`[TextUpload] Starting text upload: ${totalChunks} chunks, ${file.size} bytes, uploadId=${uploadId}`);
+
+            // Upload chunks
+            const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+            let uploadedChunks = 0;
+
+            for (let i = 0; i < totalChunks; i++) {
+                const start = i * chunkSize;
+                const end = Math.min(start + chunkSize, file.size);
+                const chunk = file.slice(start, end);
+                console.log(`[TextUpload] Preparing chunk ${i} (bytes ${start}-${end})`);
+
+                // Encrypt chunk based on mode
+                let encryptedChunk;
+                if (quickShare) {
+                    encryptedChunk = await this.encryptFileChunk(chunk, null, quickShareSecret);
+                } else if (!password) {
+                    encryptedChunk = await this.encryptFileChunk(chunk, null, urlSecret);
+                } else {
+                    encryptedChunk = await this.encryptFileChunk(chunk, password, urlSecret);
+                }
+                console.log(`[TextUpload] Encrypted chunk ${i}, size: ${encryptedChunk.length}`);
+
+                // Upload encrypted chunk
+                const formData = new FormData();
+                formData.append('chunk', new Blob([encryptedChunk]));
+                formData.append('chunkNumber', i);
+
+                console.log(`[TextUpload] Uploading chunk ${i} to /api/upload/chunk/${uploadId}/${i}`);
+                const chunkResponse = await fetch(`/api/upload/chunk/${uploadId}/${i}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                console.log(`[TextUpload] Chunk ${i} upload response status:`, chunkResponse.status);
+
+                if (!chunkResponse.ok) {
+                    let errorData = {};
+                    try { errorData = await chunkResponse.json(); } catch (e) {}
+                    console.error(`[TextUpload] Chunk ${i} upload failed:`, errorData);
+                    throw new Error(errorData.message || `Failed to upload chunk ${i}`);
+                }
+
+                uploadedChunks++;
+                console.log(`[TextUpload] Uploaded chunk ${uploadedChunks}/${totalChunks}`);
+            }
+
+            // Complete upload
+            console.log(`[TextUpload] Completing upload for uploadId=${uploadId}`);
+            const completePayload = {
+                quickShareSecret: quickShareSecret
+            };
+            
+            // Add authentication parameters for normal clips (server will generate token)
+            if (!quickShare && (password || urlSecret)) {
+                completePayload.password = password;
+                completePayload.urlSecret = urlSecret;
+                console.log('🔐 Sending authentication parameters for token generation');
+            }
+            
+            const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(completePayload)
+            });
+
+            const completeData = await completeResponse.json();
+            console.log('[TextUpload] Complete response:', completeData);
+            if (!completeResponse.ok) {
+                throw new Error(completeData.message || 'Failed to complete upload');
+            }
+
+            // Add URL secret to share URL for normal clips
+            const shareUrl = (!quickShare) ? `${completeData.url}#${urlSecret}` : completeData.url;
+            completeData.url = shareUrl;
+            
+            this.showShareResult(completeData);
+
+        } catch (error) {
+            console.error('[TextUpload] ❌ Text upload error:', error);
+            throw error;
+        }
+    }
+
+    // Encrypt file chunk with binary data support
+    async encryptFileChunk(chunk, password = null, urlSecret = null) {
+        const arrayBuffer = await chunk.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Use binary encryption logic
+        return await this.encryptBinaryData(uint8Array, password, urlSecret);
+    }
+
+    // Encrypt binary data (for file chunks)
+    async encryptBinaryData(data, password = null, urlSecret = null) {
+        try {
+            // Input validation
+            if (!(data instanceof Uint8Array)) {
+                throw new Error('Data must be a Uint8Array');
+            }
+            
+            if (data.length === 0) {
+                throw new Error('Data cannot be empty');
+            }
+            
+            if (password !== null && (typeof password !== 'string' || password.length === 0)) {
+                throw new Error('Password must be a non-empty string or null');
+            }
+            
+            if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+                throw new Error('URL secret must be a non-empty string or null');
+            }
+            
+            const key = await this.generateKey(password, urlSecret);
+            
+            // Generate IV: deterministic for all clips using URL secret
+            let iv;
+            if (password) {
+                iv = await this.deriveIV(password, urlSecret);
+            } else {
+                // For non-password clips, derive IV from URL secret
+                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
+            }
+            
+            // Encrypt the data
+            const encryptedData = await window.crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                data
+            );
+            
+            // Direct byte concatenation: IV + encrypted data (no key storage needed)
+            const encryptedBytes = new Uint8Array(encryptedData);
+            const ivBytes = new Uint8Array(iv);
+            
+            // All clips: IV + encrypted data (key derived from URL secret/password)
+            const combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
+            combined.set(ivBytes, 0);
+            combined.set(encryptedBytes, ivBytes.length);
+            
+            // Return raw bytes
+            return combined;
+        } catch (error) {
+            throw new Error('Failed to encrypt binary data');
         }
     }
 
@@ -604,6 +1036,14 @@ class ClipboardApp {
     generateRandomSecret() {
         // Generate a cryptographically secure random secret (128 bits = 32 hex chars)
         const array = new Uint8Array(16); // 128 bits
+        window.crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Generate random hash for filenames
+    generateRandomHash() {
+        // Generate a random 16-character hash for filenames
+        const array = new Uint8Array(8); // 64 bits
         window.crypto.getRandomValues(array);
         return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
     }
@@ -642,6 +1082,8 @@ class ClipboardApp {
         const clipId = document.getElementById('clip-id-input').value.trim();
         const password = document.getElementById('retrieve-password-input').value.trim();
 
+        console.log('🔍 Starting retrieveContent with:', { clipId, hasPassword: !!password });
+
         // Enhanced validation with specific error messages
         if (!clipId) {
             this.showToast('❌ Please enter a clip ID', 'error');
@@ -678,6 +1120,17 @@ class ClipboardApp {
             }
         }
 
+        // Check if this clip requires a password by checking the password field visibility
+        const passwordSection = document.getElementById('password-section');
+        if (passwordSection && !passwordSection.classList.contains('hidden')) {
+            // Password field is visible, which means this clip requires a password
+            if (!password || password.trim().length === 0) {
+                this.showToast('❌ Please enter the password for this protected content', 'error');
+                document.getElementById('retrieve-password-input').focus();
+                return;
+            }
+        }
+
         this.showLoading('retrieve-loading');
         const retrieveButton = document.getElementById('retrieve-button');
         retrieveButton.disabled = true;
@@ -685,25 +1138,75 @@ class ClipboardApp {
         try {
             // Extract URL secret from current URL if available
             const urlSecret = this.extractUrlSecret();
+            console.log('🔗 URL secret extracted:', urlSecret ? 'present' : 'none');
+            
+            // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
+            let downloadToken = null;
+            let queryParams = '';
+            
+            if (clipId.length === 10) {
+                // Normal clip: generate download token for file authentication
+                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+                queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
+                console.log('🔐 Generated download token for normal clip retrieveContent:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+            } else {
+                // Quick Share (4-digit): no download token needed
+                console.log('⚡ Quick Share retrieveContent - no download token needed:', clipId);
+            }
             
             // Always use GET - no password needed for server authentication
             // Content is already encrypted client-side
-            const response = await fetch(`/api/clip/${clipId}`, {
+            console.log('📡 Making API request to:', `/api/clip/${clipId}${queryParams}`);
+            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 }
             });
 
+            console.log('📡 API response status:', response.status);
             const data = await response.json();
+            console.log('📡 API response data:', {
+                contentType: data.contentType,
+                hasContent: !!data.content,
+                hasFile: !!data.file_path,
+                hasRedirectTo: !!data.redirectTo,
+                expiresAt: data.expiresAt,
+                oneTime: data.oneTime,
+                quickShareSecret: data.quickShareSecret,
+                keys: Object.keys(data)
+            });
+            console.log('📡 Full API response:', data);
 
             if (response.ok) {
-                // Decrypt the content before showing
+                // Check if this is a text file stored as file (needs redirect to showRetrieveResult)
+                if (data.contentType === 'text' && data.redirectTo) {
+                    console.log('📝 Detected text content stored as file, calling showRetrieveResult directly');
+                    await this.showRetrieveResult(data);
+                    return;
+                }
+
+                // Check if this is a file first
+                if (data.contentType === 'file' && data.redirectTo) {
+                    console.log('📁 Detected file content, calling handleFileDownload directly');
+                    this.handleFileDownload(data);
+                    return;
+                }
+
+                // Check if this is a file by checking for file_path
+                if (data.file_path) {
+                    console.log('📁 Detected file by file_path, calling handleFileDownload directly');
+                    this.handleFileDownload(data);
+                    return;
+                }
+
+                // Decrypt the content before showing (only for text content)
                 try {
                     let decryptedContent;
                     
                     // Check if this is a Quick Share (4-digit ID) or normal clip
                     if (clipId.length === 4) {
+                        console.log('🔐 Processing Quick Share clip');
                         // Quick Share: Use the secret from server response
                         const quickShareSecret = data.quickShareSecret || data.password_hash;
                         if (!quickShareSecret) {
@@ -711,6 +1214,7 @@ class ClipboardApp {
                         }
                         decryptedContent = await this.decryptContent(data.content, null, quickShareSecret);
                     } else {
+                        console.log('🔐 Processing normal clip');
                         // Normal mode: Decrypt the content
                         decryptedContent = await this.decryptContent(data.content, password, urlSecret);
                     }
@@ -720,8 +1224,15 @@ class ClipboardApp {
                         ...data,
                         content: decryptedContent
                     };
-                    this.showRetrieveResult(resultData);
+                    console.log('✅ Decryption successful, calling showRetrieveResult with:', {
+                        contentType: resultData.contentType,
+                        hasContent: !!resultData.content,
+                        hasFile: !!resultData.file_path,
+                        hasRedirectTo: !!resultData.redirectTo
+                    });
+                    await this.showRetrieveResult(resultData);
                 } catch (decryptError) {
+                    console.error('❌ Decryption error:', decryptError);
                     if (decryptError.message.includes('password is incorrect')) {
                         throw new Error('❌ Wrong password or URL secret');
                     } else if (decryptError.message.includes('corrupted')) {
@@ -733,6 +1244,17 @@ class ClipboardApp {
                     }
                 }
             } else {
+                console.error('❌ API error response:', data);
+                
+                // Handle file authentication errors specifically
+                if (data.requiresAuth) {
+                    if (response.status === 401) {
+                        throw new Error('🔐 This file requires authentication. Please check your URL for the secret or enter the correct password.');
+                    } else if (response.status === 403) {
+                        throw new Error('🔐 Access denied. Please check your URL secret or password for this file.');
+                    }
+                }
+                
                 if (data.message) {
                     throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
                 } else {
@@ -740,21 +1262,13 @@ class ClipboardApp {
                 }
             }
         } catch (error) {
+            console.error('❌ retrieveContent error:', error);
             this.showToast(error.message || '❌ Failed to retrieve content', 'error');
             document.getElementById('content-result').classList.add('hidden');
         } finally {
             this.hideLoading('retrieve-loading');
             retrieveButton.disabled = false;
         }
-    }
-
-    // Extract URL secret from current URL fragment
-    extractUrlSecret() {
-        const hash = window.location.hash;
-        if (hash && hash.length > 1) {
-            return hash.substring(1); // Remove the # symbol
-        }
-        return null;
     }
 
     // Show Share Result Modal
@@ -775,7 +1289,25 @@ class ClipboardApp {
         // Generate QR code client-side
         this.generateQRCode(data.url);
         
-        document.getElementById('expiry-time').textContent = new Date(data.expiresAt).toLocaleString();
+        // Format expiration time properly (handle both string and number timestamps)
+        try {
+            const expiresAt = data.expiresAt;
+            if (expiresAt) {
+                const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
+                const expiryDate = new Date(expiresAtNumber);
+                
+                if (!isNaN(expiryDate.getTime())) {
+                    document.getElementById('expiry-time').textContent = expiryDate.toLocaleString();
+                } else {
+                    document.getElementById('expiry-time').textContent = 'Invalid date';
+                }
+            } else {
+                document.getElementById('expiry-time').textContent = 'Not available';
+            }
+        } catch (error) {
+            console.error('Error formatting expiry date:', error);
+            document.getElementById('expiry-time').textContent = 'Error formatting date';
+        }
         
         document.getElementById('success-modal').classList.remove('hidden');
     }
@@ -829,8 +1361,95 @@ class ClipboardApp {
     }
 
     // Show Retrieve Result
-    showRetrieveResult(data) {
-        document.getElementById('retrieved-content').textContent = data.content;
+    async showRetrieveResult(data) {
+        console.log('🎯 showRetrieveResult called with data:', {
+            contentType: data.contentType,
+            hasContent: !!data.content,
+            hasFile: !!data.file_path,
+            hasRedirectTo: !!data.redirectTo,
+            keys: Object.keys(data)
+        });
+
+        // Check if this is a text file stored as file (needs programmatic download + decryption)
+        if (data.contentType === 'text' && data.redirectTo && data.isTextFile) {
+            console.log('📝 Detected text content stored as file, downloading and decrypting...');
+            await this.handleTextFileDownload(data);
+            return;
+        }
+
+        // Check if this is a file redirect (for files stored on disk)
+        if (data.contentType === 'file' && data.redirectTo) {
+            console.log('📁 Detected file content with redirect, calling handleFileDownload');
+            // Check if this file needs password
+            this.checkFilePasswordRequirement(data);
+            // Immediately hide all text elements before calling handleFileDownload
+            this.hideAllTextElements();
+            this.handleFileDownload(data);
+            return;
+        }
+
+        // Check if this is a file by checking for file_path
+        if (data.file_path) {
+            console.log('📁 Detected file by file_path, calling handleFileDownload');
+            // Check if this file needs password
+            this.checkFilePasswordRequirement(data);
+            // Immediately hide all text elements before calling handleFileDownload
+            this.hideAllTextElements();
+            this.handleFileDownload(data);
+            return;
+        }
+
+        // Check if this is a file by checking for filename and filesize (for multi-part uploads)
+        // BUT: If contentType is 'text', treat it as text content even if it has filename/filesize
+        if (data.filename && data.filesize && data.contentType !== 'text') {
+            console.log('📁 Detected file by filename/filesize, calling handleFileDownload');
+            // Check if this file needs password
+            this.checkFilePasswordRequirement(data);
+            // Immediately hide all text elements before calling handleFileDownload
+            this.hideAllTextElements();
+            this.handleFileDownload(data);
+            return;
+        }
+
+        // Special handling for text content that was uploaded as a file (e.g., .txt files)
+        // If contentType is 'text' but we have filename/filesize, treat it as text content
+        if (data.contentType === 'text' && data.filename && data.filesize) {
+            console.log('📝 Detected text content uploaded as file, processing as text');
+            // This is text content that was uploaded as a file (like .txt files)
+            // We should decrypt and display it as text, not download it
+        }
+
+        console.log('📝 Processing as text content');
+
+        // Handle content based on type
+        if (data.contentType === 'text' && typeof data.content === 'string') {
+            // Unencrypted text content
+            document.getElementById('retrieved-content').textContent = data.content;
+        } else if (Array.isArray(data.content)) {
+            // Binary content - could be encrypted text or binary data
+            try {
+                // Try to decrypt as text first
+                const urlSecret = this.extractUrlSecret();
+                const password = this.getPasswordFromUser();
+                
+                if (urlSecret || password) {
+                    // Attempt decryption
+                    const decryptedText = await this.decryptContent(data.content, password, urlSecret);
+                    document.getElementById('retrieved-content').textContent = decryptedText;
+                } else {
+                    // No decryption keys available, try to decode as UTF-8
+                    const bytes = new Uint8Array(data.content);
+                    const text = new TextDecoder('utf-8').decode(bytes);
+                    document.getElementById('retrieved-content').textContent = text;
+                }
+            } catch (error) {
+                console.error('❌ Decryption failed:', error);
+                document.getElementById('retrieved-content').textContent = '[Encrypted content - decryption failed]';
+            }
+        } else {
+            // Fallback
+            document.getElementById('retrieved-content').textContent = data.content || '[No content]';
+        }
         
         // Use current time as created time since API doesn't provide it
         document.getElementById('created-time').textContent = new Date().toLocaleString();
@@ -866,10 +1485,265 @@ class ClipboardApp {
             oneTimeNotice.classList.add('hidden');
         }
         
+        // Show text-related elements
+        this.showTextElements();
+        
         document.getElementById('content-result').classList.remove('hidden');
+        document.getElementById('content-result').style.display = 'block';
         
         // Scroll to result
         document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Handle text file download and decryption
+    async handleTextFileDownload(data) {
+        try {
+            console.log('📥 Starting programmatic text file download from:', data.redirectTo);
+            
+            // Extract decryption keys based on clip type
+            let urlSecret = null;
+            let password = null;
+            
+            if (data.quickShareSecret) {
+                // Quick Share mode - use the secret from server response
+                urlSecret = data.quickShareSecret;
+                password = null;
+                console.log('🔑 Using Quick Share secret for decryption');
+            } else {
+                // Normal mode - extract from URL and user input
+                urlSecret = this.extractUrlSecret();
+                password = this.getPasswordFromUser();
+                console.log('🔑 Using URL secret and password for decryption');
+            }
+
+            // Download the encrypted file using new authenticated method
+            console.log('📥 Downloading encrypted file using authenticated method');
+            
+            // Extract clipId from redirectTo URL (e.g., "/api/file/H6LEGF78SB" -> "H6LEGF78SB")
+            const clipId = data.redirectTo.split('/').pop();
+            console.log('🔍 Extracted clipId from redirectTo:', clipId);
+            
+            // Generate download token for authentication
+            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+            console.log('🔐 Generated download token for text file download');
+            
+            // Make authenticated POST request
+            const response = await fetch(data.redirectTo, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    downloadToken: downloadToken
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('❌ Text file download API error:', error);
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('❌ Access denied: Wrong password or URL secret for text file');
+                }
+                throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+            }
+
+            // Get the encrypted file as array buffer
+            const encryptedBuffer = await response.arrayBuffer();
+            const encryptedBytes = new Uint8Array(encryptedBuffer);
+            
+            console.log(`📥 Downloaded encrypted text file: ${encryptedBytes.length} bytes`);
+
+            // Decrypt the content using the same method as file downloads
+            const decryptedBytes = await this.decryptFile(encryptedBytes, password, urlSecret);
+            const decoder = new TextDecoder();
+            const decryptedText = decoder.decode(decryptedBytes);
+            
+            console.log('✅ Text file decrypted successfully');
+
+            // Display as text content
+            document.getElementById('retrieved-content').textContent = decryptedText;
+            
+            // Set metadata
+            document.getElementById('created-time').textContent = new Date().toLocaleString();
+            
+            // Format expiration time
+            try {
+                const expiresAt = data.expiresAt;
+                if (expiresAt) {
+                    const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
+                    const expiryDate = new Date(expiresAtNumber);
+                    
+                    if (!isNaN(expiryDate.getTime())) {
+                        const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
+                        const formattedDate = expiryDate.toLocaleString();
+                        document.getElementById('expires-time').textContent = `${formattedDate} (${timeRemaining} remaining)`;
+                    } else {
+                        document.getElementById('expires-time').textContent = 'Invalid date';
+                    }
+                } else {
+                    document.getElementById('expires-time').textContent = 'Not available';
+                }
+            } catch (error) {
+                document.getElementById('expires-time').textContent = 'Error formatting date';
+            }
+            
+            // Handle one-time notice
+            const oneTimeNotice = document.getElementById('one-time-notice');
+            if (data.oneTime) {
+                oneTimeNotice.classList.remove('hidden');
+            } else {
+                oneTimeNotice.classList.add('hidden');
+            }
+            
+            // Show text-related elements
+            this.showTextElements();
+            
+            // Show the result container
+            document.getElementById('content-result').classList.remove('hidden');
+            document.getElementById('content-result').style.display = 'block';
+            
+            // Scroll to result
+            document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
+
+        } catch (error) {
+            console.error('❌ Text file download/decryption error:', error);
+            
+            if (error.message.includes('password is incorrect')) {
+                this.showToast('❌ Wrong password or URL secret', 'error');
+            } else if (error.message.includes('corrupted')) {
+                this.showToast('❌ Content appears to be corrupted or tampered with', 'error');
+            } else {
+                this.showToast(`❌ Failed to decrypt text file: ${error.message}`, 'error');
+            }
+        }
+    }
+
+    // Check if a file requires password input
+    checkFilePasswordRequirement(data) {
+        const passwordSection = document.getElementById('password-section');
+        const passwordInput = document.getElementById('retrieve-password-input');
+        
+        // Check if we have URL secret (indicates encryption)
+        const urlSecret = this.extractUrlSecret();
+        
+        // For files, show password section only if:
+        // 1. We have a URL secret (indicating encryption) AND
+        // 2. The file has a password hash (indicating it was password-protected)
+        if (urlSecret && data.hasPassword) {
+            // URL secret exists AND file has password, show password input
+            if (passwordSection) {
+                passwordSection.classList.remove('hidden');
+            }
+            if (passwordInput) {
+                passwordInput.focus();
+            }
+        } else {
+            // No URL secret OR no password, hide password section
+            if (passwordSection) {
+                passwordSection.classList.add('hidden');
+            }
+        }
+    }
+
+    // Helper function to hide all text-related elements
+    hideAllTextElements() {
+        console.log('🗂️ Hiding all text-related elements');
+        
+        // Hide individual text-related elements
+        const retrievedContent = document.getElementById('retrieved-content');
+        const copyContentButton = document.getElementById('copy-content-button');
+        const oneTimeNotice = document.getElementById('one-time-notice');
+        const contentActions = document.querySelector('.content-actions');
+        const contentDisplay = document.querySelector('.content-display');
+        const contentInfo = document.querySelector('.content-info');
+        const newPasteSection = document.querySelector('.new-paste-section');
+        
+        // Hide text content display
+        if (retrievedContent) {
+            retrievedContent.style.display = 'none';
+        }
+        
+        // Hide copy content button
+        if (copyContentButton) {
+            copyContentButton.style.display = 'none';
+        }
+        
+        // Hide content actions (contains copy button)
+        if (contentActions) {
+            contentActions.style.display = 'none';
+        }
+        
+        // Hide content display container
+        if (contentDisplay) {
+            contentDisplay.style.display = 'none';
+        }
+        
+        // Hide content info (Created/Expires times)
+        if (contentInfo) {
+            contentInfo.style.display = 'none';
+        }
+        
+        // Hide new paste section
+        if (newPasteSection) {
+            newPasteSection.style.display = 'none';
+        }
+        
+        // Hide one-time notice
+        if (oneTimeNotice) {
+            oneTimeNotice.style.display = 'none';
+        }
+
+        // Note: Password section visibility is handled by checkClipId function
+        // which shows it only for text content with passwords, not for files
+    }
+
+    // Helper function to show all text-related elements
+    showTextElements() {
+        console.log('📝 Showing all text-related elements');
+        
+        // Show individual text-related elements
+        const retrievedContent = document.getElementById('retrieved-content');
+        const copyContentButton = document.getElementById('copy-content-button');
+        const oneTimeNotice = document.getElementById('one-time-notice');
+        const contentActions = document.querySelector('.content-actions');
+        const contentDisplay = document.querySelector('.content-display');
+        const contentInfo = document.querySelector('.content-info');
+        const newPasteSection = document.querySelector('.new-paste-section');
+        
+        // Show text content display
+        if (retrievedContent) {
+            retrievedContent.style.display = 'block';
+        }
+        
+        // Show copy content button
+        if (copyContentButton) {
+            copyContentButton.style.display = 'block';
+        }
+        
+        // Show content actions (contains copy button)
+        if (contentActions) {
+            contentActions.style.display = 'flex';
+        }
+        
+        // Show content display container
+        if (contentDisplay) {
+            contentDisplay.style.display = 'block';
+        }
+        
+        // Show content info (Created/Expires times)
+        if (contentInfo) {
+            contentInfo.style.display = 'block';
+        }
+        
+        // Show new paste section
+        if (newPasteSection) {
+            newPasteSection.style.display = 'block';
+        }
+        
+        // Show one-time notice (will be controlled by data.oneTime)
+        if (oneTimeNotice) {
+            oneTimeNotice.style.display = 'block';
+        }
     }
 
     // Copy to Clipboard
@@ -958,11 +1832,11 @@ class ClipboardApp {
         } else if (type === 'success' || type === 'info') {
             // Use success toast for both success and info messages
             toastId = 'success-toast';
-            messageId = 'success-message';
+            messageId = 'success-toast-message';
         }
         
         // Hide any existing toasts
-        document.querySelectorAll('.toast').forEach(toast => {
+        document.querySelectorAll('#error-toast, #info-toast, #success-toast').forEach(toast => {
             toast.classList.add('hidden');
         });
         
@@ -970,10 +1844,23 @@ class ClipboardApp {
         document.getElementById(messageId).textContent = message;
         document.getElementById(toastId).classList.remove('hidden');
         
-        // Auto-hide after 5 seconds
+        // Auto-hide after 3 seconds for success/copy messages, 4 seconds for errors
+        const autoHideDelay = (type === 'success' || type === 'info') ? 3000 : 4000;
         setTimeout(() => {
             document.getElementById(toastId).classList.add('hidden');
-        }, 5000);
+        }, autoHideDelay);
+    }
+
+    // Initialize toast close buttons
+    initializeToastCloseButtons() {
+        document.querySelectorAll('.toast-close').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const toast = e.target.closest('#error-toast, #info-toast, #success-toast');
+                if (toast) {
+                    toast.classList.add('hidden');
+                }
+            });
+        });
     }
 
     // Utility Methods
@@ -1233,7 +2120,7 @@ class ClipboardApp {
                 iv = await this.deriveIV(password, urlSecret);
             } else {
                 // For non-password clips, derive IV from URL secret
-                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-nopass-v1');
+                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
             }
             
             // Encrypt the content
@@ -1426,26 +2313,442 @@ class ClipboardApp {
         if (passwordSection) {
             passwordSection.classList.add('hidden');
         }
+    }
+
+    // Handle File Download
+    async handleFileDownload(data) {
+        console.log('🗂️ handleFileDownload called with data:', {
+            filename: data.filename,
+            filesize: data.filesize,
+            file_path: data.file_path,
+            redirectTo: data.redirectTo,
+            contentType: data.contentType,
+            keys: Object.keys(data)
+        });
         
-        // Clear password input
-        const passwordInput = document.getElementById('retrieve-password-input');
-        if (passwordInput) {
-            passwordInput.value = '';
+        // Hide all text-related elements first
+        this.hideAllTextElements();
+        
+        // Create file download UI
+        const contentResult = document.getElementById('content-result');
+        
+        console.log('🗂️ Setting up file download UI');
+        
+        // Create file download section if it doesn't exist
+        let fileSection = document.getElementById('file-download-section');
+        if (!fileSection) {
+            console.log('🗂️ Creating new file download section');
+            fileSection = document.createElement('div');
+            fileSection.id = 'file-download-section';
+            fileSection.className = 'file-download-section';
+            contentResult.appendChild(fileSection);
+        } else {
+            console.log('🗂️ Using existing file download section');
         }
         
-        // Focus on content input
-        setTimeout(() => {
-            const contentInput = document.getElementById('content-input');
-            if (contentInput) {
-                contentInput.focus();
+        // Create modern file download UI
+        fileSection.innerHTML = `
+            <div class="result-header">
+                <label class="label">📄 File Ready for Download</label>
+            </div>
+            <div class="file-download-card">
+                <div class="file-info">
+                    <div class="file-icon">📄</div>
+                    <div class="file-details">
+                        <div class="file-name" id="download-filename"></div>
+                        <div class="file-size" id="download-filesize"></div>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <button id="download-file-button" class="primary-button">
+                        <span class="button-icon">📥</span>
+                        Download File
+                    </button>
+                </div>
+            </div>
+            <div class="one-time-file-notice hidden" id="one-time-file-notice">
+                <div class="notice-box warning">
+                    <span class="notice-icon">🔥</span>
+                    <span class="notice-text">
+                        <strong>Self-Destruct File:</strong> This file will be permanently deleted after download. 
+                        Make sure to save it to your device before the download completes.
+                    </span>
+                </div>
+            </div>
+            <div class="content-info">
+                <p>📅 Retrieved: <span id="file-created-time"></span></p>
+                <p>⏰ Expires: <span id="file-expires-time"></span></p>
+            </div>
+        `;
+        
+        // Set text content safely
+        const filenameElement = document.getElementById('download-filename');
+        const filesizeElement = document.getElementById('download-filesize');
+        
+        const filename = data.filename || 'Unknown File';
+        const filesize = data.filesize || 0;
+        
+        console.log('🗂️ Setting file info:', { filename, filesize });
+        
+        if (filenameElement) {
+            filenameElement.textContent = filename;
+        }
+        
+        if (filesizeElement) {
+            filesizeElement.textContent = this.formatFileSize(filesize);
+        }
+        
+        // Show one-time notice if applicable
+        const oneTimeFileNotice = document.getElementById('one-time-file-notice');
+        if (data.oneTime && oneTimeFileNotice) {
+            console.log('🔥 Showing one-time file warning for file download');
+            oneTimeFileNotice.classList.remove('hidden');
+        } else if (oneTimeFileNotice) {
+            oneTimeFileNotice.classList.add('hidden');
+        }
+        
+        // Add download event listener
+        const downloadButton = document.getElementById('download-file-button');
+        if (downloadButton) {
+            console.log('🗂️ Adding download button event listener');
+            downloadButton.addEventListener('click', async () => {
+                try {
+                    const clipId = document.getElementById('clip-id-input').value.trim();
+                    console.log('🗂️ Download button clicked for clipId:', clipId);
+                    await this.downloadFile(clipId, filename);
+                } catch (error) {
+                    console.error('❌ Download failed:', error);
+                    this.showToast('❌ Download failed: ' + error.message, 'error');
+                }
+            });
+        } else {
+            console.error('❌ Download button not found!');
+        }
+        
+        // Set time stamps
+        const fileCreatedTime = document.getElementById('file-created-time');
+        const fileExpiresTime = document.getElementById('file-expires-time');
+        
+        if (fileCreatedTime) {
+            fileCreatedTime.textContent = new Date().toLocaleString();
+        }
+        
+        if (fileExpiresTime && data.expiresAt) {
+            try {
+                const expiresAtNumber = typeof data.expiresAt === 'string' ? parseInt(data.expiresAt, 10) : data.expiresAt;
+                const expiryDate = new Date(expiresAtNumber);
+                
+                if (!isNaN(expiryDate.getTime())) {
+                    const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
+                    const formattedDate = expiryDate.toLocaleString();
+                    fileExpiresTime.textContent = `${formattedDate} (${timeRemaining} remaining)`;
+                } else {
+                    fileExpiresTime.textContent = 'Invalid date';
+                }
+            } catch (error) {
+                fileExpiresTime.textContent = 'Error formatting date';
             }
-        }, 100);
+        } else if (fileExpiresTime) {
+            fileExpiresTime.textContent = 'Not available';
+        }
+        
+        // Show the content result
+        contentResult.classList.remove('hidden');
+        contentResult.style.display = 'block';
+        console.log('🗂️ File download UI setup complete');
+    }
+
+    // Format file size for display
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Download file functionality
+    async downloadFile(clipId, filename) {
+        try {
+            console.log('📥 downloadFile called with:', { clipId, filename });
+            
+            // Extract URL secret from current URL
+            const urlSecret = this.extractUrlSecret();
+            const password = this.getPasswordFromUser();
+            
+            console.log('📥 Encryption keys:', { 
+                hasUrlSecret: !!urlSecret, 
+                hasPassword: !!password,
+                urlSecret: urlSecret ? 'present' : 'none'
+            });
+            
+            // Generate download token for authentication
+            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
+            console.log('🔐 Generated download token for authentication');
+            
+            // Start download with authentication
+            console.log('📥 Making authenticated download request to:', `/api/file/${clipId}`);
+            const response = await fetch(`/api/file/${clipId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    downloadToken: downloadToken
+                })
+            });
+            
+            console.log('📥 Download response status:', response.status);
+            console.log('📥 Download response headers:', Object.fromEntries(response.headers.entries()));
+            
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('❌ Download API error:', error);
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('❌ Access denied: Wrong password or URL secret');
+                }
+                throw new Error(error.message || 'Download failed');
+            }
+
+            // Get file data as array buffer
+            console.log('📥 Reading response as array buffer');
+            const encryptedData = await response.arrayBuffer();
+            const encryptedBytes = new Uint8Array(encryptedData);
+            
+            console.log('📥 Received encrypted data size:', encryptedBytes.length, 'bytes');
+            
+            let decryptedData;
+            
+            // Try to decrypt if we have encryption keys
+            if (password || urlSecret) {
+                try {
+                    console.log('📥 Attempting to decrypt file data');
+                    decryptedData = await this.decryptFile(encryptedBytes, password, urlSecret);
+                    console.log('🔓 File decrypted successfully, size:', decryptedData.length, 'bytes');
+                } catch (decryptError) {
+                    console.warn('⚠️ Decryption failed, downloading as-is:', decryptError.message);
+                    decryptedData = encryptedBytes;
+                }
+            } else {
+                // No encryption keys, download as-is
+                console.log('📥 No encryption keys, downloading as-is');
+                decryptedData = encryptedBytes;
+            }
+            
+            // Create blob from decrypted data
+            console.log('📥 Creating blob from data');
+            const blob = new Blob([decryptedData]);
+            console.log('📥 Blob created, size:', blob.size, 'bytes');
+            
+            // Create download link
+            console.log('📥 Creating download link');
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || `qopy-file-${clipId}`;
+            
+            console.log('📥 Triggering download with filename:', a.download);
+            
+            // Trigger download
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Clean up
+            window.URL.revokeObjectURL(url);
+            
+            console.log('✅ Download completed successfully');
+            this.showToast('✅ File downloaded successfully!', 'success');
+            
+        } catch (error) {
+            console.error('❌ Download failed:', error);
+            throw error;
+        }
+    }
+
+    // Generate download token for authentication
+    async generateDownloadToken(clipId, password, urlSecret) {
+        try {
+            // Create a combined secret for token generation
+            let tokenData = clipId; // Always include clip ID
+            
+            // Add URL secret if available
+            if (urlSecret) {
+                tokenData += ':' + urlSecret;
+            }
+            
+            // Add password if available
+            if (password) {
+                tokenData += ':' + password;
+            }
+            
+            // Generate SHA-256 hash of the combined data
+            const encoder = new TextEncoder();
+            const data = encoder.encode(tokenData);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = new Uint8Array(hashBuffer);
+            
+            // Convert to hex string
+            const token = Array.from(hashArray)
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+            
+            console.log('🔐 Download token generated from:', {
+                clipId: clipId,
+                hasUrlSecret: !!urlSecret,
+                hasPassword: !!password,
+                tokenLength: token.length
+            });
+            
+            return token;
+        } catch (error) {
+            console.error('❌ Failed to generate download token:', error);
+            throw new Error('Failed to generate authentication token');
+        }
+    }
+
+    // Extract URL secret from current URL fragment
+    extractUrlSecret() {
+        const hash = window.location.hash;
+        console.log('🔗 extractUrlSecret - current hash:', hash);
+        if (hash && hash.length > 1) {
+            const secret = hash.substring(1); // Remove the # symbol
+            console.log('🔗 URL secret extracted:', secret ? 'present' : 'none');
+            return secret;
+        }
+        console.log('🔗 No URL secret found');
+        return null;
+    }
+
+    // Get password from user input (if available)
+    getPasswordFromUser() {
+        const passwordInput = document.getElementById('retrieve-password-input');
+        if (passwordInput && passwordInput.value.trim()) {
+            return passwordInput.value.trim();
+        }
+        return null;
+    }
+
+    // Decrypt file using same algorithm as chunks
+    async decryptFile(encryptedBytes, password = null, urlSecret = null) {
+        console.log('🔓 decryptFile called with:', {
+            dataSize: encryptedBytes.length,
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
+
+        if (!password && !urlSecret) {
+            throw new Error('No decryption keys available');
+        }
+
+        try {
+            // Extract IV (first 12 bytes) and encrypted data
+            if (encryptedBytes.length < 12) {
+                throw new Error('File too small to be encrypted');
+            }
+
+            const iv = encryptedBytes.slice(0, 12);
+            const encryptedData = encryptedBytes.slice(12);
+            
+            console.log('🔓 Extracted IV and encrypted data:', {
+                ivLength: iv.length,
+                encryptedDataLength: encryptedData.length
+            });
+
+            // Generate decryption key
+            console.log('🔓 Generating decryption key');
+            const key = await this.generateDecryptionKey(password, urlSecret);
+            console.log('🔓 Decryption key generated successfully');
+
+            // Decrypt the data
+            console.log('🔓 Starting decryption with AES-GCM');
+            const decryptedData = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                encryptedData
+            );
+
+            console.log('🔓 Decryption successful, result size:', decryptedData.byteLength);
+            return new Uint8Array(decryptedData);
+
+        } catch (error) {
+            console.error('❌ Decryption error:', error);
+            throw new Error('Decryption failed: ' + error.message);
+        }
+    }
+
+    // Generate decryption key (same as upload)
+    async generateDecryptionKey(password = null, urlSecret = null) {
+        console.log('🔑 generateDecryptionKey called with:', {
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
+
+        const encoder = new TextEncoder();
+        
+        let keyMaterial;
+        if (password && urlSecret) {
+            // Password + URL secret mode
+            console.log('🔑 Using password + URL secret mode');
+            const combined = urlSecret + ':' + password;
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(combined),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else if (urlSecret) {
+            // URL secret only mode
+            console.log('🔑 Using URL secret only mode');
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(urlSecret),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else if (password) {
+            // Password only mode (should not happen for files, but handle it)
+            console.log('🔑 Using password only mode');
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(password),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else {
+            throw new Error('Either password or URL secret must be provided');
+        }
+        
+        console.log('🔑 Deriving key with PBKDF2');
+        // Derive key using PBKDF2
+        const derivedKey = await window.crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode('qopy-salt-v1'),
+                iterations: 100000,
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
+        
+        console.log('🔑 Key derivation successful');
+        return derivedKey;
     }
 }
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.clipboardApp = new ClipboardApp();
+    // Initialize toast close buttons
+    window.clipboardApp.initializeToastCloseButtons();
 });
 
 // Service Worker registration removed - not needed for current functionality 

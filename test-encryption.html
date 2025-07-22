@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qopy Verschlüsselungstest</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #1e293b;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+        .test-section h3 {
+            color: #334155;
+            margin-top: 0;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #475569;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            background: #dcfce7;
+            border: 1px solid #86efac;
+            color: #166534;
+        }
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+        }
+        .info {
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            color: #1e40af;
+        }
+        .warning {
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+        }
+        .hex-display {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .comparison-item {
+            padding: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+        }
+        .comparison-item h4 {
+            margin-top: 0;
+            color: #334155;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Qopy Verschlüsselungstest</h1>
+        
+        <div class="test-section">
+            <h3>📝 Testdaten eingeben</h3>
+            <div class="input-group">
+                <label for="testContent">Testinhalt:</label>
+                <textarea id="testContent" placeholder="Geben Sie hier den Text ein, der verschlüsselt werden soll...">Dies ist ein Testinhalt für die Verschlüsselung. Er enthält deutsche Umlaute: äöüß und Sonderzeichen: !@#$%^&*()_+-=[]{}|;':",./<>? sowie Zahlen: 1234567890.</textarea>
+            </div>
+            <div class="input-group">
+                <label for="testPassword">Passwort (optional):</label>
+                <input type="password" id="testPassword" placeholder="Passwort für zusätzliche Verschlüsselung">
+            </div>
+            <div class="input-group">
+                <label for="testUrlSecret">URL Secret (optional):</label>
+                <input type="text" id="testUrlSecret" placeholder="URL Secret (wird automatisch generiert wenn leer)">
+            </div>
+            <button onclick="generateUrlSecret()">🔑 URL Secret generieren</button>
+            <button onclick="runEncryptionTest()">🔒 Verschlüsselungstest starten</button>
+            <button onclick="runComprehensiveTest()">🧪 Umfassender Test</button>
+            <button onclick="clearResults()">🗑️ Ergebnisse löschen</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Qopy Verschlüsselungsfunktionen (aus script.js kopiert)
+        class EncryptionTester {
+            constructor() {
+                this.results = [];
+            }
+
+            // URL Secret generieren
+            generateUrlSecret() {
+                const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let result = '';
+                for (let i = 0; i < 16; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+            }
+
+            // Random Secret für Quick Share
+            generateRandomSecret() {
+                const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let result = '';
+                for (let i = 0; i < 32; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+            }
+
+            // Schlüssel generieren
+            async generateKey(password = null, urlSecret = null) {
+                if (password !== null && (typeof password !== 'string' || password.length === 0)) {
+                    throw new Error('Password must be a non-empty string or null');
+                }
+                
+                if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+                    throw new Error('URL secret must be a non-empty string or null');
+                }
+                
+                if (!window.crypto || !window.crypto.subtle) {
+                    throw new Error('Web Crypto API not available. Please use HTTPS.');
+                }
+                
+                if (password) {
+                    let combinedSecret = password;
+                    if (urlSecret) {
+                        combinedSecret = urlSecret + ':' + password;
+                    }
+                    
+                    const encoder = new TextEncoder();
+                    const salt = encoder.encode('qopy-salt-v1');
+                    const keyMaterial = await window.crypto.subtle.importKey(
+                        'raw',
+                        encoder.encode(combinedSecret),
+                        { name: 'PBKDF2' },
+                        false,
+                        ['deriveBits', 'deriveKey']
+                    );
+                    return await window.crypto.subtle.deriveKey(
+                        {
+                            name: 'PBKDF2',
+                            salt: salt,
+                            iterations: 100000,
+                            hash: 'SHA-256'
+                        },
+                        keyMaterial,
+                        { name: 'AES-GCM', length: 256 },
+                        true,
+                        ['encrypt', 'decrypt']
+                    );
+                } else {
+                    if (!urlSecret) {
+                        throw new Error('URL secret is required for non-password clips');
+                    }
+                    
+                    const encoder = new TextEncoder();
+                    const salt = encoder.encode('qopy-salt-v1');
+                    const keyMaterial = await window.crypto.subtle.importKey(
+                        'raw',
+                        encoder.encode(urlSecret),
+                        { name: 'PBKDF2' },
+                        false,
+                        ['deriveBits', 'deriveKey']
+                    );
+                    return await window.crypto.subtle.deriveKey(
+                        {
+                            name: 'PBKDF2',
+                            salt: salt,
+                            iterations: 100000,
+                            hash: 'SHA-256'
+                        },
+                        keyMaterial,
+                        { name: 'AES-GCM', length: 256 },
+                        true,
+                        ['encrypt', 'decrypt']
+                    );
+                }
+            }
+
+            // IV ableiten
+            async deriveIV(primarySecret, secondarySecret = null, salt = 'qopy-iv-salt-v1') {
+                if (typeof primarySecret !== 'string' || primarySecret.length === 0) {
+                    throw new Error('Primary secret must be a non-empty string');
+                }
+                
+                if (secondarySecret !== null && (typeof secondarySecret !== 'string' || secondarySecret.length === 0)) {
+                    throw new Error('Secondary secret must be a non-empty string or null');
+                }
+                
+                if (typeof salt !== 'string' || salt.length === 0) {
+                    throw new Error('Salt must be a non-empty string');
+                }
+                
+                let combinedSecret = primarySecret;
+                if (secondarySecret) {
+                    combinedSecret = secondarySecret + ':' + primarySecret;
+                }
+                
+                const encoder = new TextEncoder();
+                const saltBytes = encoder.encode(salt);
+                const secretBytes = encoder.encode(combinedSecret);
+                
+                const keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    secretBytes,
+                    { name: 'PBKDF2' },
+                    false,
+                    ['deriveBits']
+                );
+                
+                const ivBytes = await window.crypto.subtle.deriveBits(
+                    {
+                        name: 'PBKDF2',
+                        salt: saltBytes,
+                        iterations: 50000,
+                        hash: 'SHA-256'
+                    },
+                    keyMaterial,
+                    96
+                );
+                
+                return new Uint8Array(ivBytes);
+            }
+
+            // Inhalt verschlüsseln
+            async encryptContent(content, password = null, urlSecret = null) {
+                try {
+                    if (typeof content !== 'string' || content.length === 0) {
+                        throw new Error('Content must be a non-empty string');
+                    }
+                    
+                    if (content.length > 400000) {
+                        throw new Error('Content too large (max 400,000 characters)');
+                    }
+                    
+                    if (password !== null && (typeof password !== 'string' || password.length === 0)) {
+                        throw new Error('Password must be a non-empty string or null');
+                    }
+                    
+                    if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+                        throw new Error('URL secret must be a non-empty string or null');
+                    }
+                    
+                    const key = await this.generateKey(password, urlSecret);
+                    const encoder = new TextEncoder();
+                    const data = encoder.encode(content);
+                    
+                    let iv;
+                    if (password) {
+                        iv = await this.deriveIV(password, urlSecret);
+                    } else {
+                        iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
+                    }
+                    
+                    const encryptedData = await window.crypto.subtle.encrypt(
+                        { name: 'AES-GCM', iv: iv },
+                        key,
+                        data
+                    );
+                    
+                    const encryptedBytes = new Uint8Array(encryptedData);
+                    const ivBytes = new Uint8Array(iv);
+                    
+                    const combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
+                    combined.set(ivBytes, 0);
+                    combined.set(encryptedBytes, ivBytes.length);
+                    
+                    return combined;
+                } catch (error) {
+                    throw new Error('Failed to encrypt content: ' + error.message);
+                }
+            }
+
+            // Inhalt entschlüsseln
+            async decryptContent(encryptedContent, password = null, urlSecret = null) {
+                try {
+                    if (encryptedContent === null || encryptedContent === undefined) {
+                        throw new Error('Encrypted content cannot be null or undefined');
+                    }
+                    
+                    if (password !== null && (typeof password !== 'string' || password.length === 0)) {
+                        throw new Error('Password must be a non-empty string or null');
+                    }
+                    
+                    if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
+                        throw new Error('URL secret must be a non-empty string or null');
+                    }
+                    
+                    let bytes;
+                    
+                    if (encryptedContent instanceof Uint8Array) {
+                        bytes = encryptedContent;
+                    } else if (Array.isArray(encryptedContent)) {
+                        bytes = new Uint8Array(encryptedContent);
+                    } else if (typeof encryptedContent === 'string') {
+                        const decoded = atob(encryptedContent);
+                        bytes = new Uint8Array(decoded.length);
+                        for (let i = 0; i < decoded.length; i++) {
+                            bytes[i] = decoded.charCodeAt(i);
+                        }
+                    } else {
+                        throw new Error('Invalid encrypted content format');
+                    }
+                    
+                    if (bytes.length < 12) {
+                        throw new Error('Invalid encrypted data: too short');
+                    }
+                    const iv = bytes.slice(0, 12);
+                    const encryptedData = bytes.slice(12);
+                    
+                    let key;
+                    if (password) {
+                        key = await this.generateKey(password, urlSecret);
+                    } else {
+                        key = await this.generateKey(null, urlSecret);
+                    }
+                    
+                    const decryptedData = await window.crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv: iv },
+                        key,
+                        encryptedData
+                    );
+                    
+                    const decoder = new TextDecoder();
+                    return decoder.decode(decryptedData);
+                } catch (error) {
+                    throw new Error('Failed to decrypt content: ' + error.message);
+                }
+            }
+
+            // Bytes zu Hex konvertieren
+            bytesToHex(bytes) {
+                return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            // Hex zu Bytes konvertieren
+            hexToBytes(hex) {
+                const bytes = new Uint8Array(hex.length / 2);
+                for (let i = 0; i < hex.length; i += 2) {
+                    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+                }
+                return bytes;
+            }
+
+            // Test hinzufügen
+            addResult(title, content, type = 'info') {
+                this.results.push({ title, content, type });
+            }
+
+            // Ergebnisse anzeigen
+            displayResults() {
+                const resultsDiv = document.getElementById('results');
+                resultsDiv.innerHTML = '';
+
+                this.results.forEach(result => {
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = `result ${result.type}`;
+                    resultDiv.innerHTML = `<strong>${result.title}</strong>\n${result.content}`;
+                    resultsDiv.appendChild(resultDiv);
+                });
+            }
+
+            // Entropie berechnen
+            calculateEntropy(data) {
+                const byteCounts = new Array(256).fill(0);
+                for (let i = 0; i < data.length; i++) {
+                    byteCounts[data[i]]++;
+                }
+                
+                let entropy = 0;
+                const totalBytes = data.length;
+                
+                for (let i = 0; i < 256; i++) {
+                    if (byteCounts[i] > 0) {
+                        const probability = byteCounts[i] / totalBytes;
+                        entropy -= probability * Math.log2(probability);
+                    }
+                }
+                
+                return entropy;
+            }
+        }
+
+        const tester = new EncryptionTester();
+
+        // URL Secret generieren
+        function generateUrlSecret() {
+            const urlSecret = tester.generateUrlSecret();
+            document.getElementById('testUrlSecret').value = urlSecret;
+            tester.addResult('URL Secret generiert', `Neues URL Secret: ${urlSecret}`, 'success');
+            tester.displayResults();
+        }
+
+        // Verschlüsselungstest ausführen
+        async function runEncryptionTest() {
+            const content = document.getElementById('testContent').value;
+            const password = document.getElementById('testPassword').value;
+            let urlSecret = document.getElementById('testUrlSecret').value;
+
+            if (!content.trim()) {
+                tester.addResult('Fehler', 'Bitte geben Sie Testinhalt ein.', 'error');
+                tester.displayResults();
+                return;
+            }
+
+            if (!urlSecret) {
+                urlSecret = tester.generateUrlSecret();
+                document.getElementById('testUrlSecret').value = urlSecret;
+            }
+
+            try {
+                tester.addResult('Test gestartet', `Inhalt: "${content}"\nPasswort: ${password ? 'Ja' : 'Nein'}\nURL Secret: ${urlSecret}`, 'info');
+
+                // Verschlüsseln
+                const encrypted = await tester.encryptContent(content, password || null, urlSecret);
+                const encryptedHex = tester.bytesToHex(encrypted);
+                const encryptedSize = encrypted.length;
+                const originalSize = new TextEncoder().encode(content).length;
+                const overhead = encryptedSize - originalSize;
+
+                tester.addResult('Verschlüsselung erfolgreich', 
+                    `Originalgröße: ${originalSize} Bytes\nVerschlüsselte Größe: ${encryptedSize} Bytes\nOverhead: ${overhead} Bytes (${((overhead/originalSize)*100).toFixed(1)}%)\n\nVerschlüsselte Daten (Hex):\n${encryptedHex}`, 'success');
+
+                // Entropie berechnen
+                const originalEntropy = tester.calculateEntropy(new TextEncoder().encode(content));
+                const encryptedEntropy = tester.calculateEntropy(encrypted);
+
+                tester.addResult('Entropie-Analyse', 
+                    `Original Entropie: ${originalEntropy.toFixed(2)} bits/byte\nVerschlüsselte Entropie: ${encryptedEntropy.toFixed(2)} bits/byte\nEntropie-Verhältnis: ${(encryptedEntropy/originalEntropy).toFixed(2)}x`, 
+                    encryptedEntropy > 7.5 ? 'success' : 'warning');
+
+                // Entschlüsseln
+                const decrypted = await tester.decryptContent(encrypted, password || null, urlSecret);
+                
+                if (decrypted === content) {
+                    tester.addResult('Entschlüsselung erfolgreich', 
+                        `Entschlüsselter Inhalt: "${decrypted}"\n\n✅ Verschlüsselung und Entschlüsselung funktionieren korrekt!`, 'success');
+                } else {
+                    tester.addResult('Entschlüsselung fehlgeschlagen', 
+                        `Erwartet: "${content}"\nErhalten: "${decrypted}"`, 'error');
+                }
+
+                // Detaillierte Analyse
+                const iv = encrypted.slice(0, 12);
+                const encryptedData = encrypted.slice(12);
+                
+                tester.addResult('Detaillierte Analyse', 
+                    `IV (12 Bytes): ${tester.bytesToHex(iv)}\nVerschlüsselte Daten: ${encryptedData.length} Bytes\nFormat: IV + verschlüsselte Daten\nAlgorithmus: AES-256-GCM\nSchlüsselableitung: PBKDF2 (100.000 Iterationen)`, 'info');
+
+            } catch (error) {
+                tester.addResult('Fehler', `Verschlüsselungstest fehlgeschlagen: ${error.message}`, 'error');
+            }
+
+            tester.displayResults();
+        }
+
+        // Umfassender Test
+        async function runComprehensiveTest() {
+            const testCases = [
+                { content: 'Einfacher Text', password: null, description: 'Nur URL Secret' },
+                { content: 'Text mit Passwort', password: 'test123', description: 'URL Secret + Passwort' },
+                { content: 'Deutsche Umlaute: äöüß', password: null, description: 'Umlaute ohne Passwort' },
+                { content: 'Sonderzeichen: !@#$%^&*()_+-=[]{}|;\':",./<>?', password: 'complex!@#', description: 'Sonderzeichen mit Passwort' },
+                { content: 'Langer Text: ' + 'A'.repeat(1000), password: null, description: 'Langer Text' },
+                { content: 'Binäre Zeichen: ' + String.fromCharCode(0, 1, 2, 3, 255), password: 'binary', description: 'Binäre Zeichen' },
+                { content: 'Unicode: 🌍🚀💻🎉', password: null, description: 'Unicode Emojis' },
+                { content: 'Leerer String', password: null, description: 'Leerer String' }
+            ];
+
+            tester.addResult('Umfassender Test gestartet', `Führe ${testCases.length} Testfälle aus...`, 'info');
+
+            let successCount = 0;
+            let totalOverhead = 0;
+            let totalEntropyRatio = 0;
+
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i];
+                const urlSecret = tester.generateUrlSecret();
+
+                try {
+                    // Verschlüsseln
+                    const encrypted = await tester.encryptContent(testCase.content, testCase.password, urlSecret);
+                    
+                    // Entschlüsseln
+                    const decrypted = await tester.decryptContent(encrypted, testCase.password, urlSecret);
+                    
+                    // Statistiken
+                    const originalSize = new TextEncoder().encode(testCase.content).length;
+                    const encryptedSize = encrypted.length;
+                    const overhead = encryptedSize - originalSize;
+                    const originalEntropy = tester.calculateEntropy(new TextEncoder().encode(testCase.content));
+                    const encryptedEntropy = tester.calculateEntropy(encrypted);
+                    const entropyRatio = encryptedEntropy / originalEntropy;
+
+                    totalOverhead += overhead;
+                    totalEntropyRatio += entropyRatio;
+
+                    if (decrypted === testCase.content) {
+                        successCount++;
+                        tester.addResult(`Test ${i + 1} erfolgreich`, 
+                            `${testCase.description}\nInhalt: "${testCase.content.substring(0, 50)}${testCase.content.length > 50 ? '...' : ''}"\nPasswort: ${testCase.password ? 'Ja' : 'Nein'}\nGröße: ${originalSize} → ${encryptedSize} Bytes (+${overhead})\nEntropie: ${originalEntropy.toFixed(2)} → ${encryptedEntropy.toFixed(2)} bits/byte`, 'success');
+                    } else {
+                        tester.addResult(`Test ${i + 1} fehlgeschlagen`, 
+                            `${testCase.description}\nErwartet: "${testCase.content}"\nErhalten: "${decrypted}"`, 'error');
+                    }
+                } catch (error) {
+                    tester.addResult(`Test ${i + 1} Fehler`, 
+                        `${testCase.description}\nFehler: ${error.message}`, 'error');
+                }
+            }
+
+            // Zusammenfassung
+            const avgOverhead = totalOverhead / testCases.length;
+            const avgEntropyRatio = totalEntropyRatio / testCases.length;
+            const successRate = (successCount / testCases.length) * 100;
+
+            tester.addResult('Testzusammenfassung', 
+                `Erfolgreiche Tests: ${successCount}/${testCases.length} (${successRate.toFixed(1)}%)\nDurchschnittlicher Overhead: ${avgOverhead.toFixed(1)} Bytes\nDurchschnittliche Entropie-Verbesserung: ${avgEntropyRatio.toFixed(2)}x\n\n${successRate === 100 ? '✅ Alle Tests erfolgreich!' : '❌ Einige Tests fehlgeschlagen'}`, 
+                successRate === 100 ? 'success' : 'error');
+
+            tester.displayResults();
+        }
+
+        // Ergebnisse löschen
+        function clearResults() {
+            tester.results = [];
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Automatisch URL Secret generieren beim Laden
+        window.onload = function() {
+            generateUrlSecret();
+        };
+    </script>
+</body>
+</html> 

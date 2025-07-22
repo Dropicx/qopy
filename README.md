@@ -1,10 +1,10 @@
-# Qopy - Military-Grade Secure Temporary Text Sharing
+# Qopy - Enterprise-Grade Secure Temporary Text Sharing
 
-Qopy is a privacy-first, secure temporary text sharing web application with military-grade client-side encryption, zero-knowledge architecture, and automatic expiration. Built with modern web technologies and optimized for both development and production environments.
+Qopy is a privacy-first, secure temporary text sharing web application with enterprise-grade client-side encryption, zero-knowledge architecture, and automatic expiration. Built with modern web technologies and optimized for both development and production environments.
 
 ## 🔐 Security Features
 
-### Military-Grade Client-Side Encryption
+### Enterprise-Grade Client-Side Encryption
 - **AES-256-GCM encryption** for all content with PBKDF2 key derivation (100,000 iterations)
 - **Zero-knowledge architecture** - server never sees plaintext content
 - **Hybrid security system** - URL secrets + passwords for defense in depth
@@ -19,7 +19,7 @@ Qopy is a privacy-first, secure temporary text sharing web application with mili
 - **Combined secrets** - URL secret + password combined for maximum security
 - **No password transmission** - passwords never leave the client
 - **Defense in depth** - Even weak passwords protected by URL secret
-- **Automatic expiration** with guaranteed cleanup every 5 minutes
+- **Automatic expiration** with guaranteed cleanup every minute
 - **One-time access** option for sensitive content
 - **Rate limiting** - Multi-layered protection against abuse
 
