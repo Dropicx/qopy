@@ -2571,38 +2571,70 @@ class ClipboardApp {
     // Generate download token for authentication
     async generateDownloadToken(clipId, password, urlSecret) {
         try {
-            // Create a combined secret for token generation
-            let tokenData = clipId; // Always include clip ID
+            // Detect if this is an Enhanced Passphrase (44+ characters)
+            const isEnhancedPassphrase = urlSecret && urlSecret.length >= 40;
             
-            // Add URL secret if available
-            if (urlSecret) {
-                tokenData += ':' + urlSecret;
+            if (isEnhancedPassphrase) {
+                // Use Compatible Token Algorithm for Enhanced Passphrase files
+                console.log('🔐 Using Enhanced Compatible Token Algorithm');
+                
+                const encoder = new TextEncoder();
+                const timestamp = Date.now();
+                const tokenData = `${clipId}:${password || ''}:${urlSecret || ''}:${timestamp}`;
+                
+                const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(tokenData));
+                const hashArray = new Uint8Array(hashBuffer);
+                const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+                const token = hashHex.substring(0, 32); // 32 character token
+                
+                console.log('🔐 Enhanced download token generated:', {
+                    clipId: clipId,
+                    hasUrlSecret: !!urlSecret,
+                    hasPassword: !!password,
+                    secretType: 'Enhanced (43+ chars)',
+                    tokenLength: token.length,
+                    algorithm: 'Compatible'
+                });
+                
+                return token;
+            } else {
+                // Use Legacy Token Algorithm for normal/legacy clips
+                console.log('🔐 Using Legacy Token Algorithm');
+                
+                let tokenData = clipId; // Always include clip ID
+                
+                // Add URL secret if available
+                if (urlSecret) {
+                    tokenData += ':' + urlSecret;
+                }
+                
+                // Add password if available
+                if (password) {
+                    tokenData += ':' + password;
+                }
+                
+                // Generate SHA-256 hash of the combined data
+                const encoder = new TextEncoder();
+                const data = encoder.encode(tokenData);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                const hashArray = new Uint8Array(hashBuffer);
+                
+                // Convert to hex string
+                const token = Array.from(hashArray)
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+                
+                console.log('🔐 Legacy download token generated:', {
+                    clipId: clipId,
+                    hasUrlSecret: !!urlSecret,
+                    hasPassword: !!password,
+                    secretType: urlSecret?.length === 16 ? 'Legacy (16 chars)' : 'Unknown',
+                    tokenLength: token.length,
+                    algorithm: 'Legacy'
+                });
+                
+                return token;
             }
-            
-            // Add password if available
-            if (password) {
-                tokenData += ':' + password;
-            }
-            
-            // Generate SHA-256 hash of the combined data
-            const encoder = new TextEncoder();
-            const data = encoder.encode(tokenData);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = new Uint8Array(hashBuffer);
-            
-            // Convert to hex string
-            const token = Array.from(hashArray)
-                .map(b => b.toString(16).padStart(2, '0'))
-                .join('');
-            
-            console.log('🔐 Download token generated from:', {
-                clipId: clipId,
-                hasUrlSecret: !!urlSecret,
-                hasPassword: !!password,
-                tokenLength: token.length
-            });
-            
-            return token;
         } catch (error) {
             console.error('❌ Failed to generate download token:', error);
             throw new Error('Failed to generate authentication token');
