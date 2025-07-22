@@ -469,9 +469,9 @@ class ClipboardApp {
                     // Authentication required (likely a file clip)
                     console.log('🔐 Authentication required for clip:', clipId, 'checking if password available');
                     
-                    if (password && urlSecret) {
-                        // We have both password and URL secret - generate token and try again
-                        console.log('🔑 Password and URL secret available - generating token and retrying');
+                    if (urlSecret) {
+                        // We have URL secret - generate token and try again (password optional)
+                        console.log('🔑 URL secret available - generating token and retrying with credentials:', { hasPassword: !!password, hasUrlSecret: !!urlSecret });
                         
                         const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
                         const queryParams = `?downloadToken=${downloadToken}`;
@@ -481,7 +481,8 @@ class ClipboardApp {
                         infoData = await infoResponse.json();
                         
                         if (infoResponse.ok) {
-                            // Proceed with authenticated retrieval
+                            // Authentication successful - proceed with retrieval
+                            console.log('✅ Authentication successful for clip:', clipId);
                             const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
                                 method: 'GET',
                                 headers: {
@@ -496,21 +497,10 @@ class ClipboardApp {
                                 console.error('❌ Authenticated retrieval failed:', response.status);
                                 this.showToast('🔐 Authentication failed - please check your credentials', 'error');
                             }
-                        } else {
-                            console.error('❌ Authenticated info request failed:', infoResponse.status);
-                            this.showToast('🔐 Access denied: Invalid credentials', 'error');
-                        }
-                        
-                    } else {
-                        // Missing password or URL secret - check if clip requires password
-                        this.hideLoading('retrieve-loading');
-                        
-                        // Check if the server indicates this clip needs a password
-                        const clipRequiresPassword = infoData?.hasPassword === true;
-                        
-                        if (clipRequiresPassword) {
-                            // This clip requires a password - show password field
-                            console.log('🔑 Clip requires password - showing password field');
+                        } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password && infoData?.hasPassword === true) {
+                            // Authentication failed but server indicates password required
+                            console.log('🔑 Authentication failed - password required');
+                            this.hideLoading('retrieve-loading');
                             
                             const passwordSection = document.getElementById('password-section');
                             const passwordInput = document.getElementById('retrieve-password-input');
@@ -522,11 +512,17 @@ class ClipboardApp {
                             
                             this.showToast('🔐 This clip requires a password. Please enter it below.', 'info');
                         } else {
-                            // This clip doesn't require a password - it's a wrong URL secret
-                            console.log('🔑 Clip does not require password - wrong URL secret');
-                            this.showToast('🔐 Access denied: Wrong URL secret', 'error');
+                            // Authentication failed with wrong credentials
+                            console.error('❌ Authentication failed - invalid credentials:', infoResponse.status);
+                            this.hideLoading('retrieve-loading');
+                            this.showToast('🔐 Access denied: Invalid URL secret or password', 'error');
                         }
                         
+                    } else {
+                        // No URL secret - this shouldn't happen for normal clips
+                        console.log('❌ No URL secret available for normal clip');
+                        this.hideLoading('retrieve-loading');
+                        this.showToast('🔐 Access denied: Invalid URL (missing secret)', 'error');
                         return;
                     }
                 } else {
