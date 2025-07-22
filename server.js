@@ -1720,7 +1720,6 @@ async function validateDownloadToken(clipId, providedToken) {
         }
         
         const clip = result.rows[0];
-        const isFileClip = clip.content_type === 'file'; // Only actual file uploads
         
         // For Quick Share clips (4-digit), the password_hash contains the secret
         if (clipId.length === 4 && clip.password_hash) {
@@ -1769,49 +1768,26 @@ async function validateDownloadToken(clipId, providedToken) {
                         console.log('❌ No download token found in metadata for clipId:', clipId, 'metadata keys:', Object.keys(metadata));
                         
                         // Fallback for clips created before token system was implemented
-                        console.log('🔄 Falling back to legacy validation for clipId:', clipId, 'isFileClip:', isFileClip);
+                        console.log('🔄 Falling back to legacy validation for clipId:', clipId);
                         
-                        if (isFileClip) {
-                            // For file clips, be very strict - they should always have stored tokens
-                            console.log('📁 File clip without stored token - denying access for security');
-                            
-                            // File clips created after the token system implementation should always have tokens
-                            // Deny access to maintain security - no legacy fallback for file clips
-                            return false;
-                        } else {
-                            // For text clips, use the original permissive logic for backwards compatibility
-                            if (clip.password_hash === 'client-encrypted') {
-                                // Password-protected text clip without stored token - deny for security
-                                console.log('❌ Password-protected text clip without stored token - denying access for security');
-                                return false;
-                            } else {
-                                // Non-password-protected text clip - allow for backwards compatibility
-                                console.log('✅ Non-password-protected text clip without stored token - allowing access for backwards compatibility');
-                                return true;
-                            }
-                        }
+                        // For normal clips, be strict - they should have stored tokens
+                        console.log('❌ Normal clip without stored token - denying access for security');
+                        
+                        // Normal clips created after the token system implementation should always have tokens
+                        // Deny access to maintain security - no legacy fallback for normal clips
+                        return false;
                     }
                 } else {
                     console.log('❌ No file_metadata found for clipId:', clipId);
                     
-                    // If no metadata exists, apply different logic for files vs text
-                    if (isFileClip) {
-                        console.log('📁 File clip without metadata - denying access for security');
-                        return false;
-                    }
+                    // If no metadata exists, deny access for security
+                    console.log('❌ Normal clip without metadata - denying access for security');
+                    return false;
                 }
             } catch (error) {
                 console.error('❌ Error checking file metadata for download token:', error);
-                if (isFileClip) {
-                    // For file clips, deny on errors for security
-                    return false;
-                }
-            }
-            
-            // Fallback for text clips: allow if no password protection
-            if (!isFileClip) {
-                console.log('📝 Text clip fallback - allowing if no password protection');
-                return clip.password_hash === null || clip.password_hash !== 'client-encrypted';
+                // For normal clips, deny on errors for security
+                return false;
             }
         }
         
@@ -2277,24 +2253,24 @@ app.get('/api/clip/:clipId/info', [
       password_hash: !!clip.password_hash
     });
 
-    // For file clips, require authentication (but exclude Quick Share)
+    // Authentication logic: All 10-digit clips need authentication (except Quick Share)
     const isQuickShare = clipId.length === 4;
-    const isActualFileClip = clip.content_type === 'file'; // Only actual file uploads need strict authentication
+    const isNormalClip = clipId.length === 10;
     
     console.log('🔍 Info endpoint logic check:', {
       isQuickShare,
-      isActualFileClip,
-      willRequireAuth: isActualFileClip && !isQuickShare
+      isNormalClip,
+      willRequireAuth: isNormalClip && !isQuickShare
     });
     
-    if (isActualFileClip && !isQuickShare) {
-      console.log('🔐 File clip detected, validating download token for clipId:', clipId);
+    if (isNormalClip && !isQuickShare) {
+      console.log('🔐 Normal clip detected, validating download token for clipId:', clipId);
       
       if (!downloadToken) {
-        console.log('❌ No download token provided for file clip:', clipId);
+        console.log('❌ No download token provided for normal clip:', clipId);
         return res.status(401).json({
           error: 'Authentication required',
-          message: 'This file requires authentication. Please provide the correct URL with secret or password.',
+          message: 'This clip requires authentication. Please provide the correct URL with secret or password.',
           requiresAuth: true,
           hasPassword: clip.password_hash !== null
         });
@@ -2303,18 +2279,18 @@ app.get('/api/clip/:clipId/info', [
       // Validate the download token
       const isValidToken = await validateDownloadToken(clipId, downloadToken);
       if (!isValidToken) {
-        console.log('❌ Invalid download token for file clip:', clipId);
+        console.log('❌ Invalid download token for normal clip:', clipId);
         return res.status(403).json({
           error: 'Access denied',
-          message: 'Invalid credentials for this file. Please check your URL secret or password.',
+          message: 'Invalid credentials for this clip. Please check your URL secret or password.',
           requiresAuth: true,
           hasPassword: clip.password_hash !== null
         });
       }
 
-      console.log('✅ Download token validated for file clip:', clipId);
-    } else if (isQuickShare && isActualFileClip) {
-      console.log('⚡ Quick Share file clip - no authentication required:', clipId);
+      console.log('✅ Download token validated for normal clip:', clipId);
+    } else if (isQuickShare) {
+      console.log('⚡ Quick Share clip - no authentication required:', clipId);
     }
 
     // Determine if clip has password based on ID length and password_hash content
@@ -2399,24 +2375,24 @@ app.get('/api/clip/:clipId', [
       password_hash: !!clip.password_hash
     });
 
-    // For file clips, require authentication (but exclude Quick Share)
+    // Authentication logic: All 10-digit clips need authentication (except Quick Share)
     const isQuickShare = clipId.length === 4;
-    const isActualFileClip = clip.content_type === 'file'; // Only actual file uploads need strict authentication
+    const isNormalClip = clipId.length === 10;
     
     console.log('🔍 Main endpoint logic check:', {
       isQuickShare,
-      isActualFileClip,
-      willRequireAuth: isActualFileClip && !isQuickShare
+      isNormalClip,
+      willRequireAuth: isNormalClip && !isQuickShare
     });
     
-    if (isActualFileClip && !isQuickShare) {
-      console.log('🔐 File clip detected in main endpoint, validating download token for clipId:', clipId);
+    if (isNormalClip && !isQuickShare) {
+      console.log('🔐 Normal clip detected in main endpoint, validating download token for clipId:', clipId);
       
       if (!downloadToken) {
-        console.log('❌ No download token provided for file clip:', clipId);
+        console.log('❌ No download token provided for normal clip in main endpoint:', clipId);
         return res.status(401).json({
           error: 'Authentication required',
-          message: 'This file requires authentication. Please provide the correct URL with secret or password.',
+          message: 'This clip requires authentication. Please provide the correct URL with secret or password.',
           requiresAuth: true,
           hasPassword: clip.password_hash !== null
         });
@@ -2425,18 +2401,18 @@ app.get('/api/clip/:clipId', [
       // Validate the download token
       const isValidToken = await validateDownloadToken(clipId, downloadToken);
       if (!isValidToken) {
-        console.log('❌ Invalid download token for file clip:', clipId);
+        console.log('❌ Invalid download token for normal clip in main endpoint:', clipId);
         return res.status(403).json({
           error: 'Access denied',
-          message: 'Invalid credentials for this file. Please check your URL secret or password.',
+          message: 'Invalid credentials for this clip. Please check your URL secret or password.',
           requiresAuth: true,
           hasPassword: clip.password_hash !== null
         });
       }
 
-      console.log('✅ Download token validated for file clip in main endpoint:', clipId);
-    } else if (isQuickShare && isActualFileClip) {
-      console.log('⚡ Quick Share file clip in main endpoint - no authentication required:', clipId);
+      console.log('✅ Download token validated for normal clip in main endpoint:', clipId);
+    } else if (isQuickShare) {
+      console.log('⚡ Quick Share clip in main endpoint - no authentication required:', clipId);
     }
 
     // Update access count and timestamp

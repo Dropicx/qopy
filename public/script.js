@@ -580,22 +580,16 @@ class ClipboardApp {
                 }
             }
             
-            // Ensure password field is visible in retrieve tab if URL secret is present
+            // Ensure password field is hidden by default in retrieve tab
             if (tab === 'retrieve') {
-                const urlSecret = this.extractUrlSecret();
                 const passwordSection = document.getElementById('password-section');
                 
-                // Hide password section by default
+                // Hide password section by default - it will be shown only if server indicates password is required
                 if (passwordSection) {
                     passwordSection.classList.add('hidden');
                 }
                 
-                // Only show if URL secret is present (indicates password-protected clip)
-                if (urlSecret) {
-                    if (passwordSection) {
-                        passwordSection.classList.remove('hidden');
-                    }
-                }
+                console.log('🔒 Password section hidden by default in retrieve tab');
             }
 
             // Focus appropriate input after a short delay
