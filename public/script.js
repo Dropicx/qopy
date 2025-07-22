@@ -2875,6 +2875,69 @@ class ClipboardApp {
         return iv;
     }
 
+    // Generate compatible encryption key (same as upload system)
+    async generateCompatibleEncryptionKey(password = null, secret = null) {
+        console.log('🔑 generateCompatibleEncryptionKey called with:', {
+            hasPassword: !!password,
+            hasSecret: !!secret
+        });
+
+        const encoder = new TextEncoder();
+        
+        let keyMaterial;
+        if (password && secret) {
+            // Combined mode
+            console.log('🔑 Using combined mode for key generation');
+            const combined = secret + ':' + password;
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(combined),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else if (secret) {
+            // Secret-only mode (Enhanced Files)
+            console.log('🔑 Using secret-only mode for key generation');
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(secret),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else if (password) {
+            // Password-only mode
+            console.log('🔑 Using password-only mode for key generation');
+            keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                encoder.encode(password),
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+        } else {
+            throw new Error('Either password or secret must be provided for key generation');
+        }
+
+        // Derive key using PBKDF2
+        const derivedKey = await window.crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode('qopy-enhanced-salt-v2'),
+                iterations: 250000, // Same as upload system
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
+
+        console.log('🔑 Compatible encryption key derived successfully');
+        return derivedKey;
+    }
+
     // Extract metadata from file during download (compatible with upload system)
     async extractMetadata(fileWithMetadata, urlSecret) {
         try {
@@ -2907,8 +2970,8 @@ class ClipboardApp {
                 fileDataLength: fileData.length
             });
             
-            // Decrypt metadata using same key as file content
-            const metadataKey = await this.generateDecryptionKey(null, urlSecret);
+            // Decrypt metadata using compatible key generation (same as upload)
+            const metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
             const metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
             
             console.log('📋 Decrypting metadata with derived key and IV');
