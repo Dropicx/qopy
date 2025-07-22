@@ -1011,13 +1011,10 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         const isFileUpload = !session.is_text_content || session.original_filename !== `${uploadId.substring(0, 8)}.txt`;
         
         if (isFileUpload) {
-            // File uploads: generate token if urlSecret is present (password is optional)
-            if (urlSecret) {
-                downloadToken = await generateDownloadToken(clipId, password, urlSecret);
-                console.log('🔐 Generated download token for file upload:', clipId, 'hasPassword:', !!password, 'hasUrlSecret:', !!urlSecret);
-            } else {
-                console.log('⚠️ No urlSecret provided for file upload - no download token generated');
-            }
+            // Enhanced Files (Zero-Knowledge): No download token needed - client handles all encryption
+            // Files are directly downloadable (encrypted) and client decrypts with URL fragment
+            downloadToken = null;
+            console.log('🔐 Enhanced File Upload (Zero-Knowledge): No download token needed - direct download of encrypted file');
         } else {
             // Text uploads: handle Quick Share vs Normal mode
             if (session.quick_share) {
@@ -1868,17 +1865,32 @@ app.post('/api/file/:clipId', [
         // Check if this is Quick Share (4-digit) - Quick Share doesn't use download tokens
         const isQuickShare = clipId.length === 4;
         
+        // Check if this is Enhanced File (Zero-Knowledge) - Enhanced Files don't use download tokens
+        let isEnhancedFile = false;
         if (!isQuickShare) {
-            // Normal clips require download token
+            // Check if file_metadata has downloadToken - Enhanced Files don't have one
+            const clipCheck = await pool.query(
+                'SELECT file_metadata FROM clips WHERE clip_id = $1 AND file_path IS NOT NULL AND is_expired = false',
+                [clipId]
+            );
+            
+            if (clipCheck.rows.length > 0 && clipCheck.rows[0].file_metadata) {
+                const metadata = clipCheck.rows[0].file_metadata;
+                isEnhancedFile = !metadata.downloadToken; // No downloadToken = Enhanced File
+            }
+        }
+        
+        if (!isQuickShare && !isEnhancedFile) {
+            // Legacy files require download token
             if (!downloadToken) {
-                console.log(`❌ No download token provided for normal clip: ${clipId}`);
+                console.log(`❌ No download token provided for legacy file: ${clipId}`);
                 return res.status(401).json({
                     error: 'Authentication required',
                     message: 'Download token required for this file'
                 });
             }
             
-            // Validate download token for normal clips only
+            // Validate download token for legacy files only
             const tokenValid = await validateDownloadToken(clipId, downloadToken);
             if (!tokenValid) {
                 console.log(`❌ Invalid download token for clipId: ${clipId}`);
@@ -1887,9 +1899,11 @@ app.post('/api/file/:clipId', [
                     message: 'Invalid download token - wrong password or URL secret'
                 });
             }
-            console.log(`✅ Download token validated for clipId: ${clipId}`);
-        } else {
+            console.log(`✅ Download token validated for legacy file: ${clipId}`);
+        } else if (isQuickShare) {
             console.log(`⚡ Quick Share download - no token validation needed for clipId: ${clipId}`);
+        } else if (isEnhancedFile) {
+            console.log(`🔐 Enhanced File (Zero-Knowledge) download - no token validation needed for clipId: ${clipId}`);
         }
 
         // Continue with existing download logic...
@@ -2293,21 +2307,29 @@ app.get('/api/clip/:clipId/info', [
       password_hash: !!clip.password_hash
     });
 
-    // Authentication logic: All 10-digit clips need authentication (except Quick Share)
+    // Authentication logic: All 10-digit clips need authentication (except Quick Share and Enhanced Files)
     const isQuickShare = clipId.length === 4;
     const isNormalClip = clipId.length === 10;
+    
+    // Check if this is Enhanced File (Zero-Knowledge) - Enhanced Files don't use download tokens
+    let isEnhancedFile = false;
+    if (isNormalClip && clip.file_metadata) {
+      const metadata = clip.file_metadata;
+      isEnhancedFile = !metadata.downloadToken; // No downloadToken = Enhanced File
+    }
     
     console.log('🔍 Info endpoint logic check:', {
       isQuickShare,
       isNormalClip,
-      willRequireAuth: isNormalClip && !isQuickShare
+      isEnhancedFile,
+      willRequireAuth: isNormalClip && !isQuickShare && !isEnhancedFile
     });
     
-    if (isNormalClip && !isQuickShare) {
-      console.log('🔐 Normal clip detected, validating download token for clipId:', clipId);
+    if (isNormalClip && !isQuickShare && !isEnhancedFile) {
+      console.log('🔐 Legacy file detected, validating download token for clipId:', clipId);
       
       if (!downloadToken) {
-        console.log('❌ No download token provided for normal clip:', clipId);
+        console.log('❌ No download token provided for legacy file:', clipId);
         return res.status(401).json({
           error: 'Authentication required',
           message: 'This clip requires authentication. Please provide the correct URL with secret or password.',
@@ -2319,7 +2341,7 @@ app.get('/api/clip/:clipId/info', [
       // Validate the download token
       const isValidToken = await validateDownloadToken(clipId, downloadToken);
       if (!isValidToken) {
-        console.log('❌ Invalid download token for normal clip:', clipId);
+        console.log('❌ Invalid download token for legacy file:', clipId);
         return res.status(403).json({
           error: 'Access denied',
           message: 'Invalid credentials for this clip. Please check your URL secret or password.',
@@ -2328,9 +2350,11 @@ app.get('/api/clip/:clipId/info', [
         });
       }
 
-      console.log('✅ Download token validated for normal clip:', clipId);
+      console.log('✅ Download token validated for legacy file:', clipId);
     } else if (isQuickShare) {
       console.log('⚡ Quick Share clip - no authentication required:', clipId);
+    } else if (isEnhancedFile) {
+      console.log('🔐 Enhanced File (Zero-Knowledge) - no authentication required:', clipId);
     }
 
     // Determine if clip has password based on ID length and password_hash content
@@ -2415,21 +2439,29 @@ app.get('/api/clip/:clipId', [
       password_hash: !!clip.password_hash
     });
 
-    // Authentication logic: All 10-digit clips need authentication (except Quick Share)
+    // Authentication logic: All 10-digit clips need authentication (except Quick Share and Enhanced Files)
     const isQuickShare = clipId.length === 4;
     const isNormalClip = clipId.length === 10;
+    
+    // Check if this is Enhanced File (Zero-Knowledge) - Enhanced Files don't use download tokens
+    let isEnhancedFile = false;
+    if (isNormalClip && clip.file_metadata) {
+      const metadata = clip.file_metadata;
+      isEnhancedFile = !metadata.downloadToken; // No downloadToken = Enhanced File
+    }
     
     console.log('🔍 Main endpoint logic check:', {
       isQuickShare,
       isNormalClip,
-      willRequireAuth: isNormalClip && !isQuickShare
+      isEnhancedFile,
+      willRequireAuth: isNormalClip && !isQuickShare && !isEnhancedFile
     });
     
-    if (isNormalClip && !isQuickShare) {
-      console.log('🔐 Normal clip detected in main endpoint, validating download token for clipId:', clipId);
+    if (isNormalClip && !isQuickShare && !isEnhancedFile) {
+      console.log('🔐 Legacy file detected in main endpoint, validating download token for clipId:', clipId);
       
       if (!downloadToken) {
-        console.log('❌ No download token provided for normal clip in main endpoint:', clipId);
+        console.log('❌ No download token provided for legacy file in main endpoint:', clipId);
         return res.status(401).json({
           error: 'Authentication required',
           message: 'This clip requires authentication. Please provide the correct URL with secret or password.',
@@ -2441,7 +2473,7 @@ app.get('/api/clip/:clipId', [
       // Validate the download token
       const isValidToken = await validateDownloadToken(clipId, downloadToken);
       if (!isValidToken) {
-        console.log('❌ Invalid download token for normal clip in main endpoint:', clipId);
+        console.log('❌ Invalid download token for legacy file in main endpoint:', clipId);
         return res.status(403).json({
           error: 'Access denied',
           message: 'Invalid credentials for this clip. Please check your URL secret or password.',
@@ -2450,9 +2482,11 @@ app.get('/api/clip/:clipId', [
         });
       }
 
-      console.log('✅ Download token validated for normal clip in main endpoint:', clipId);
+      console.log('✅ Download token validated for legacy file in main endpoint:', clipId);
     } else if (isQuickShare) {
       console.log('⚡ Quick Share clip in main endpoint - no authentication required:', clipId);
+    } else if (isEnhancedFile) {
+      console.log('🔐 Enhanced File (Zero-Knowledge) in main endpoint - no authentication required:', clipId);
     }
 
     // Update access count and timestamp

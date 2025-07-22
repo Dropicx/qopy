@@ -1270,12 +1270,18 @@ class FileUploadManager {
                 averageChunkTime: (chunkUploadTime / totalChunks).toFixed(2) + 'ms'
             });
 
-            // Complete upload
+            // Complete upload (Zero-Knowledge: NO URL secret sent to server)
             console.log('🏁 Completing upload...');
             const completeStart = performance.now();
             
+            console.log('🔐 Zero-Knowledge Upload Complete: No secrets sent to server');
+            
             const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
             });
             
             const completeTime = performance.now() - completeStart;

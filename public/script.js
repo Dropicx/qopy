@@ -2575,27 +2575,10 @@ class ClipboardApp {
             const isEnhancedPassphrase = urlSecret && urlSecret.length >= 40;
             
             if (isEnhancedPassphrase) {
-                // Use Compatible Token Algorithm for Enhanced Passphrase files (deterministic, no timestamp)
-                console.log('🔐 Using Enhanced Compatible Token Algorithm');
-                
-                const encoder = new TextEncoder();
-                const tokenData = `enhanced:${clipId}:${password || ''}:${urlSecret || ''}`;
-                
-                const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(tokenData));
-                const hashArray = new Uint8Array(hashBuffer);
-                const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
-                const token = hashHex.substring(0, 32); // 32 character token
-                
-                console.log('🔐 Enhanced download token generated:', {
-                    clipId: clipId,
-                    hasUrlSecret: !!urlSecret,
-                    hasPassword: !!password,
-                    secretType: 'Enhanced (43+ chars)',
-                    tokenLength: token.length,
-                    algorithm: 'Compatible (deterministic)'
-                });
-                
-                return token;
+                // Enhanced Files (Zero-Knowledge): No download token needed
+                // Files are directly downloadable (encrypted) and client decrypts with URL fragment
+                console.log('🔐 Enhanced File (Zero-Knowledge): No download token needed - direct download of encrypted file');
+                return null;
             } else {
                 // Use Legacy Token Algorithm for normal/legacy clips
                 console.log('🔐 Using Legacy Token Algorithm');
