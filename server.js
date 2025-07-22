@@ -2330,12 +2330,8 @@ app.get('/api/clip/:clipId', [
     let contentMetadata = {};
     
     if (clip.content_type === 'file') {
-      // Handle one-time access for files - delete after redirecting
-      if (clip.one_time) {
-        await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
-      }
-      
       // File stored on disk - redirect to file endpoint
+      // Note: One-time deletion happens in /api/file/ endpoint, not here
       return res.json({
         success: true,
         contentType: 'file',
