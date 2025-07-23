@@ -261,6 +261,9 @@ class FileUploadManager {
             const requiresAccessCode = document.getElementById('file-password-checkbox')?.checked || false;
             const oneTime = document.getElementById('file-one-time-checkbox')?.checked || false;
 
+            // Store access code for later use during completion
+            const accessCode = requiresAccessCode ? document.getElementById('file-password-input')?.value?.trim() : null;
+            
             // Initiate upload
             const uploadSession = await this.initiateUpload(this.selectedFile, {
                 expiration,
@@ -270,6 +273,12 @@ class FileUploadManager {
 
             this.currentUpload = uploadSession;
             this.currentUploadSession = uploadSession; // Store for URL generation
+            
+            // Store access code in session for completion
+            if (accessCode) {
+                this.currentUploadSession.accessCode = accessCode;
+                console.log('💾 Stored access code in session for completion');
+            }
             console.log('✅ Upload session created:', uploadSession.uploadId);
 
             // Show progress UI
@@ -1542,12 +1551,45 @@ class FileUploadManager {
 
     async completeUpload(uploadId) {
         // Get form settings for access code and download token generation
-        const requiresAccessCode = document.getElementById('file-password-checkbox')?.checked || false;
-        const accessCode = requiresAccessCode ? document.getElementById('file-password-input')?.value?.trim() : null;
+        const passwordCheckbox = document.getElementById('file-password-checkbox');
+        const passwordInput = document.getElementById('file-password-input');
+        
+        const requiresAccessCode = passwordCheckbox?.checked || false;
+        
+        // Try to get access code from form first, then from stored session
+        let accessCode = requiresAccessCode ? passwordInput?.value?.trim() : null;
+        if (!accessCode && this.currentUploadSession?.accessCode) {
+            accessCode = this.currentUploadSession.accessCode;
+            console.log('🔐 Using stored access code from session');
+        }
+        
         const urlSecret = this.currentUploadSession?.urlSecret || null;
+        
+        console.log('🔍 Form state during completion:', {
+            checkboxChecked: passwordCheckbox?.checked,
+            inputValue: passwordInput?.value ? passwordInput.value.substring(0, 3) + '***' : null,
+            inputValueLength: passwordInput?.value?.length || 0,
+            requiresAccessCode,
+            accessCode: accessCode ? accessCode.substring(0, 3) + '***' : null,
+            accessCodeLength: accessCode?.length || 0
+        });
         
         console.log('🔐 Sending authentication parameters for upload completion:', {
             requiresAccessCode: !!accessCode,
+            accessCode: accessCode ? accessCode.substring(0, 3) + '***' : null,
+            accessCodeLength: accessCode ? accessCode.length : 0,
+            hasUrlSecret: !!urlSecret
+        });
+        
+        const requestBody = {
+            password: accessCode, // Send as 'password' for backward compatibility
+            urlSecret: urlSecret
+            // checksums can be omitted, server will validate automatically
+        };
+        
+        console.log('📡 Upload completion request body:', {
+            password: accessCode ? accessCode.substring(0, 3) + '***' : null,
+            passwordLength: accessCode ? accessCode.length : 0,
             hasUrlSecret: !!urlSecret
         });
         
@@ -1556,11 +1598,7 @@ class FileUploadManager {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                password: accessCode, // Send as 'password' for backward compatibility
-                urlSecret: urlSecret
-                // checksums can be omitted, server will validate automatically
-            })
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
