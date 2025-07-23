@@ -2793,12 +2793,58 @@ app.post('/api/clip/:clipId', [
         });
       }
       
-      const accessCodeValid = await validateAccessCode(clipId, accessCode);
-      if (!accessCodeValid) {
-        console.log(`❌ Invalid access code for clipId: ${clipId}`);
-        return res.status(401).json({
-          error: 'Access denied',
-          message: 'Invalid access code'
+      // Inline access code validation to avoid reference errors
+      try {
+        const validationResult = await pool.query(
+          'SELECT access_code_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
+          [clipId]
+        );
+        
+        if (validationResult.rows.length === 0) {
+          console.log(`❌ Clip not found for access code validation: ${clipId}`);
+          return res.status(404).json({
+            error: 'Clip not found',
+            message: 'The requested clip does not exist'
+          });
+        }
+        
+        const validationClip = validationResult.rows[0];
+        
+        // If access code required but no hash stored, deny
+        if (!validationClip.access_code_hash) {
+          console.log(`❌ No access code hash stored for clipId: ${clipId}`);
+          return res.status(401).json({
+            error: 'Access denied',
+            message: 'Invalid access code configuration'
+          });
+        }
+        
+        // Check if provided access code matches stored hash
+        const isAlreadyHashed = accessCode.length === 128 && /^[a-f0-9]+$/i.test(accessCode);
+        let providedHash;
+        
+        if (isAlreadyHashed) {
+          console.log('🔐 Using client-side hashed access code for validation');
+          providedHash = accessCode;
+        } else {
+          console.log('🔐 Generating server-side access code hash for validation');
+          providedHash = await generateAccessCodeHash(accessCode);
+        }
+        
+        if (providedHash !== validationClip.access_code_hash) {
+          console.log(`❌ Invalid access code for clipId: ${clipId}`);
+          return res.status(401).json({
+            error: 'Access denied',
+            message: 'Invalid access code'
+          });
+        }
+        
+        console.log(`✅ Access code validated for clipId: ${clipId}`);
+      } catch (validateError) {
+        console.error('❌ Error validating access code:', validateError);
+        return res.status(500).json({
+          error: 'Internal server error',
+          message: 'Failed to validate access code'
         });
       }
       console.log(`✅ Access code validated for clipId: ${clipId}`);
