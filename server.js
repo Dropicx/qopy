@@ -2633,12 +2633,14 @@ app.get('/api/clip/:clipId/info', [
     let hasPassword = false;
     if (clipId.length === 10) {
       // For normal clips (10-digit), check if access code is required
-      hasPassword = clip.requires_access_code || false;
+      // Check both requires_access_code and password_hash for backward compatibility
+      hasPassword = clip.requires_access_code || clip.password_hash === 'client-encrypted' || false;
       console.log('🔍 Clip info debug:', {
         clipId,
         contentType: clip.content_type,
         requires_access_code: clip.requires_access_code,
         requires_access_code_type: typeof clip.requires_access_code,
+        password_hash: clip.password_hash,
         hasPassword
       });
     } else {
