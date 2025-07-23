@@ -3099,12 +3099,14 @@ async function startServer() {
             'id', 'clip_id', 'password_hash', 'one_time', 'quick_share', 
             'expiration_time', 'access_count', 'max_accesses', 
             'created_at', 'accessed_at', 'content_type', 'file_metadata', 
-            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'is_expired'
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'is_expired',
+            'access_code_hash', 'requires_access_code'
         ];
 
         const CLIPS_INSERT_COLUMNS = [
             'clip_id', 'expiration_time', 'password_hash', 'one_time', 'quick_share', 'created_at',
-            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'file_metadata', 'content_type'
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'file_metadata', 'content_type',
+            'access_code_hash', 'requires_access_code'
         ];
 
         const missingInClipsSchema = CLIPS_INSERT_COLUMNS.filter(col => !CLIPS_SCHEMA_COLUMNS.includes(col));
@@ -3227,6 +3229,24 @@ async function startServer() {
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS accessed_at BIGINT`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS access_code_hash VARCHAR(255)`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS requires_access_code BOOLEAN DEFAULT false`);
+            console.log('🔐 Access Code System: Database columns added successfully');
+            
+            // Verify Access Code columns were created successfully
+            try {
+                const accessCodeCheck = await client.query(`
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'clips' AND column_name IN ('access_code_hash', 'requires_access_code')
+                `);
+                
+                if (accessCodeCheck.rows.length === 2) {
+                    console.log('✅ Access Code System: Database columns verified successfully');
+                } else {
+                    console.warn('⚠️ Access Code System: Some columns may not have been created properly');
+                }
+            } catch (verifyError) {
+                console.warn('⚠️ Access Code System: Could not verify database columns:', verifyError.message);
+            }
             
             // Update existing expired clips to have is_expired = true
             await client.query(`
