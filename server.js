@@ -3099,6 +3099,25 @@ async function startServer() {
             )
         `);
 
+        // Migration: Remove checksum column from file_chunks (security improvement)
+        try {
+            // Check if checksum column exists before trying to drop it
+            const checksumColumnCheck = await client.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'file_chunks' AND column_name = 'checksum'
+            `);
+            
+            if (checksumColumnCheck.rows.length > 0) {
+                await client.query(`ALTER TABLE file_chunks DROP COLUMN checksum`);
+                console.log('🗑️ Removed checksum column from file_chunks table (security improvement)');
+            } else {
+                console.log('ℹ️ checksum column already removed from file_chunks table');
+            }
+        } catch (checksumMigrationError) {
+            console.warn(`⚠️ checksum column migration warning: ${checksumMigrationError.message}`);
+        }
+
         // Create clips table if it doesn't exist (base table for text sharing)
         await client.query(`
             CREATE TABLE IF NOT EXISTS clips (
