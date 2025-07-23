@@ -1036,33 +1036,52 @@ async function saveChunkToFile(uploadId, chunkNumber, chunkData) {
 }
 
 async function assembleFile(uploadId, session) {
-    const finalPath = path.join(STORAGE_PATH, 'files', `${uploadId}_${session.filename}`);
-    await fs.mkdir(path.dirname(finalPath), { recursive: true });
-    
-    const writeStream = require('fs').createWriteStream(finalPath);
-    
-    for (let i = 0; i < session.total_chunks; i++) {
-        // Use the same path format as chunk upload: ${uploadId}_${chunkNumber}.chunk
-        const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${i}.chunk`);
-        console.log(`🔍 Reading chunk from: ${chunkPath}`);
-        const chunkData = await fs.readFile(chunkPath);
-        writeStream.write(chunkData);
-    }
-    
-    writeStream.end();
-    
-    // Clean up chunks - remove individual chunk files (not directory)
-    for (let i = 0; i < session.total_chunks; i++) {
-        const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${i}.chunk`);
-        try {
-            await fs.unlink(chunkPath);
-            console.log(`🧹 Cleaned up chunk: ${chunkPath}`);
-        } catch (error) {
-            console.warn(`⚠️ Could not delete chunk ${chunkPath}:`, error.message);
+    try {
+        console.log(`🔍 assembleFile started for uploadId: ${uploadId}, filename: ${session.filename}`);
+        const finalPath = path.join(STORAGE_PATH, 'files', `${uploadId}_${session.filename}`);
+        console.log(`🔍 Final path: ${finalPath}`);
+        
+        await fs.mkdir(path.dirname(finalPath), { recursive: true });
+        console.log(`🔍 Directory created/verified: ${path.dirname(finalPath)}`);
+        
+        const writeStream = require('fs').createWriteStream(finalPath);
+        
+        for (let i = 0; i < session.total_chunks; i++) {
+            // Use the same path format as chunk upload: ${uploadId}_${chunkNumber}.chunk
+            const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${i}.chunk`);
+            console.log(`🔍 Reading chunk ${i} from: ${chunkPath}`);
+            
+            // Check if chunk file exists
+            const chunkExists = await fs.pathExists(chunkPath);
+            if (!chunkExists) {
+                throw new Error(`Chunk file not found: ${chunkPath}`);
+            }
+            
+            const chunkData = await fs.readFile(chunkPath);
+            console.log(`🔍 Chunk ${i} size: ${chunkData.length} bytes`);
+            writeStream.write(chunkData);
         }
+        
+        writeStream.end();
+        console.log(`🔍 Write stream ended, file assembled: ${finalPath}`);
+        
+        // Clean up chunks - remove individual chunk files (not directory)
+        for (let i = 0; i < session.total_chunks; i++) {
+            const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${i}.chunk`);
+            try {
+                await fs.unlink(chunkPath);
+                console.log(`🧹 Cleaned up chunk: ${chunkPath}`);
+            } catch (error) {
+                console.warn(`⚠️ Could not delete chunk ${chunkPath}:`, error.message);
+            }
+        }
+        
+        console.log(`✅ assembleFile completed successfully: ${finalPath}`);
+        return finalPath;
+    } catch (error) {
+        console.error(`❌ Error in assembleFile for uploadId ${uploadId}:`, error);
+        throw error;
     }
-    
-    return finalPath;
 }
 
 // Multi-part upload endpoints
@@ -1121,10 +1140,17 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
                 });
             }
             
-            // Assemble file from chunks (same as regular files)
-            filePath = await assembleFile(uploadId, session);
-            actualFilesize = (await fs.stat(filePath)).size;
-            console.log('📝 Text content assembled from chunks:', filePath, 'size:', actualFilesize);
+            console.log('🔍 About to call assembleFile for text upload:', uploadId);
+            try {
+                // Assemble file from chunks (same as regular files)
+                filePath = await assembleFile(uploadId, session);
+                console.log('✅ assembleFile completed successfully:', filePath);
+                actualFilesize = (await fs.stat(filePath)).size;
+                console.log('📝 Text content assembled from chunks:', filePath, 'size:', actualFilesize);
+            } catch (error) {
+                console.error('❌ Error in assembleFile:', error);
+                throw error;
+            }
         } else {
             // File upload: Check if all chunks uploaded then assemble
             if (session.uploaded_chunks < session.total_chunks) {
