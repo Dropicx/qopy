@@ -333,8 +333,31 @@ class ClipboardApp {
                 let infoData = await infoResponse.json();
                 
                 if (infoResponse.ok) {
-                    // Success with URL secret only - no password needed
-                    console.log('✅ File accessible with URL secret only - no password required');
+                    // File info retrieved successfully - check if password is required
+                    console.log('✅ File info retrieved - checking password requirements');
+                    console.log('🔍 File info data:', infoData);
+                    
+                    if (infoData.hasPassword && !password) {
+                        // File requires password but user hasn't provided one
+                        console.log('🔑 File requires password - showing password field');
+                        
+                        this.hideLoading('retrieve-loading');
+                        
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordSection.style.display = 'block'; // Ensure it's visible
+                            passwordInput.focus();
+                        }
+                        
+                        this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
+                        return;
+                    }
+                    
+                    // No password required or password provided - proceed with file retrieval
+                    console.log('✅ File accessible - no password required or password provided');
                     
                     // Proceed with authenticated retrieval
                     let response = await fetch(`/api/clip/${clipId}`, {
@@ -360,7 +383,7 @@ class ClipboardApp {
                     
                     if (fileRequiresPassword) {
                         // File requires password - show password field
-                        console.log('🔑 File requires password - showing password field');
+                        console.log('🔑 File requires password (from error response) - showing password field');
                         
                         this.hideLoading('retrieve-loading');
                         
@@ -369,6 +392,7 @@ class ClipboardApp {
                         
                         if (passwordSection && passwordInput) {
                             passwordSection.classList.remove('hidden');
+                            passwordSection.style.display = 'block'; // Ensure it's visible
                             passwordInput.focus();
                         }
                         
