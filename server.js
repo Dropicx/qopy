@@ -990,14 +990,20 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             console.log(`📝 Text content stored as file: ${filePath} (${actualFileSize} bytes encrypted)`);
         }
 
-        // Handle Quick Share secret and password hash
+        // Handle Quick Share secret and access code hash
         let passwordHash = null;
+        let accessCodeHash = null;
+        let requiresAccessCode = false;
+        
         if (session.quick_share && quickShareSecret) {
             console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
             passwordHash = quickShareSecret;
-        } else if (session.has_password) {
-            // Only set 'client-encrypted' for actual user passwords, not for URL secrets
-            passwordHash = 'client-encrypted';
+        } else if (session.has_password && password) {
+            // Generate access code hash for password protection
+            console.log('🔐 Generating access code hash for password-protected file:', uploadId);
+            accessCodeHash = await generateAccessCodeHash(password);
+            requiresAccessCode = true;
+            passwordHash = 'client-encrypted'; // Keep for backward compatibility
         } else {
             // For normal text shares with URL secret but no user password, set to null
             passwordHash = null;
@@ -1047,8 +1053,9 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         await pool.query(`
             INSERT INTO clips 
             (clip_id, content_type, expiration_time, password_hash, one_time, quick_share, created_at,
-             file_path, original_filename, mime_type, filesize, is_file, file_metadata)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             file_path, original_filename, mime_type, filesize, is_file, file_metadata,
+             access_code_hash, requires_access_code)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         `, [
             clipId,
             // Keep content_type = 'text' for text content, even when stored as file
@@ -1063,7 +1070,9 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             session.mime_type,
             actualFileSize, // Use actual file size (encrypted if applicable)
             isFile,
-            JSON.stringify(fileMetadata)
+            JSON.stringify(fileMetadata),
+            accessCodeHash, // New: Access code hash for password protection
+            requiresAccessCode // New: Whether access code is required
         ]);
 
         // Update statistics
@@ -1722,6 +1731,51 @@ async function generateDownloadToken(clipId, password, urlSecret) {
 }
 
 // Helper function to validate download token against clip
+// Generate access code hash for password protection
+async function generateAccessCodeHash(password, salt = 'qopy-access-salt-v1') {
+    const crypto = require('crypto');
+    return new Promise((resolve, reject) => {
+        crypto.pbkdf2(password, salt, 100000, 64, 'sha512', (err, derivedKey) => {
+            if (err) reject(err);
+            else resolve(derivedKey.toString('hex'));
+        });
+    });
+}
+
+// Validate access code for password-protected files
+async function validateAccessCode(clipId, providedPassword) {
+    try {
+        const result = await pool.query(
+            'SELECT access_code_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
+            [clipId]
+        );
+        
+        if (result.rows.length === 0) {
+            return false;
+        }
+        
+        const clip = result.rows[0];
+        
+        // If no access code required, always allow
+        if (!clip.requires_access_code) {
+            return true;
+        }
+        
+        // If access code required but no hash stored, deny
+        if (!clip.access_code_hash) {
+            return false;
+        }
+        
+        // Generate hash from provided password and compare
+        const providedHash = await generateAccessCodeHash(providedPassword);
+        return providedHash === clip.access_code_hash;
+        
+    } catch (error) {
+        console.error('❌ Error validating access code:', error);
+        return false;
+    }
+}
+
 async function validateDownloadToken(clipId, providedToken) {
     try {
         const result = await pool.query(
@@ -1846,7 +1900,7 @@ app.post('/api/file/:clipId', [
         }
 
         const { clipId } = req.params;
-        const { downloadToken } = req.body;
+        const { downloadToken, accessCode } = req.body;
 
         console.log(`🔐 Authenticated download request for clipId: ${clipId}`);
 
@@ -1892,6 +1946,32 @@ app.post('/api/file/:clipId', [
             console.log(`⚡ Quick Share download - no token validation needed for clipId: ${clipId}`);
         } else if (isEnhancedFile) {
             console.log(`🔐 Enhanced File (Zero-Knowledge) download - no token validation needed for clipId: ${clipId}`);
+        }
+
+        // Check access code for password-protected files
+        const clipResult = await pool.query(
+            'SELECT requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
+            [clipId]
+        );
+        
+        if (clipResult.rows.length > 0 && clipResult.rows[0].requires_access_code) {
+            if (!accessCode) {
+                console.log(`❌ Access code required but not provided for clipId: ${clipId}`);
+                return res.status(401).json({
+                    error: 'Access code required',
+                    message: 'This file requires an access code'
+                });
+            }
+            
+            const accessCodeValid = await validateAccessCode(clipId, accessCode);
+            if (!accessCodeValid) {
+                console.log(`❌ Invalid access code for clipId: ${clipId}`);
+                return res.status(401).json({
+                    error: 'Access denied',
+                    message: 'Invalid access code'
+                });
+            }
+            console.log(`✅ Access code validated for clipId: ${clipId}`);
         }
 
         // Continue with existing download logic...
@@ -3145,6 +3225,8 @@ async function startServer() {
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_file BOOLEAN DEFAULT false`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT false`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS accessed_at BIGINT`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS access_code_hash VARCHAR(255)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS requires_access_code BOOLEAN DEFAULT false`);
             
             // Update existing expired clips to have is_expired = true
             await client.query(`

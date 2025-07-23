@@ -380,7 +380,7 @@ class ClipboardApp {
                         // File doesn't require password - wrong URL secret
                         console.log('🔑 File does not require password - wrong URL secret');
                         this.hideLoading('retrieve-loading');
-                        this.showToast('🔐 Access denied: Wrong URL secret', 'error');
+                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                     }
                     return;
                     
@@ -411,11 +411,11 @@ class ClipboardApp {
                             await this.showRetrieveResult(data);
                         } else {
                             this.hideLoading('retrieve-loading');
-                            this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                     } else {
                         this.hideLoading('retrieve-loading');
-                        this.showToast('🔐 Access denied: Wrong password or URL secret', 'error');
+                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                     }
                     
                 } else {
@@ -454,7 +454,7 @@ class ClipboardApp {
                             await this.showRetrieveResult(data);
                         } else {
                             console.error('❌ Authenticated retrieval failed:', response.status);
-                            this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                     } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password && infoData?.hasPassword === true) {
                         // Authentication failed but server indicates password required
@@ -571,14 +571,14 @@ class ClipboardApp {
                             // Authentication failed with wrong credentials
                             console.error('❌ Authentication failed - invalid credentials:', infoResponse.status);
                             this.hideLoading('retrieve-loading');
-                            this.showToast('🔐 Access denied: Invalid URL secret or password', 'error');
+                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                         
                     } else {
                         // No URL secret - this shouldn't happen for normal clips
                         console.log('❌ No URL secret available for normal clip');
                         this.hideLoading('retrieve-loading');
-                        this.showToast('🔐 Access denied: Invalid URL (missing secret)', 'error');
+                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                         return;
                     }
                 } else {
@@ -1260,15 +1260,14 @@ class ClipboardApp {
             } else {
                 console.error('❌ API error response:', data);
                 
-                // Handle file authentication errors specifically
-                if (data.requiresAuth) {
-                    if (response.status === 401) {
-                        throw new Error('🔐 This file requires authentication. Please check your URL for the secret or enter the correct password.');
-                    } else if (response.status === 403) {
-                        throw new Error('🔐 Access denied. Please check your URL secret or password for this file.');
-                    }
+                // Handle authentication errors with generic messages to prevent brute force attacks
+                if (response.status === 401 || response.status === 403) {
+                    // Generic error message for authentication failures
+                    // This prevents attackers from knowing if the clip exists or what type it is
+                    throw new Error('❌ Access denied: Invalid credentials or clip not found');
                 }
                 
+                // Handle other errors
                 if (data.message) {
                     throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
                 } else {
@@ -2512,8 +2511,14 @@ class ClipboardApp {
             const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
             console.log('🔐 Generated download token for authentication');
             
-            // Prepare request body based on token type
-            const requestBody = downloadToken !== null ? { downloadToken } : {};
+            // Prepare request body with access code if password is provided
+            const requestBody = {};
+            if (downloadToken !== null) {
+                requestBody.downloadToken = downloadToken;
+            }
+            if (password) {
+                requestBody.accessCode = password;
+            }
             console.log('📥 Request body:', requestBody);
             
             // Start download with authentication
@@ -2548,10 +2553,11 @@ class ClipboardApp {
             let decryptedData;
             
             // Try to decrypt if we have encryption keys
-            if (password || urlSecret) {
+            if (urlSecret) {
                 try {
                     console.log('📥 Attempting to decrypt file data');
-                    decryptedData = await this.decryptFile(encryptedBytes, password, urlSecret);
+                    // Access Code System: File decryption uses only URL-Secret, not password
+                    decryptedData = await this.decryptFile(encryptedBytes, null, urlSecret);
                     console.log('🔓 File decrypted successfully, size:', decryptedData.length, 'bytes');
                     
                     // Extract metadata from decrypted data

@@ -1166,17 +1166,19 @@ class FileUploadManager {
                 throw new Error('Password protection enabled but no password provided');
             }
 
-            // Use compatible encryption
+            // Use compatible encryption (URL-Secret only for file encryption)
             console.log('🔐 Preparing compatible encryption...');
             const encryptionStart = performance.now();
             
-            const encryptionKey = await this.generateCompatibleEncryptionKey(password, compatibleSecret);
-            const iv = await this.deriveCompatibleIV(password || '', compatibleSecret);
+            // For Access Code System: File encryption uses only URL-Secret, not password
+            const encryptionKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
+            const iv = await this.deriveCompatibleIV(null, compatibleSecret);
             
             const encryptionPrepTime = performance.now() - encryptionStart;
             
             console.log('🔐 Compatible encryption prepared:', {
-                keyType: password ? 'password+secret' : 'secret-only',
+                keyType: 'secret-only', // Access Code System: File encryption uses only URL-Secret
+                accessCode: password ? 'enabled' : 'disabled',
                 secretLength: compatibleSecret.length,
                 secretType: compatibleSecret.length >= 40 ? 'Enhanced (43+ chars)' : 'Legacy (16 chars)',
                 ivLength: iv.length,
