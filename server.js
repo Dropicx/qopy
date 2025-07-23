@@ -1148,6 +1148,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         
         // Create clip - use quick_share setting for text content, normal IDs for files
         const clipId = generateClipId(session.is_text_content ? session.quick_share : false);
+        console.log('🔍 Generated clipId:', clipId);
         
         // All content is now stored as files (no database content storage)
         let isFile = true;
@@ -1161,45 +1162,54 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         let accessCodeHash = null;
         let shouldRequireAccessCode = false;
         
-        console.log('🔐 Zero-Knowledge Access Code Analysis:', {
-            uploadId,
-            sessionHasPassword: session.has_password,
-            isQuickShare: session.quick_share,
-            hasQuickShareSecret: !!quickShareSecret,
-            hasClientAccessCodeHash: !!clientAccessCodeHash,
-            clientAccessCodeHashLength: clientAccessCodeHash ? clientAccessCodeHash.length : 0,
-            requiresAccessCode: requiresAccessCode,
-            requiresAccessCodeType: typeof requiresAccessCode
-        });
-        
-        if (session.quick_share && quickShareSecret) {
-            // Quick Share: Store secret in password_hash field (legacy compatibility)
-            console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
-            passwordHash = quickShareSecret;
-            accessCodeHash = null;
-            requiresAccessCode = false;
-        } else if (requiresAccessCode && clientAccessCodeHash) {
-            // Normal Share with Password: Use client-generated access code hash
-            console.log('🔐 Using client-side access code hash (Zero-Knowledge):', uploadId);
-            accessCodeHash = clientAccessCodeHash;
-            shouldRequireAccessCode = true;
-            passwordHash = 'client-encrypted'; // Mark as client-encrypted for legacy compatibility
-            console.log('🔐 Zero-Knowledge Access Code Hash stored:', {
-                accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-                requiresAccessCode: shouldRequireAccessCode,
-                passwordHash: 'client-encrypted'
-            });
-        } else {
-            console.log('🔐 Condition check failed:', {
-                requiresAccessCode: requiresAccessCode,
+        try {
+            console.log('🔐 Zero-Knowledge Access Code Analysis:', {
+                uploadId,
+                sessionHasPassword: session.has_password,
+                isQuickShare: session.quick_share,
+                hasQuickShareSecret: !!quickShareSecret,
                 hasClientAccessCodeHash: !!clientAccessCodeHash,
-                condition: requiresAccessCode && clientAccessCodeHash
+                clientAccessCodeHashLength: clientAccessCodeHash ? clientAccessCodeHash.length : 0,
+                requiresAccessCode: requiresAccessCode,
+                requiresAccessCodeType: typeof requiresAccessCode
             });
-            // Normal Share without Password: Only URL secret protection (client-side only)
-            console.log('🔐 URL secret only protection (Zero-Knowledge):', uploadId);
-            passwordHash = null;
-            accessCodeHash = null;
-            shouldRequireAccessCode = false;
+        } catch (error) {
+            console.error('❌ Error in Zero-Knowledge Access Code Analysis:', error);
+        }
+        
+        try {
+            if (session.quick_share && quickShareSecret) {
+                // Quick Share: Store secret in password_hash field (legacy compatibility)
+                console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
+                passwordHash = quickShareSecret;
+                accessCodeHash = null;
+                shouldRequireAccessCode = false;
+            } else if (requiresAccessCode && clientAccessCodeHash) {
+                // Normal Share with Password: Use client-generated access code hash
+                console.log('🔐 Using client-side access code hash (Zero-Knowledge):', uploadId);
+                accessCodeHash = clientAccessCodeHash;
+                shouldRequireAccessCode = true;
+                passwordHash = 'client-encrypted'; // Mark as client-encrypted for legacy compatibility
+                console.log('🔐 Zero-Knowledge Access Code Hash stored:', {
+                    accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+                    requiresAccessCode: shouldRequireAccessCode,
+                    passwordHash: 'client-encrypted'
+                });
+            } else {
+                console.log('🔐 Condition check failed:', {
+                    requiresAccessCode: requiresAccessCode,
+                    hasClientAccessCodeHash: !!clientAccessCodeHash,
+                    condition: requiresAccessCode && clientAccessCodeHash
+                });
+                // Normal Share without Password: Only URL secret protection (client-side only)
+                console.log('🔐 URL secret only protection (Zero-Knowledge):', uploadId);
+                passwordHash = null;
+                accessCodeHash = null;
+                shouldRequireAccessCode = false;
+            }
+        } catch (error) {
+            console.error('❌ Error in upload logic:', error);
+            throw error;
         }
 
         // NEW: Zero-Knowledge File System - No download tokens needed
