@@ -1197,16 +1197,9 @@ class ClipboardApp {
                 // Check if this is a file first
                 if (data.contentType === 'file' && data.redirectTo) {
                     console.log('📁 Detected file content, calling handleFileDownload directly');
-                    // For files, we need to get the hasPassword info from the info endpoint
-                    try {
-                        const infoResponse = await fetch(`/api/clip/${clipId}/info`);
-                        if (infoResponse.ok) {
-                            const infoData = await infoResponse.json();
-                            data.hasPassword = infoData.hasPassword;
-                        }
-                    } catch (error) {
-                        console.warn('⚠️ Could not fetch file info:', error);
-                    }
+                    // Since we're in retrieveContent, the user has already been authenticated
+                    // and provided a password, so we don't need to check hasPassword again
+                    data.hasPassword = false; // User is already authenticated
                     this.handleFileDownload(data);
                     return;
                 }
@@ -1214,16 +1207,9 @@ class ClipboardApp {
                 // Check if this is a file by checking for file_path
                 if (data.file_path) {
                     console.log('📁 Detected file by file_path, calling handleFileDownload directly');
-                    // For files, we need to get the hasPassword info from the info endpoint
-                    try {
-                        const infoResponse = await fetch(`/api/clip/${clipId}/info`);
-                        if (infoResponse.ok) {
-                            const infoData = await infoResponse.json();
-                            data.hasPassword = infoData.hasPassword;
-                        }
-                    } catch (error) {
-                        console.warn('⚠️ Could not fetch file info:', error);
-                    }
+                    // Since we're in retrieveContent, the user has already been authenticated
+                    // and provided a password, so we don't need to check hasPassword again
+                    data.hasPassword = false; // User is already authenticated
                     this.handleFileDownload(data);
                     return;
                 }
