@@ -2391,7 +2391,7 @@ class ClipboardApp {
             combined.set(ivBytes, 0);
             combined.set(encryptedBytes, ivBytes.length);
             
-            // Return raw bytes instead of base64
+            // Return raw bytes
             return combined;
         } catch (error) {
             throw new Error('Failed to encrypt content');
@@ -3015,8 +3015,8 @@ class ClipboardApp {
             hasUrlSecret: !!urlSecret
         });
 
-        // Use the same key generation as encryptBinaryData for compatibility
-        return await this.generateKey(password, urlSecret);
+        // Use the compatible enhanced encryption key generation for file downloads
+        return await this.generateCompatibleEncryptionKey(password, urlSecret);
     }
 
     // Derive compatible IV (same as upload system)
