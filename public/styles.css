@@ -2026,27 +2026,7 @@ footer p {
   border-radius: 12px;
 }
 
-/* File Password Section */
-.file-password-section {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
 
-.file-password-section .notice-box {
-  margin-bottom: 12px;
-}
-
-.file-password-section .input-group {
-  margin-bottom: 0;
-}
-
-.notice-box.info {
-  border-left: 4px solid var(--accent-color);
-  background: rgba(30, 215, 96, 0.1);
-}
 
 .file-download-info {
   display: flex;
