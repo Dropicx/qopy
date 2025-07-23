@@ -1164,6 +1164,26 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         } catch (error) {
             console.error('❌ Error logging session details:', error);
             console.log('🔍 Session object keys:', Object.keys(session));
+            console.log('🔍 Session object values:', Object.values(session));
+            
+            // FORCE session structure to be compatible
+            if (!session.upload_id) session.upload_id = session.id;
+            if (!session.quick_share) session.quick_share = false;
+            if (!session.has_password) session.has_password = false;
+            if (!session.one_time) session.one_time = false;
+            if (!session.is_text_content) session.is_text_content = false;
+            if (!session.uploaded_chunks) session.uploaded_chunks = 0;
+            if (!session.total_chunks) session.total_chunks = 1;
+            
+            console.log('🔧 FORCED session structure:', {
+                uploadId: session.upload_id,
+                quick_share: session.quick_share,
+                has_password: session.has_password,
+                one_time: session.one_time,
+                is_text_content: session.is_text_content,
+                uploaded_chunks: session.uploaded_chunks,
+                total_chunks: session.total_chunks
+            });
         }
 
         console.log('🔍 About to check expiration_time');
@@ -1180,15 +1200,24 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
 
         // Both text and file uploads use the same logic
         console.log('📝 Processing upload:', uploadId, 'isTextUpload:', isTextUpload);
-        if (session.uploaded_chunks < session.total_chunks) {
+        
+        // SAFE session access with fallbacks
+        const uploadedChunks = session.uploaded_chunks || 0;
+        const totalChunks = session.total_chunks || 1;
+        
+        console.log('📝 Chunk check:', { uploadedChunks, totalChunks });
+        
+        if (uploadedChunks < totalChunks) {
             return res.status(400).json({
                 error: 'Upload incomplete',
-                message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
+                message: `Only ${uploadedChunks}/${totalChunks} chunks uploaded`
             });
         }
 
+        console.log('📝 About to assemble file:', uploadId);
         // Assemble file from chunks (same logic for both text and files)
         filePath = await assembleFile(uploadId, session);
+        console.log('📝 File assembled successfully:', filePath);
         
         // Get actual file size
         actualFilesize = (await fs.stat(filePath)).size;
