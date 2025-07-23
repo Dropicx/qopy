@@ -1075,7 +1075,7 @@ async function assembleFile(uploadId, session) {
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
     try {
         const { uploadId } = req.params;
-        const { quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode: clientRequiresAccessCode, textContent, isTextUpload, contentType } = req.body;
+        const { quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType } = req.body;
         console.log('🔑 Upload complete request body:', { 
             quickShareSecret: quickShareSecret,
             hasAccessCodeHash: !!clientAccessCodeHash,
@@ -1159,7 +1159,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         // NEW: Zero-Knowledge Access Code System
         let passwordHash = null;
         let accessCodeHash = null;
-        let requiresAccessCode = false;
+        let shouldRequireAccessCode = false;
         
         console.log('🔐 Zero-Knowledge Access Code Analysis:', {
             uploadId,
@@ -1167,7 +1167,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             isQuickShare: session.quick_share,
             hasQuickShareSecret: !!quickShareSecret,
             hasClientAccessCodeHash: !!clientAccessCodeHash,
-            clientRequiresAccessCode: clientRequiresAccessCode
+            requiresAccessCode: requiresAccessCode
         });
         
         if (session.quick_share && quickShareSecret) {
@@ -1176,15 +1176,15 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             passwordHash = quickShareSecret;
             accessCodeHash = null;
             requiresAccessCode = false;
-        } else if (clientRequiresAccessCode && clientAccessCodeHash) {
+        } else if (requiresAccessCode && clientAccessCodeHash) {
             // Normal Share with Password: Use client-generated access code hash
             console.log('🔐 Using client-side access code hash (Zero-Knowledge):', uploadId);
             accessCodeHash = clientAccessCodeHash;
-            requiresAccessCode = true;
+            shouldRequireAccessCode = true;
             passwordHash = 'client-encrypted'; // Mark as client-encrypted for legacy compatibility
             console.log('🔐 Zero-Knowledge Access Code Hash stored:', {
                 accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-                requiresAccessCode,
+                requiresAccessCode: shouldRequireAccessCode,
                 passwordHash: 'client-encrypted'
             });
         } else {
@@ -1217,7 +1217,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             contentType: session.is_text_content ? 'text' : 'file',
             passwordHash,
             accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-            requiresAccessCode,
+            requiresAccessCode: shouldRequireAccessCode,
             isFile
         });
 
@@ -1244,7 +1244,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             isFile,
             JSON.stringify(fileMetadata),
             accessCodeHash, // New: Access code hash for password protection
-            requiresAccessCode // New: Whether access code is required
+            shouldRequireAccessCode // New: Whether access code is required
         ]);
 
         console.log('✅ Database insert completed successfully');
