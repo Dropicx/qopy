@@ -1047,8 +1047,8 @@ async function assembleFile(uploadId, session) {
         const writeStream = require('fs').createWriteStream(finalPath);
         
         for (let i = 0; i < session.total_chunks; i++) {
-            // Use the same path format as chunk upload: ${uploadId}_${chunkNumber}.chunk
-            const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${i}.chunk`);
+            // Use the same path format as saveChunkToFile: /chunks/{uploadId}/chunk_{chunkNumber}
+            const chunkPath = path.join(STORAGE_PATH, 'chunks', uploadId, `chunk_${i}`);
             console.log(`🔍 Reading chunk ${i} from: ${chunkPath}`);
             
             // Check if chunk file exists
@@ -1067,7 +1067,7 @@ async function assembleFile(uploadId, session) {
         
         // Clean up chunks - remove individual chunk files (not directory)
         for (let i = 0; i < session.total_chunks; i++) {
-            const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${i}.chunk`);
+            const chunkPath = path.join(STORAGE_PATH, 'chunks', uploadId, `chunk_${i}`);
             try {
                 await fs.unlink(chunkPath);
                 console.log(`🧹 Cleaned up chunk: ${chunkPath}`);
