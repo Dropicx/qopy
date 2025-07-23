@@ -2738,59 +2738,16 @@ class ClipboardApp {
         }
     }
 
-    // Generate download token for authentication
+    // Generate download token for authentication (DEPRECATED - Zero-Knowledge system)
     async generateDownloadToken(clipId, password, urlSecret) {
-        try {
-            // Detect if this is an Enhanced Passphrase (44+ characters)
-            const isEnhancedPassphrase = urlSecret && urlSecret.length >= 40;
-            
-            if (isEnhancedPassphrase) {
-                // Enhanced Files (Zero-Knowledge): No download token needed
-                // Files are directly downloadable (encrypted) and client decrypts with URL fragment
-                console.log('🔐 Enhanced File (Zero-Knowledge): No download token needed - direct download of encrypted file');
-                return null;
-            } else {
-                // Use Legacy Token Algorithm for normal/legacy clips
-                console.log('🔐 Using Legacy Token Algorithm');
-                
-                let tokenData = clipId; // Always include clip ID
-                
-                // Add URL secret if available
-                if (urlSecret) {
-                    tokenData += ':' + urlSecret;
-                }
-                
-                // Add password if available
-                if (password) {
-                    tokenData += ':' + password;
-                }
-                
-                // Generate SHA-256 hash of the combined data
-                const encoder = new TextEncoder();
-                const data = encoder.encode(tokenData);
-                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-                const hashArray = new Uint8Array(hashBuffer);
-                
-                // Convert to hex string
-                const token = Array.from(hashArray)
-                    .map(b => b.toString(16).padStart(2, '0'))
-                    .join('');
-                
-                console.log('🔐 Legacy download token generated:', {
-                    clipId: clipId,
-                    hasUrlSecret: !!urlSecret,
-                    hasPassword: !!password,
-                    secretType: urlSecret?.length === 16 ? 'Legacy (16 chars)' : 'Unknown',
-                    tokenLength: token.length,
-                    algorithm: 'Legacy'
-                });
-                
-                return token;
-            }
-        } catch (error) {
-            console.error('❌ Failed to generate download token:', error);
-            throw new Error('Failed to generate authentication token');
-        }
+        console.log('🔐 generateDownloadToken called - DEPRECATED, using Zero-Knowledge system instead');
+        
+        // DEPRECATED: Download tokens are no longer used
+        // The Zero-Knowledge Access Code System replaces this entirely
+        console.warn('⚠️ DEPRECATED: generateDownloadToken called - this should not happen with new system');
+        
+        // Return null to indicate no token needed (will cause fallback to new system)
+        return null;
     }
 
     // Extract URL secret from current URL fragment
