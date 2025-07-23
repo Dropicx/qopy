@@ -3021,29 +3021,61 @@ class ClipboardApp {
         }
 
         try {
-            // Check if data is large enough to contain metadata header
-            if (encryptedBytes.length < 16) { // At least 4 bytes metadata length + 12 bytes IV
-                throw new Error('File too small to contain required headers');
+            // File structure: IV (12 bytes) + encrypted([metadata_length][encrypted_metadata][file_data])
+            if (encryptedBytes.length < 12) {
+                throw new Error('File too small to contain IV');
             }
 
-            console.log('🔓 Checking for embedded metadata structure');
+            console.log('🔓 Extracting IV from first 12 bytes');
+            const iv = encryptedBytes.slice(0, 12);
+            const encryptedData = encryptedBytes.slice(12);
             
-            // Read metadata length (4 bytes, little-endian as per file-upload.js)
-            const metadataLength = new DataView(encryptedBytes.buffer.slice(0, 4)).getUint32(0, true); // true = little-endian
-            console.log('🔓 Potential metadata length:', metadataLength);
+            console.log('🔓 Extracted IV and encrypted data:', {
+                ivLength: iv.length,
+                encryptedDataLength: encryptedData.length
+            });
+
+            console.log('🔓 Generating decryption key');
+            const key = await this.generateDecryptionKey(password, urlSecret);
+            console.log('🔓 Decryption key generated successfully');
+
+            console.log('🔓 Starting decryption with AES-GCM');
+            const decryptedData = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                encryptedData
+            );
+
+            console.log('🔓 Decryption successful, now parsing metadata structure');
+            const decryptedBytes = new Uint8Array(decryptedData);
+            
+            // Now parse metadata from decrypted data: [metadata_length][encrypted_metadata][file_data]
+            if (decryptedBytes.length < 4) {
+                console.log('🔓 No metadata structure - returning raw decrypted data');
+                return {
+                    data: decryptedBytes,
+                    metadata: null
+                };
+            }
+
+            console.log('🔓 Checking for embedded metadata structure in decrypted data');
+            
+            // Read metadata length (4 bytes, little-endian)
+            const metadataLength = new DataView(decryptedBytes.buffer.slice(0, 4)).getUint32(0, true);
+            console.log('🔓 Metadata length from decrypted data:', metadataLength);
 
             // Sanity checks for metadata
-            if (metadataLength > 0 && metadataLength <= 1024 && (4 + metadataLength) < encryptedBytes.length) {
-                console.log('🔓 Valid metadata structure detected, extracting metadata and file data');
+            if (metadataLength > 0 && metadataLength <= 1024 && (4 + metadataLength) < decryptedBytes.length) {
+                console.log('🔓 Valid metadata structure detected in decrypted data');
                 
-                // Extract encrypted metadata
-                const encryptedMetadata = encryptedBytes.slice(4, 4 + metadataLength);
-                const fileDataWithIV = encryptedBytes.slice(4 + metadataLength);
+                // Extract encrypted metadata and file data
+                const encryptedMetadata = decryptedBytes.slice(4, 4 + metadataLength);
+                const fileData = decryptedBytes.slice(4 + metadataLength);
                 
-                console.log('🔓 Metadata extraction:', {
+                console.log('🔓 Metadata extraction from decrypted data:', {
                     metadataLength: metadataLength,
                     encryptedMetadataSize: encryptedMetadata.length,
-                    fileDataSize: fileDataWithIV.length
+                    fileDataSize: fileData.length
                 });
 
                 // Decrypt metadata using metadata-specific parameters
@@ -3060,77 +3092,26 @@ class ClipboardApp {
                     const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
                     const metadata = JSON.parse(metadataJson);
                     
-                    console.log('🔓 Successfully decrypted metadata:', metadata);
+                    console.log('🔓 Successfully decrypted metadata from decrypted data:', metadata);
 
-                    // Now decrypt the actual file data (fileDataWithIV = IV + encrypted file data)
-                    if (fileDataWithIV.length < 12) {
-                        throw new Error('File data too small to contain IV');
-                    }
-
-                    const iv = fileDataWithIV.slice(0, 12);
-                    const encryptedFileData = fileDataWithIV.slice(12);
-                    
-                    console.log('🔓 Extracting file IV and data:', {
-                        ivLength: iv.length,
-                        encryptedFileDataLength: encryptedFileData.length
-                    });
-
-                    // Generate decryption key for file data
-                    const fileKey = await this.generateDecryptionKey(password, urlSecret);
-                    
-                    console.log('🔓 Starting file data decryption with AES-GCM');
-                    const decryptedFileData = await window.crypto.subtle.decrypt(
-                        { name: 'AES-GCM', iv: iv },
-                        fileKey,
-                        encryptedFileData
-                    );
-                    
-                    console.log('🔓 File data decrypted successfully');
-                    
                     return {
-                        data: new Uint8Array(decryptedFileData),
+                        data: fileData,
                         metadata: metadata
                     };
                     
                 } catch (metadataError) {
-                    console.warn('⚠️ Failed to decrypt metadata, treating as raw file:', metadataError.message);
-                    // Fall through to treat as raw file
+                    console.warn('⚠️ Failed to decrypt metadata from decrypted data, returning file data only:', metadataError.message);
+                    return {
+                        data: fileData,
+                        metadata: null
+                    };
                 }
             }
 
-            // No metadata structure detected or metadata decryption failed
-            // Treat as simple IV + encrypted data structure (like text files)
-            console.log('🔓 No metadata structure detected, treating as raw encrypted file');
-            
-            if (encryptedBytes.length < 12) {
-                throw new Error('File too small to contain IV');
-            }
-
-            console.log('🔓 Extracting IV from first 12 bytes of file data');
-            const iv = encryptedBytes.slice(0, 12);
-            const encryptedData = encryptedBytes.slice(12);
-            
-            console.log('🔓 Extracted IV and encrypted data:', {
-                ivLength: iv.length,
-                encryptedDataLength: encryptedData.length
-            });
-
-            console.log('🔓 Generating decryption key');
-            const key = await this.generateDecryptionKey(password, urlSecret);
-            
-            console.log('🔓 Decryption key generated successfully');
-
-            console.log('🔓 Starting decryption with AES-GCM');
-            const decryptedData = await window.crypto.subtle.decrypt(
-                { name: 'AES-GCM', iv: iv },
-                key,
-                encryptedData
-            );
-
-            console.log('🔓 File decrypted successfully');
-            
+            // No valid metadata structure found
+            console.log('🔓 No valid metadata structure in decrypted data, returning as raw file data');
             return {
-                data: new Uint8Array(decryptedData),
+                data: decryptedBytes,
                 metadata: null
             };
 

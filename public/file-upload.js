@@ -1214,9 +1214,16 @@ class FileUploadManager {
             const fileEncryptionTime = performance.now() - fileEncryptionStart;
             const encryptedArray = new Uint8Array(encryptedData);
             
+            // Create final structure: IV (12 bytes) + encrypted data
+            const finalData = new Uint8Array(iv.length + encryptedArray.length);
+            finalData.set(iv, 0);
+            finalData.set(encryptedArray, iv.length);
+            
             console.log(`✅ File encryption completed:`, {
                 originalSize: fileDataToUpload.length,
                 encryptedSize: encryptedArray.length,
+                ivSize: iv.length,
+                finalSize: finalData.length,
                 encryptionOverhead: encryptedArray.length - fileDataToUpload.length,
                 compressionRatio: (encryptedArray.length / fileDataToUpload.length * 100).toFixed(2) + '%',
                 encryptionTime: fileEncryptionTime.toFixed(2) + 'ms'
@@ -1230,8 +1237,8 @@ class FileUploadManager {
             for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
                 const chunkStart = performance.now();
                 const start = chunkIndex * chunkSize;
-                const end = Math.min(start + chunkSize, encryptedArray.length);
-                const chunk = encryptedArray.slice(start, end);
+                const end = Math.min(start + chunkSize, finalData.length);
+                const chunk = finalData.slice(start, end);
                 
                 console.log(`📦 [CHUNK ${chunkIndex + 1}/${totalChunks}] Uploading chunk:`, {
                     chunkIndex,
