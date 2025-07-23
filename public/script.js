@@ -1556,6 +1556,7 @@ class ClipboardApp {
             hasContent: !!data.content,
             hasFile: !!data.file_path,
             hasRedirectTo: !!data.redirectTo,
+            hasQuickShareSecret: !!data.quickShareSecret,
             keys: Object.keys(data)
         });
 
@@ -1605,9 +1606,26 @@ class ClipboardApp {
         } else if (Array.isArray(data.content)) {
             // Binary content - could be encrypted text or binary data
             try {
-                // Try to decrypt as text first
-                const urlSecret = this.extractUrlSecret();
-                const password = this.getPasswordFromUser();
+                // Extract decryption keys, prioritizing quickShareSecret for Quick Shares
+                let urlSecret = null;
+                let password = null;
+                
+                if (data.quickShareSecret) {
+                    // Quick Share: use the secret from server response
+                    console.log('⚡ Quick Share detected with server secret, using for decryption');
+                    urlSecret = data.quickShareSecret;
+                    password = null;
+                } else {
+                    // Normal clip: extract from URL and user input
+                    urlSecret = this.extractUrlSecret();
+                    password = this.getPasswordFromUser();
+                }
+                
+                console.log('🔑 Decryption keys:', {
+                    hasUrlSecret: !!urlSecret,
+                    hasPassword: !!password,
+                    isQuickShare: !!data.quickShareSecret
+                });
                 
                 if (urlSecret || password) {
                     // Attempt decryption
@@ -1620,56 +1638,91 @@ class ClipboardApp {
                     document.getElementById('retrieved-content').textContent = text;
                 }
             } catch (error) {
-                console.error('❌ Decryption failed:', error);
-                document.getElementById('retrieved-content').textContent = '[Encrypted content - decryption failed]';
+                console.error('❌ Content decryption error:', error);
+                this.showToast('❌ Failed to decrypt content: ' + error.message, 'error');
+                return;
             }
         } else {
-            // Fallback
-            document.getElementById('retrieved-content').textContent = data.content || '[No content]';
+            // Other content types
+            document.getElementById('retrieved-content').textContent = 'Content type not supported for display';
         }
-        
-        // Use current time as created time since API doesn't provide it
+
+        // Set metadata
         document.getElementById('created-time').textContent = new Date().toLocaleString();
-        
-        // Format expiration time with better error handling
+
+        // Format expiration time
         try {
             const expiresAt = data.expiresAt;
-            
             if (expiresAt) {
-                // Convert to number if it's a string
                 const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
-                
                 const expiryDate = new Date(expiresAtNumber);
-                
+
                 if (!isNaN(expiryDate.getTime())) {
-                    const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
-                    const formattedDate = expiryDate.toLocaleString();
-                    document.getElementById('expires-time').textContent = `${formattedDate} (${timeRemaining} remaining)`;
+                    const now = new Date();
+                    const timeLeft = expiryDate - now;
+
+                    if (timeLeft <= 0) {
+                        document.getElementById('expiry-info').textContent = 'This content has expired';
+                        document.getElementById('expiry-info').style.color = 'var(--error-color)';
+                    } else {
+                        const minutes = Math.floor(timeLeft / 60000);
+                        const hours = Math.floor(minutes / 60);
+                        const days = Math.floor(hours / 24);
+
+                        let timeLeftText;
+                        if (days > 0) {
+                            timeLeftText = `${days} day${days > 1 ? 's' : ''}`;
+                        } else if (hours > 0) {
+                            timeLeftText = `${hours} hour${hours > 1 ? 's' : ''}`;
+                        } else {
+                            timeLeftText = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+                        }
+
+                        document.getElementById('expiry-info').textContent = `Expires in ${timeLeftText} (${expiryDate.toLocaleString()})`;
+                        document.getElementById('expiry-info').style.color = 'var(--text-secondary)';
+                    }
                 } else {
-                    document.getElementById('expires-time').textContent = 'Invalid date';
+                    document.getElementById('expiry-info').textContent = 'Unknown expiration';
                 }
             } else {
-                document.getElementById('expires-time').textContent = 'Not available';
+                document.getElementById('expiry-info').textContent = 'No expiration set';
             }
         } catch (error) {
-            document.getElementById('expires-time').textContent = 'Error formatting date';
+            console.error('❌ Expiry time parsing error:', error);
+            document.getElementById('expiry-info').textContent = 'Unknown expiration';
         }
-        
-        const oneTimeNotice = document.getElementById('one-time-notice');
+
+        // Handle one-time access notification
         if (data.oneTime) {
-            oneTimeNotice.classList.remove('hidden');
+            document.getElementById('one-time-info').style.display = 'block';
         } else {
-            oneTimeNotice.classList.add('hidden');
+            document.getElementById('one-time-info').style.display = 'none';
         }
-        
-        // Show text-related elements
-        this.showTextElements();
-        
-        document.getElementById('content-result').classList.remove('hidden');
-        document.getElementById('content-result').style.display = 'block';
-        
-        // Scroll to result
-        document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
+
+        // Show the result
+        document.getElementById('result-container').style.display = 'block';
+        this.hideLoading('retrieve-loading');
+
+        // Auto-focus on copy button for better UX
+        setTimeout(() => {
+            const copyButton = document.getElementById('copy-content-button');
+            if (copyButton) {
+                copyButton.focus();
+            }
+        }, 100);
+
+        // Handle file information if this is a text upload as file
+        if (data.filename && data.filesize) {
+            console.log('📝 Text content uploaded as file - setting file metadata');
+            
+            if (data.quickShareSecret) {
+                console.log('⚡ Quick Share detected with server secret, using for decryption');
+                urlSecret = data.quickShareSecret;
+            } else {
+                // Extract URL secret for normal clips
+                urlSecret = this.extractUrlSecret();
+            }
+        }
     }
 
     // Handle text file download and decryption
@@ -2910,7 +2963,8 @@ class ClipboardApp {
         });
 
         if (!password && !urlSecret) {
-            throw new Error('No decryption keys available');
+            console.error('❌ No decryption keys available for file decryption');
+            throw new Error('No decryption keys available. This might be a Quick Share that requires a server secret.');
         }
 
         try {
@@ -2947,6 +3001,9 @@ class ClipboardApp {
 
         } catch (error) {
             console.error('❌ Decryption error:', error);
+            if (error.message.includes('decrypt')) {
+                throw new Error('Decryption failed: Invalid decryption key or corrupted data');
+            }
             throw new Error('Decryption failed: ' + error.message);
         }
     }
