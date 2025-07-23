@@ -1024,16 +1024,34 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
             passwordHash = quickShareSecret;
         } else if (session.has_password && password) {
-            // Generate access code hash for password protection
-            console.log('🔐 Generating access code hash for password-protected file:', uploadId);
-            accessCodeHash = await generateAccessCodeHash(password);
-            requiresAccessCode = true;
-            passwordHash = 'client-encrypted'; // Keep for backward compatibility
-            console.log('🔐 Access Code Hash generated:', {
-                accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-                requiresAccessCode,
-                passwordHash
-            });
+            // Check if password is already hashed (client-side hashing)
+            const isAlreadyHashed = password.length === 128 && /^[a-f0-9]+$/i.test(password);
+            
+            if (isAlreadyHashed) {
+                // Password is already hashed on client side
+                console.log('🔐 Using client-side hashed access code:', uploadId);
+                accessCodeHash = password; // Use the hash directly
+                requiresAccessCode = true;
+                passwordHash = 'client-encrypted'; // Keep for backward compatibility
+                console.log('🔐 Client-side Access Code Hash used:', {
+                    accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+                    requiresAccessCode,
+                    passwordHash,
+                    isClientHashed: true
+                });
+            } else {
+                // Legacy: Generate access code hash on server side
+                console.log('🔐 Generating server-side access code hash for password-protected file:', uploadId);
+                accessCodeHash = await generateAccessCodeHash(password);
+                requiresAccessCode = true;
+                passwordHash = 'client-encrypted'; // Keep for backward compatibility
+                console.log('🔐 Server-side Access Code Hash generated:', {
+                    accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+                    requiresAccessCode,
+                    passwordHash,
+                    isClientHashed: false
+                });
+            }
         } else {
             // For normal text shares with URL secret but no user password, set to null
             console.log('ℹ️ No access code required for upload:', uploadId);
@@ -1827,8 +1845,20 @@ async function validateAccessCode(clipId, providedPassword) {
             return false;
         }
         
-        // Generate hash from provided password and compare
-        const providedHash = await generateAccessCodeHash(providedPassword);
+        // Check if provided password is already hashed (client-side hashing)
+        const isAlreadyHashed = providedPassword.length === 128 && /^[a-f0-9]+$/i.test(providedPassword);
+        
+        let providedHash;
+        if (isAlreadyHashed) {
+            // Password is already hashed on client side
+            console.log('🔐 Using client-side hashed access code for validation');
+            providedHash = providedPassword; // Use the hash directly
+        } else {
+            // Legacy: Generate hash from provided password
+            console.log('🔐 Generating server-side access code hash for validation');
+            providedHash = await generateAccessCodeHash(providedPassword);
+        }
+        
         return providedHash === clip.access_code_hash;
         
     } catch (error) {

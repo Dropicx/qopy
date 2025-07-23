@@ -1545,6 +1545,14 @@ class FileUploadManager {
             console.log('🔐 Using stored access code from session');
         }
         
+        // Hash the access code on client side before sending to server
+        let accessCodeHash = null;
+        if (accessCode) {
+            console.log('🔐 Generating client-side access code hash');
+            accessCodeHash = await this.generateAccessCodeHash(accessCode);
+            console.log('🔐 Client-side access code hash generated:', accessCodeHash.substring(0, 16) + '...');
+        }
+        
         const urlSecret = this.currentUploadSession?.urlSecret || null;
         
         console.log('🔍 Form state during completion:', {
@@ -1564,15 +1572,16 @@ class FileUploadManager {
         });
         
         const requestBody = {
-            password: accessCode, // Send as 'password' for backward compatibility
+            password: accessCodeHash, // Send hashed access code instead of plaintext
             urlSecret: urlSecret
             // checksums can be omitted, server will validate automatically
         };
         
         console.log('📡 Upload completion request body:', {
-            password: accessCode ? accessCode.substring(0, 3) + '***' : null,
-            passwordLength: accessCode ? accessCode.length : 0,
-            hasUrlSecret: !!urlSecret
+            password: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+            passwordLength: accessCodeHash ? accessCodeHash.length : 0,
+            hasUrlSecret: !!urlSecret,
+            isHashed: !!accessCodeHash
         });
         
         const response = await fetch(`/api/upload/complete/${uploadId}`, {
@@ -2596,6 +2605,33 @@ class FileDownloadManager {
                 successDiv.parentNode.removeChild(successDiv);
             }
         }, 5000);
+    }
+
+    // Generate access code hash on client side (same as server)
+    async generateAccessCodeHash(password, salt = 'qopy-access-salt-v1') {
+        const encoder = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            'raw',
+            encoder.encode(password),
+            'PBKDF2',
+            false,
+            ['deriveBits']
+        );
+        
+        const derivedBits = await window.crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode(salt),
+                iterations: 100000,
+                hash: 'SHA-512'
+            },
+            keyMaterial,
+            512 // 64 bytes = 512 bits
+        );
+        
+        return Array.from(new Uint8Array(derivedBits), byte => 
+            byte.toString(16).padStart(2, '0')
+        ).join('');
     }
 
     // Get password from user input (if available)

@@ -2517,7 +2517,11 @@ class ClipboardApp {
                 requestBody.downloadToken = downloadToken;
             }
             if (password) {
-                requestBody.accessCode = password;
+                // Hash the access code on client side before sending to server
+                console.log('🔐 Generating client-side access code hash for download');
+                const accessCodeHash = await this.generateAccessCodeHash(password);
+                requestBody.accessCode = accessCodeHash;
+                console.log('🔐 Client-side access code hash generated for download:', accessCodeHash.substring(0, 16) + '...');
             }
             console.log('📥 Request body:', requestBody);
             
@@ -2719,6 +2723,33 @@ class ClipboardApp {
         }
         
         return null;
+    }
+
+    // Generate access code hash on client side (same as server)
+    async generateAccessCodeHash(password, salt = 'qopy-access-salt-v1') {
+        const encoder = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            'raw',
+            encoder.encode(password),
+            'PBKDF2',
+            false,
+            ['deriveBits']
+        );
+        
+        const derivedBits = await window.crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode(salt),
+                iterations: 100000,
+                hash: 'SHA-512'
+            },
+            keyMaterial,
+            512 // 64 bytes = 512 bits
+        );
+        
+        return Array.from(new Uint8Array(derivedBits), byte => 
+            byte.toString(16).padStart(2, '0')
+        ).join('');
     }
 
     // Get access code from user input (alias for backward compatibility)
