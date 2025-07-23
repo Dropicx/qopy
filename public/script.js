@@ -349,6 +349,8 @@ class ClipboardApp {
                     
                     if (response.ok) {
                         const data = await response.json();
+                        // Add hasPassword information from infoData to the response data
+                        data.hasPassword = infoData.hasPassword;
                         await this.showRetrieveResult(data);
                     } else {
                         this.hideLoading('retrieve-loading');
@@ -404,6 +406,8 @@ class ClipboardApp {
                         
                         if (response.ok) {
                             const data = await response.json();
+                            // Add hasPassword information from infoData to the response data
+                            data.hasPassword = infoData.hasPassword;
                             await this.showRetrieveResult(data);
                         } else {
                             this.hideLoading('retrieve-loading');
@@ -510,6 +514,8 @@ class ClipboardApp {
                     
                     if (response.ok) {
                         const data = await response.json();
+                        // Add hasPassword information from infoData to the response data
+                        data.hasPassword = infoData.hasPassword;
                         await this.showRetrieveResult(data);
                     }
                     
@@ -540,6 +546,8 @@ class ClipboardApp {
                             
                             if (response.ok) {
                                 const data = await response.json();
+                                // Add hasPassword information from infoData to the response data
+                                data.hasPassword = infoData.hasPassword;
                                 await this.showRetrieveResult(data);
                             } else {
                                 console.error('❌ Authenticated retrieval failed:', response.status);
@@ -1189,6 +1197,16 @@ class ClipboardApp {
                 // Check if this is a file first
                 if (data.contentType === 'file' && data.redirectTo) {
                     console.log('📁 Detected file content, calling handleFileDownload directly');
+                    // For files, we need to get the hasPassword info from the info endpoint
+                    try {
+                        const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                        if (infoResponse.ok) {
+                            const infoData = await infoResponse.json();
+                            data.hasPassword = infoData.hasPassword;
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Could not fetch file info:', error);
+                    }
                     this.handleFileDownload(data);
                     return;
                 }
@@ -1196,6 +1214,16 @@ class ClipboardApp {
                 // Check if this is a file by checking for file_path
                 if (data.file_path) {
                     console.log('📁 Detected file by file_path, calling handleFileDownload directly');
+                    // For files, we need to get the hasPassword info from the info endpoint
+                    try {
+                        const infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                        if (infoResponse.ok) {
+                            const infoData = await infoResponse.json();
+                            data.hasPassword = infoData.hasPassword;
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Could not fetch file info:', error);
+                    }
                     this.handleFileDownload(data);
                     return;
                 }
