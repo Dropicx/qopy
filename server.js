@@ -969,41 +969,73 @@ async function createUploadSession(sessionData) {
 async function getUploadSession(uploadId) {
     console.log(`🔍 Getting upload session: ${uploadId}`);
     
-    if (redis) {
-        const cached = await redis.get(`upload:${uploadId}`);
-        if (cached) {
-            console.log(`✅ Found session in Redis: ${uploadId}`);
-            try {
-                const parsed = JSON.parse(cached);
-                console.log(`🔍 Redis session keys:`, Object.keys(parsed));
-                return parsed;
-            } catch (error) {
-                console.error(`❌ Error parsing Redis session:`, error);
-                console.log(`🔍 Raw Redis data:`, cached);
+    try {
+        if (redis) {
+            console.log(`🔍 Checking Redis for session: ${uploadId}`);
+            const cached = await redis.get(`upload:${uploadId}`);
+            if (cached) {
+                console.log(`✅ Found session in Redis: ${uploadId}`);
+                try {
+                    const parsed = JSON.parse(cached);
+                    console.log(`🔍 Redis session keys:`, Object.keys(parsed));
+                    console.log(`🔍 Redis session sample values:`, {
+                        upload_id: parsed.upload_id,
+                        filename: parsed.filename,
+                        total_chunks: parsed.total_chunks,
+                        uploaded_chunks: parsed.uploaded_chunks,
+                        is_text_content: parsed.is_text_content
+                    });
+                    return parsed;
+                } catch (error) {
+                    console.error(`❌ Error parsing Redis session:`, error);
+                    console.log(`🔍 Raw Redis data:`, cached);
+                    // Fall through to database lookup
+                }
+            } else {
+                console.log(`❌ No session found in Redis: ${uploadId}`);
             }
         }
+    } catch (redisError) {
+        console.error(`❌ Redis error:`, redisError);
     }
     
     // Fallback to database
-    const result = await pool.query(
-        'SELECT * FROM upload_sessions WHERE upload_id = $1',
-        [uploadId]
-    );
-    
-    if (result.rows[0]) {
-        const session = result.rows[0];
-        console.log(`✅ Found session in database: ${uploadId}`, {
-            uploaded_chunks: `${session.uploaded_chunks}/${session.total_chunks}`,
-            has_password: session.has_password,
-            one_time: session.one_time,
-            quick_share: session.quick_share,
-            is_text_content: session.is_text_content
-        });
-    } else {
-        console.log(`❌ Session not found in database: ${uploadId}`);
+    console.log(`🔍 Falling back to database for session: ${uploadId}`);
+    try {
+        const result = await pool.query(
+            'SELECT * FROM upload_sessions WHERE upload_id = $1',
+            [uploadId]
+        );
+        
+        if (result.rows[0]) {
+            const session = result.rows[0];
+            console.log(`✅ Found session in database: ${uploadId}`, {
+                uploaded_chunks: `${session.uploaded_chunks}/${session.total_chunks}`,
+                has_password: session.has_password,
+                one_time: session.one_time,
+                quick_share: session.quick_share,
+                is_text_content: session.is_text_content
+            });
+            
+            // Cache it for next time
+            if (redis) {
+                try {
+                    await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(session));
+                    console.log(`✅ Cached database session in Redis: ${uploadId}`);
+                } catch (cacheError) {
+                    console.error(`❌ Error caching session:`, cacheError);
+                }
+            }
+            
+            return session;
+        } else {
+            console.log(`❌ Session not found in database: ${uploadId}`);
+            return null;
+        }
+    } catch (dbError) {
+        console.error(`❌ Database error:`, dbError);
+        return null;
     }
-    
-    return result.rows[0] || null;
 }
 
 async function updateUploadSession(uploadId, updates) {
