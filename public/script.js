@@ -1380,8 +1380,6 @@ class ClipboardApp {
         // Check if this is a file redirect (for files stored on disk)
         if (data.contentType === 'file' && data.redirectTo) {
             console.log('📁 Detected file content with redirect, calling handleFileDownload');
-            // Check if this file needs password
-            this.checkFilePasswordRequirement(data);
             // Immediately hide all text elements before calling handleFileDownload
             this.hideAllTextElements();
             this.handleFileDownload(data);
@@ -1391,8 +1389,6 @@ class ClipboardApp {
         // Check if this is a file by checking for file_path
         if (data.file_path) {
             console.log('📁 Detected file by file_path, calling handleFileDownload');
-            // Check if this file needs password
-            this.checkFilePasswordRequirement(data);
             // Immediately hide all text elements before calling handleFileDownload
             this.hideAllTextElements();
             this.handleFileDownload(data);
@@ -1403,8 +1399,6 @@ class ClipboardApp {
         // BUT: If contentType is 'text', treat it as text content even if it has filename/filesize
         if (data.filename && data.filesize && data.contentType !== 'text') {
             console.log('📁 Detected file by filename/filesize, calling handleFileDownload');
-            // Check if this file needs password
-            this.checkFilePasswordRequirement(data);
             // Immediately hide all text elements before calling handleFileDownload
             this.hideAllTextElements();
             this.handleFileDownload(data);
@@ -1643,6 +1637,9 @@ class ClipboardApp {
                 passwordSection.classList.add('hidden');
             }
         }
+        
+        // Note: For file downloads, the password input is handled in handleFileDownload
+        // which creates a dedicated file-password-input field
     }
 
     // Helper function to hide all text-related elements
@@ -2329,6 +2326,9 @@ class ClipboardApp {
         // Hide all text-related elements first
         this.hideAllTextElements();
         
+        // Check if this file needs password input
+        this.checkFilePasswordRequirement(data);
+        
         // Create file download UI
         const contentResult = document.getElementById('content-result');
         
@@ -2346,11 +2346,35 @@ class ClipboardApp {
             console.log('🗂️ Using existing file download section');
         }
         
-        // Create modern file download UI
+        // Check if password is required
+        const urlSecret = this.extractUrlSecret();
+        const passwordRequired = urlSecret && data.hasPassword;
+        
+        // Create modern file download UI with conditional password section
         fileSection.innerHTML = `
             <div class="result-header">
                 <label class="label">📄 File Ready for Download</label>
             </div>
+            ${passwordRequired ? `
+            <div class="file-password-section">
+                <div class="notice-box info">
+                    <span class="notice-icon">🔒</span>
+                    <span class="notice-text">
+                        <strong>Password Protected:</strong> This file requires a password for decryption.
+                    </span>
+                </div>
+                <div class="input-group">
+                    <label for="file-password-input" class="label">Password:</label>
+                    <input 
+                        type="password" 
+                        id="file-password-input" 
+                        placeholder="Enter file password"
+                        maxlength="128"
+                        class="input"
+                    >
+                </div>
+            </div>
+            ` : ''}
             <div class="file-download-card">
                 <div class="file-info">
                     <div class="file-icon">📄</div>
@@ -2682,10 +2706,18 @@ class ClipboardApp {
 
     // Get password from user input (if available)
     getPasswordFromUser() {
+        // First check for file password input (for file downloads)
+        const filePasswordInput = document.getElementById('file-password-input');
+        if (filePasswordInput && filePasswordInput.value.trim()) {
+            return filePasswordInput.value.trim();
+        }
+        
+        // Then check for regular password input (for text content)
         const passwordInput = document.getElementById('retrieve-password-input');
         if (passwordInput && passwordInput.value.trim()) {
             return passwordInput.value.trim();
         }
+        
         return null;
     }
 
