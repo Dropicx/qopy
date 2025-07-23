@@ -1042,15 +1042,31 @@ class ClipboardApp {
         }
     }
 
-    // Generate URL secret for enhanced security
+    // Generate enhanced URL secret for maximum security (like File Share)
     generateUrlSecret() {
-        // Generate a random 16-character secret for URL fragment
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        let result = '';
-        for (let i = 0; i < 16; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
+        console.log('🔐 [ENTROPY] Generating enhanced secure passphrase for Text Share...');
+        
+        const startTime = performance.now();
+        
+        // Generate 256 bits of entropy (32 bytes) for maximum security
+        const entropyBytes = new Uint8Array(32);
+        window.crypto.getRandomValues(entropyBytes);
+        
+        // Convert to base64 for a longer, more secure passphrase
+        const base64Passphrase = btoa(String.fromCharCode.apply(null, entropyBytes));
+        
+        const generationTime = performance.now() - startTime;
+        
+        console.log('✅ Enhanced passphrase generated for Text Share:', {
+            type: 'BASE64_ENCODED',
+            entropyBits: 256,
+            length: base64Passphrase.length,
+            preview: base64Passphrase.substring(0, 8) + '...',
+            format: 'Proton Drive style',
+            generationTime: generationTime.toFixed(2) + 'ms'
+        });
+        
+        return base64Passphrase;
     }
 
     // Generate random secret for Quick Share encryption
