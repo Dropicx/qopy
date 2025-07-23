@@ -2790,18 +2790,17 @@ class ClipboardApp {
         }
 
         try {
-            // For Enhanced Files, IV is deterministically derived, not stored
-            // Extract IV (first 12 bytes) and encrypted data
+            // Check if data is large enough to contain IV + encrypted data
             if (encryptedBytes.length < 12) {
                 throw new Error('File too small to be encrypted');
             }
 
-            // Derive IV deterministically (same as upload)
-            console.log('🔓 Deriving IV deterministically for Enhanced File');
-            const iv = await this.deriveCompatibleIV(password, urlSecret);
-            const encryptedData = encryptedBytes.slice(0); // Use all data (no IV prefix)
+            // Extract IV from first 12 bytes and encrypted data from remaining bytes
+            console.log('🔓 Extracting IV from first 12 bytes');
+            const iv = encryptedBytes.slice(0, 12);
+            const encryptedData = encryptedBytes.slice(12);
             
-            console.log('🔓 Derived IV and encrypted data:', {
+            console.log('🔓 Extracted IV and encrypted data:', {
                 ivLength: iv.length,
                 encryptedDataLength: encryptedData.length
             });
@@ -2828,73 +2827,15 @@ class ClipboardApp {
         }
     }
 
-    // Generate decryption key (same as upload)
+    // Generate decryption key (same as upload - use generateKey for compatibility)
     async generateDecryptionKey(password = null, urlSecret = null) {
         console.log('🔑 generateDecryptionKey called with:', {
             hasPassword: !!password,
             hasUrlSecret: !!urlSecret
         });
 
-        const encoder = new TextEncoder();
-        
-        let keyMaterial;
-        if (password && urlSecret) {
-            // Password + URL secret mode
-            console.log('🔑 Using password + URL secret mode');
-            const combined = urlSecret + ':' + password;
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(combined),
-                'PBKDF2',
-                false,
-                ['deriveKey']
-            );
-        } else if (urlSecret) {
-            // URL secret only mode
-            console.log('🔑 Using URL secret only mode');
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(urlSecret),
-                'PBKDF2',
-                false,
-                ['deriveKey']
-            );
-        } else if (password) {
-            // Password only mode (should not happen for files, but handle it)
-            console.log('🔑 Using password only mode');
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(password),
-                'PBKDF2',
-                false,
-                ['deriveKey']
-            );
-        } else {
-            throw new Error('Either password or URL secret must be provided');
-        }
-        
-        console.log('🔑 Deriving key with PBKDF2');
-        
-        // Use the same salt as the upload system for compatibility
-        const salt = 'qopy-enhanced-salt-v2';
-        console.log('🔑 Using compatible salt:', salt);
-        
-        // Derive key using PBKDF2
-        const derivedKey = await window.crypto.subtle.deriveKey(
-            {
-                name: 'PBKDF2',
-                salt: encoder.encode(salt),
-                iterations: 250000, // Same as upload system
-                hash: 'SHA-256'
-            },
-            keyMaterial,
-            { name: 'AES-GCM', length: 256 },
-            false,
-            ['encrypt', 'decrypt']
-        );
-        
-        console.log('🔑 Key derivation successful');
-        return derivedKey;
+        // Use the same key generation as encryptBinaryData for compatibility
+        return await this.generateKey(password, urlSecret);
     }
 
     // Derive compatible IV (same as upload system)
