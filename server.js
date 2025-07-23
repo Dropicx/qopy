@@ -1012,8 +1012,10 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             sessionHasPassword: session.has_password,
             hasPassword: !!password,
             passwordLength: password ? password.length : 0,
+            passwordValue: password ? password.substring(0, 3) + '***' : null,
             isQuickShare: session.quick_share,
-            hasQuickShareSecret: !!quickShareSecret
+            hasQuickShareSecret: !!quickShareSecret,
+            willGenerateAccessCodeHash: (session.has_password && password) ? true : false
         });
         
         if (session.quick_share && quickShareSecret) {
@@ -1303,6 +1305,12 @@ app.post('/api/upload/initiate', [
             quickShare,
             contentType,
             isTextContent
+        });
+        
+        console.log('🔐 Upload Initiation - hasPassword flag analysis:', {
+            hasPasswordFromRequest: hasPassword,
+            hasPasswordType: typeof hasPassword,
+            willSetHasPasswordInDB: hasPassword
         });
         
         // Calculate chunks
