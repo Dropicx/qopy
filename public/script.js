@@ -932,14 +932,22 @@ class ClipboardApp {
             // Complete upload
             console.log(`[TextUpload] Completing upload for uploadId=${uploadId}`);
             const completePayload = {
-                quickShareSecret: quickShareSecret
+                quickShareSecret: quickShareSecret,
+                isTextUpload: true, // Flag to indicate this is a text upload, not a file
+                contentType: 'text'
             };
             
-            // Add authentication parameters for normal clips (server will generate token)
-            if (!quickShare && (password || urlSecret)) {
-                completePayload.password = password;
-                completePayload.urlSecret = urlSecret;
-                console.log('🔐 Sending authentication parameters for token generation');
+            // NEW: Access Code System - only send hashed password for access control
+            // URL Secret and password remain client-side for encryption
+            if (!quickShare && password) {
+                // Generate client-side access code hash for password protection
+                const accessCodeHash = await this.generateAccessCodeHash(password);
+                completePayload.accessCodeHash = accessCodeHash;
+                completePayload.requiresAccessCode = true;
+                console.log('🔐 Sending access code hash for password protection (Zero-Knowledge)');
+            } else if (!quickShare) {
+                completePayload.requiresAccessCode = false;
+                console.log('🔐 No password protection - URL secret only (Zero-Knowledge)');
             }
             
             const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
@@ -1148,29 +1156,34 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             console.log('🔗 URL secret extracted:', urlSecret ? 'present' : 'none');
             
-            // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
-            let downloadToken = null;
-            let queryParams = '';
-            
-            if (clipId.length === 10) {
-                // Normal clip: generate download token for file authentication
-                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
-                console.log('🔐 Generated download token for normal clip retrieveContent:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
-            } else {
-                // Quick Share (4-digit): no download token needed
-                console.log('⚡ Quick Share retrieveContent - no download token needed:', clipId);
-            }
-            
-            // Always use GET - no password needed for server authentication
-            // Content is already encrypted client-side
-            console.log('📡 Making API request to:', `/api/clip/${clipId}${queryParams}`);
-            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+            // NEW: Zero-Knowledge Access Code System - No download tokens
+            // URL Secret stays client-side for encryption, password sent for access control only
+            let requestBody = null;
+            let fetchOptions = {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 }
-            });
+            };
+            
+            if (clipId.length === 10 && password) {
+                // Normal clip with password: Use POST with access code for authentication
+                console.log('🔐 Normal clip with password - using access code authentication (Zero-Knowledge):', clipId);
+                fetchOptions.method = 'POST';
+                requestBody = { accessCode: password };
+                fetchOptions.body = JSON.stringify(requestBody);
+            } else if (clipId.length === 10) {
+                // Normal clip without password: URL secret only (client-side)
+                console.log('🔐 Normal clip without password - URL secret only (Zero-Knowledge):', clipId);
+                // Stay with GET request, no authentication needed
+            } else {
+                // Quick Share (4-digit): no authentication needed
+                console.log('⚡ Quick Share - no authentication needed:', clipId);
+            }
+            
+            // Make API request with Zero-Knowledge access code system
+            console.log('📡 Making Zero-Knowledge API request to:', `/api/clip/${clipId}`);
+            const response = await fetch(`/api/clip/${clipId}`, fetchOptions);
 
             console.log('📡 API response status:', response.status);
             const data = await response.json();

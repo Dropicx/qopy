@@ -703,6 +703,135 @@ async function cleanupExpiredClips() {
   }
 }
 
+// Helper function for clip retrieval (shared between GET and POST endpoints)
+async function handleClipRetrieval(req, res, clip, clipId) {
+  try {
+    // Update access count and timestamp
+    await pool.query(`
+      UPDATE clips 
+      SET access_count = access_count + 1, accessed_at = $1 
+      WHERE clip_id = $2
+    `, [Date.now(), clipId]);
+    
+    // Update statistics
+    await updateStatistics('clip_accessed');
+
+    // Handle content based on storage type
+    let responseContent;
+    let contentMetadata = {};
+    
+    if (clip.content_type === 'file') {
+      // File stored on disk - redirect to file endpoint
+      return res.json({
+        success: true,
+        contentType: 'file',
+        redirectTo: `/api/file/${clipId}`,
+        filename: clip.original_filename,
+        filesize: clip.filesize,
+        mimeType: clip.mime_type,
+        expiresAt: clip.expiration_time,
+        oneTime: clip.one_time
+      });
+    } else if (clip.file_path) {
+      // Content stored as file - redirect to file endpoint for unified handling
+      if (clip.content_type === 'text') {
+        // Text content stored as file - redirect to file endpoint but mark as text
+        const response = {
+          success: true,
+          contentType: 'text',
+          redirectTo: `/api/file/${clipId}`,
+          filename: clip.original_filename,
+          filesize: clip.filesize,
+          mimeType: clip.mime_type || 'text/plain',
+          expiresAt: clip.expiration_time,
+          oneTime: clip.one_time,
+          isTextFile: true // Special flag to indicate this should be decrypted and shown as text
+        };
+        
+        // For Quick Share clips (4-digit ID), include the secret for decryption
+        if (clipId.length === 4 && clip.password_hash) {
+          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId, 'secret:', clip.password_hash);
+          response.quickShareSecret = clip.password_hash;
+        }
+        
+        return res.json(response);
+      } else {
+        // Regular file - redirect to file endpoint
+        return res.json({
+          success: true,
+          contentType: 'file',
+          redirectTo: `/api/file/${clipId}`,
+          filename: clip.original_filename,
+          filesize: clip.filesize,
+          mimeType: clip.mime_type,
+          expiresAt: clip.expiration_time,
+          oneTime: clip.one_time
+        });
+      }
+    } else if (clip.content) {
+      // Content stored inline in database
+      if (clip.content_type === 'text') {
+        responseContent = clip.content; // Already a string
+        contentMetadata.contentType = 'text';
+      } else {
+        // Binary content
+        if (Buffer.isBuffer(clip.content)) {
+          responseContent = Array.from(clip.content);
+          contentMetadata.contentType = 'binary';
+        } else if (typeof clip.content === 'string') {
+          responseContent = clip.content;
+          contentMetadata.contentType = 'text';
+        } else {
+          responseContent = clip.content.toString();
+          contentMetadata.contentType = 'text';
+        }
+      }
+      
+      // Handle one-time access for inline content
+      if (clip.one_time) {
+        console.log('🔥 One-time access for inline content, deleting clip:', clipId);
+        await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
+      }
+    } else {
+      return res.status(404).json({
+        error: 'No content found',
+        message: 'The clip contains no content'
+      });
+    }
+
+    // Prepare response for inline content
+    const response = {
+      success: true,
+      content: responseContent,
+      contentType: contentMetadata.contentType || 'binary',
+      expiresAt: clip.expiration_time,
+      oneTime: clip.one_time,
+      hasPassword: false
+    };
+
+    // Add file metadata if available
+    if (clip.filesize) response.filesize = clip.filesize;
+    if (clip.mime_type) response.mimeType = clip.mime_type;
+
+    // For Quick Share clips, include the secret for decryption
+    if (clipId.length === 4 && clip.password_hash) {
+      console.log('🔑 Adding quickShareSecret for 4-digit clip (inline):', clipId, 'secret:', clip.password_hash);
+      response.quickShareSecret = clip.password_hash;
+    } else if (clipId.length === 10) {
+      response.hasPassword = clip.requires_access_code || false;
+    }
+    
+    return res.json(response);
+
+  } catch (error) {
+    console.error('❌ Error in handleClipRetrieval:', error.message);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to retrieve clip'
+    });
+  }
+}
+
 // Helper function to safely delete files with permission handling
 async function safeDeleteFile(filePath) {
     try {
@@ -946,14 +1075,11 @@ async function assembleFile(uploadId, session) {
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
     try {
         const { uploadId } = req.params;
-        const { quickShareSecret, password, urlSecret } = req.body;
+        const { quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode: clientRequiresAccessCode, textContent, isTextUpload, contentType } = req.body;
         console.log('🔑 Upload complete request body:', { 
             quickShareSecret: quickShareSecret,
-            password: password ? password.substring(0, 3) + '***' : null,
-            passwordLength: password ? password.length : 0,
-            passwordType: typeof password,
-            hasPassword: !!password,
-            hasUrlSecret: !!urlSecret,
+            hasAccessCodeHash: !!clientAccessCodeHash,
+            requiresAccessCode: clientRequiresAccessCode,
             fullRequestBody: req.body
         });
         
@@ -981,18 +1107,44 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             session.expiration_time = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
         }
 
-        if (session.uploaded_chunks < session.total_chunks) {
-            return res.status(400).json({
-                error: 'Upload incomplete',
-                message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
-            });
-        }
+        // Handle text uploads vs file uploads differently
+        let filePath = null;
+        let actualFilesize = 0;
 
-        // Assemble file
-        const filePath = await assembleFile(uploadId, session);
+        if (isTextUpload) {
+            // Text upload: Assemble from chunks like regular files
+            console.log('📝 Processing text upload:', uploadId);
+            if (session.uploaded_chunks < session.total_chunks) {
+                return res.status(400).json({
+                    error: 'Upload incomplete',
+                    message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
+                });
+            }
+            
+            // Assemble file from chunks (same as regular files)
+            filePath = await assembleFile(uploadId, session);
+            actualFilesize = (await fs.stat(filePath)).size;
+            console.log('📝 Text content assembled from chunks:', filePath, 'size:', actualFilesize);
+        } else {
+            // File upload: Check if all chunks uploaded then assemble
+            if (session.uploaded_chunks < session.total_chunks) {
+                return res.status(400).json({
+                    error: 'Upload incomplete',
+                    message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
+                });
+            }
+
+            // Assemble file from chunks
+            filePath = await assembleFile(uploadId, session);
+            
+            // Get actual file size (may be different from original if encrypted)
+            actualFilesize = (await fs.stat(filePath)).size;
+        }
         
-        // Get actual file size (may be different from original if encrypted)
-        const actualFileSize = (await fs.stat(filePath)).size;
+        // Get actual file size for both text and file uploads (if not already set)
+        if (actualFilesize === 0) {
+            actualFilesize = (await fs.stat(filePath)).size;
+        }
         
         // Create clip - use quick_share setting for text content, normal IDs for files
         const clipId = generateClipId(session.is_text_content ? session.quick_share : false);
@@ -1001,99 +1153,60 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         let isFile = true;
         
         if (session.is_text_content) {
-            console.log(`📝 Text content stored as file: ${filePath} (${actualFileSize} bytes encrypted)`);
+            console.log(`📝 Text content stored as file: ${filePath} (${actualFilesize} bytes encrypted)`);
         }
 
-        // Handle Quick Share secret and access code hash
+        // NEW: Zero-Knowledge Access Code System
         let passwordHash = null;
         let accessCodeHash = null;
         let requiresAccessCode = false;
         
-        console.log('🔐 Access Code Analysis:', {
+        console.log('🔐 Zero-Knowledge Access Code Analysis:', {
             uploadId,
             sessionHasPassword: session.has_password,
-            hasPassword: !!password,
-            passwordLength: password ? password.length : 0,
-            passwordValue: password ? password.substring(0, 3) + '***' : null,
             isQuickShare: session.quick_share,
             hasQuickShareSecret: !!quickShareSecret,
-            willGenerateAccessCodeHash: (session.has_password && password) ? true : false
+            hasClientAccessCodeHash: !!clientAccessCodeHash,
+            clientRequiresAccessCode: clientRequiresAccessCode
         });
         
         if (session.quick_share && quickShareSecret) {
+            // Quick Share: Store secret in password_hash field (legacy compatibility)
             console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
             passwordHash = quickShareSecret;
-        } else if (session.has_password && password) {
-            // Check if password is already hashed (client-side hashing)
-            const isAlreadyHashed = password.length === 128 && /^[a-f0-9]+$/i.test(password);
-            
-            if (isAlreadyHashed) {
-                // Password is already hashed on client side
-                console.log('🔐 Using client-side hashed access code:', uploadId);
-                accessCodeHash = password; // Use the hash directly
-                requiresAccessCode = true;
-                passwordHash = 'client-encrypted'; // Keep for backward compatibility
-                console.log('🔐 Client-side Access Code Hash used:', {
-                    accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-                    requiresAccessCode,
-                    passwordHash,
-                    isClientHashed: true
-                });
-            } else {
-                // Legacy: Generate access code hash on server side
-                console.log('🔐 Generating server-side access code hash for password-protected file:', uploadId);
-                accessCodeHash = await generateAccessCodeHash(password);
-                requiresAccessCode = true;
-                passwordHash = 'client-encrypted'; // Keep for backward compatibility
-                console.log('🔐 Server-side Access Code Hash generated:', {
-                    accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-                    requiresAccessCode,
-                    passwordHash,
-                    isClientHashed: false
-                });
-            }
+            accessCodeHash = null;
+            requiresAccessCode = false;
+        } else if (clientRequiresAccessCode && clientAccessCodeHash) {
+            // Normal Share with Password: Use client-generated access code hash
+            console.log('🔐 Using client-side access code hash (Zero-Knowledge):', uploadId);
+            accessCodeHash = clientAccessCodeHash;
+            requiresAccessCode = true;
+            passwordHash = 'client-encrypted'; // Mark as client-encrypted for legacy compatibility
+            console.log('🔐 Zero-Knowledge Access Code Hash stored:', {
+                accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+                requiresAccessCode,
+                passwordHash: 'client-encrypted'
+            });
         } else {
-            // For normal text shares with URL secret but no user password, set to null
-            console.log('ℹ️ No access code required for upload:', uploadId);
+            // Normal Share without Password: Only URL secret protection (client-side only)
+            console.log('🔐 URL secret only protection (Zero-Knowledge):', uploadId);
             passwordHash = null;
+            accessCodeHash = null;
+            requiresAccessCode = false;
         }
 
-        // Generate download token BEFORE JSON.stringify
-        let downloadToken = null;
-        
-        // For file uploads, generate token if urlSecret is present (password optional)
-        // For text uploads, handle Quick Share vs Normal mode differently
-        const isFileUpload = !session.is_text_content || session.original_filename !== `${uploadId.substring(0, 8)}.txt`;
-        
-        if (isFileUpload) {
-            // Enhanced Files (Zero-Knowledge): No download token needed - client handles all encryption
-            // Files are directly downloadable (encrypted) and client decrypts with URL fragment
-            downloadToken = null;
-            console.log('🔐 Enhanced File Upload (Zero-Knowledge): No download token needed - direct download of encrypted file');
-        } else {
-            // Text uploads: handle Quick Share vs Normal mode
-            if (session.quick_share) {
-                // Quick Share: No download token needed - uses quickShareSecret in password_hash field
-                downloadToken = null;
-                console.log('⚡ Quick Share text upload - no download token needed (uses quickShareSecret)');
-            } else {
-                // Normal text: generate token if urlSecret is present (password is optional for URL-only protection)
-                if (urlSecret) {
-                    downloadToken = await generateDownloadToken(clipId, password, urlSecret);
-                    console.log('🔐 Generated download token for normal text upload:', clipId, 'hasPassword:', !!password, 'hasUrlSecret:', !!urlSecret);
-                } else {
-                    console.log('ℹ️ Normal text upload without urlSecret - no download token generated');
-                }
-            }
-        }
+        // NEW: Zero-Knowledge File System - No download tokens needed
+        // All authentication happens via access codes, URL secrets remain client-side
+        console.log('🔐 Zero-Knowledge File System: No download tokens generated - client handles all encryption and URL secrets');
 
-        // Create file metadata object
+        // Create file metadata object (Zero-Knowledge)
         const fileMetadata = {
             uploadId,
             originalUploadSession: true,
             originalFileSize: session.filesize, // Store original size in metadata
-            actualFileSize: actualFileSize,
-            downloadToken: downloadToken
+            actualFileSize: actualFilesize,
+            // No downloadToken - using Zero-Knowledge access code system
+            zeroKnowledge: true
         };
 
         console.log('📝 Storing file_metadata:', fileMetadata);
@@ -1127,7 +1240,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             isFile ? filePath : null,
             session.original_filename,
             session.mime_type,
-            actualFileSize, // Use actual file size (encrypted if applicable)
+            actualFilesize, // Use actual file size (encrypted if applicable)
             isFile,
             JSON.stringify(fileMetadata),
             accessCodeHash, // New: Access code hash for password protection
@@ -1766,6 +1879,8 @@ app.get('/file/:clipId', [
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// DEPRECATED: Download token functions - replaced by Zero-Knowledge access code system
+/*
 // Helper function to generate download token (same algorithm as client)
 async function generateDownloadToken(clipId, password, urlSecret) {
     const crypto = require('crypto');
@@ -1956,6 +2071,7 @@ async function validateDownloadToken(clipId, providedToken) {
         return false;
     }
 }
+*/
 
 // Authenticated file download API (POST with token)
 app.post('/api/file/:clipId', [
@@ -2172,7 +2288,9 @@ app.get('/api/file/:clipId', [
 // TEXT SHARING (using new upload system for consistency)
 // ==========================================
 
-// Create share - handles both text and binary content using unified approach
+// DEPRECATED: /api/share endpoint - replaced by upload system (/api/upload/initiate + /api/upload/complete)
+// This endpoint is no longer used since all text sharing now uses the unified file upload system
+/*
 app.post('/api/share', [
   body('content').custom((value) => {
     // Validate content as binary array or string
@@ -2418,6 +2536,7 @@ app.post('/api/share', [
     });
   }
 });
+*/
 
 // Get clip info
 app.get('/api/clip/:clipId/info', [
@@ -2550,7 +2669,82 @@ app.get('/api/clip/:clipId/info', [
   }
 });
 
-// Get clip (no password authentication needed - content is encrypted client-side)
+// POST clip with access code authentication (Zero-Knowledge system)
+app.post('/api/clip/:clipId', [
+  param('clipId').custom((value) => {
+    // Support both 4-character (Quick Share) and 10-character (normal) IDs
+    if (value.length !== 4 && value.length !== 10) {
+      throw new Error('Clip ID must be 4 or 10 characters');
+    }
+    if (!/^[A-Z0-9]+$/.test(value)) {
+      throw new Error('Clip ID must contain only uppercase letters and numbers');
+    }
+    return true;
+  }),
+  body('accessCode').optional().isString().withMessage('Access code must be a string')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { clipId } = req.params;
+    const { accessCode } = req.body;
+
+    console.log('🔐 POST /api/clip/:clipId with access code authentication:', clipId, 'hasAccessCode:', !!accessCode);
+
+    // Get clip from database
+    const result = await pool.query(
+      'SELECT * FROM clips WHERE clip_id = $1 AND is_expired = false',
+      [clipId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Clip not found',
+        message: 'The requested clip does not exist or has expired'
+      });
+    }
+
+    const clip = result.rows[0];
+
+    // Validate access code if required
+    if (clip.requires_access_code) {
+      if (!accessCode) {
+        console.log(`❌ Access code required but not provided for clipId: ${clipId}`);
+        return res.status(401).json({
+          error: 'Access code required',
+          message: 'This clip requires an access code'
+        });
+      }
+      
+      const accessCodeValid = await validateAccessCode(clipId, accessCode);
+      if (!accessCodeValid) {
+        console.log(`❌ Invalid access code for clipId: ${clipId}`);
+        return res.status(401).json({
+          error: 'Access denied',
+          message: 'Invalid access code'
+        });
+      }
+      console.log(`✅ Access code validated for clipId: ${clipId}`);
+    }
+
+    // Continue with same logic as GET endpoint...
+    return await handleClipRetrieval(req, res, clip, clipId);
+  } catch (error) {
+    console.error('❌ Error in POST /api/clip/:clipId:', error.message);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to retrieve clip'
+    });
+  }
+});
+
+// Get clip (Zero-Knowledge system - no authentication for URL-secret-only clips)
 app.get('/api/clip/:clipId', [
   param('clipId').custom((value) => {
     // Support both 4-character (Quick Share) and 10-character (normal) IDs
@@ -2573,7 +2767,8 @@ app.get('/api/clip/:clipId', [
     }
 
     const { clipId } = req.params;
-    const { downloadToken } = req.query; // Get download token from query params
+
+    console.log('🔐 GET /api/clip/:clipId Zero-Knowledge request:', clipId);
 
     // Get clip from database
     const result = await pool.query(
@@ -2598,194 +2793,23 @@ app.get('/api/clip/:clipId', [
       password_hash: !!clip.password_hash
     });
 
-    // Authentication logic: All 10-digit clips need authentication (except Quick Share and Enhanced Files)
+    // Zero-Knowledge system: Check if access code is required
+    if (clip.requires_access_code) {
+      console.log(`❌ Access code required for clipId: ${clipId}, use POST endpoint`);
+      return res.status(401).json({
+        error: 'Access code required',
+        message: 'This clip requires an access code. Use POST request with access code.',
+        requiresAccessCode: true
+      });
+    }
+
     const isQuickShare = clipId.length === 4;
-    const isNormalClip = clipId.length === 10;
-    
-    // Check if this is Enhanced File (Zero-Knowledge) - Enhanced Files don't use download tokens
-    let isEnhancedFile = false;
-    if (isNormalClip && clip.file_metadata) {
-      const metadata = clip.file_metadata;
-      isEnhancedFile = !metadata.downloadToken; // No downloadToken = Enhanced File
-    }
-    
-    console.log('🔍 Main endpoint logic check:', {
-      isQuickShare,
-      isNormalClip,
-      isEnhancedFile,
-      willRequireAuth: isNormalClip && !isQuickShare && !isEnhancedFile
-    });
-    
-    if (isNormalClip && !isQuickShare && !isEnhancedFile) {
-      console.log('🔐 Legacy file detected in main endpoint, validating download token for clipId:', clipId);
-      
-      if (!downloadToken) {
-        console.log('❌ No download token provided for legacy file in main endpoint:', clipId);
-        return res.status(401).json({
-          error: 'Authentication required',
-          message: 'This clip requires authentication. Please provide the correct URL with secret or password.',
-          requiresAuth: true,
-          hasPassword: clip.password_hash !== null
-        });
-      }
+    console.log(`✅ Zero-Knowledge GET access granted for clipId: ${clipId}, isQuickShare: ${isQuickShare}`);
 
-      // Validate the download token
-      const isValidToken = await validateDownloadToken(clipId, downloadToken);
-      if (!isValidToken) {
-        console.log('❌ Invalid download token for legacy file in main endpoint:', clipId);
-        return res.status(403).json({
-          error: 'Access denied',
-          message: 'Invalid credentials for this clip. Please check your URL secret or password.',
-          requiresAuth: true,
-          hasPassword: clip.password_hash !== null
-        });
-      }
-
-      console.log('✅ Download token validated for legacy file in main endpoint:', clipId);
-    } else if (isQuickShare) {
-      console.log('⚡ Quick Share clip in main endpoint - no authentication required:', clipId);
-    } else if (isEnhancedFile) {
-      console.log('🔐 Enhanced File (Zero-Knowledge) in main endpoint - no authentication required:', clipId);
-    }
-
-    // Update access count and timestamp
-    await pool.query(`
-      UPDATE clips 
-      SET access_count = access_count + 1, accessed_at = $1 
-      WHERE clip_id = $2
-    `, [Date.now(), clipId]);
-    
-    // Update statistics
-    await updateStatistics('clip_accessed');
-
-    // Handle content based on storage type
-    let responseContent;
-    let contentMetadata = {};
-    
-    if (clip.content_type === 'file') {
-      // File stored on disk - redirect to file endpoint
-      // Note: One-time deletion happens in /api/file/ endpoint, not here
-      return res.json({
-        success: true,
-        contentType: 'file',
-        redirectTo: `/api/file/${clipId}`,
-        filename: clip.original_filename,
-        filesize: clip.filesize,
-        mimeType: clip.mime_type,
-        expiresAt: clip.expiration_time,
-        oneTime: clip.one_time
-      });
-    } else if (clip.file_path) {
-      // Content stored as file - redirect to file endpoint for unified handling
-      if (clip.content_type === 'text') {
-        // Text content stored as file - redirect to file endpoint but mark as text
-        const response = {
-          success: true,
-          contentType: 'text',
-          redirectTo: `/api/file/${clipId}`,
-          filename: clip.original_filename,
-          filesize: clip.filesize,
-          mimeType: clip.mime_type || 'text/plain',
-          expiresAt: clip.expiration_time,
-          oneTime: clip.one_time,
-          isTextFile: true // Special flag to indicate this should be decrypted and shown as text
-        };
-        
-        // For Quick Share clips (4-digit ID), include the secret for decryption
-        if (clipId.length === 4 && clip.password_hash) {
-          // For Quick Share, password_hash contains the actual secret (not 'client-encrypted')
-          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId, 'secret:', clip.password_hash);
-          response.quickShareSecret = clip.password_hash;
-        } else {
-          console.log('🔑 Not adding quickShareSecret for clip:', clipId, 'length:', clipId.length, 'password_hash:', clip.password_hash);
-        }
-        
-        return res.json(response);
-      } else {
-        // Regular file - redirect to file endpoint
-        return res.json({
-          success: true,
-          contentType: 'file',
-          redirectTo: `/api/file/${clipId}`,
-          filename: clip.original_filename,
-          filesize: clip.filesize,
-          mimeType: clip.mime_type,
-          expiresAt: clip.expiration_time,
-          oneTime: clip.one_time
-        });
-      }
-    } else if (clip.content) {
-      // Content stored inline in database
-      if (clip.content_type === 'text') {
-        // Text content stored as string (unencrypted)
-        responseContent = clip.content; // Already a string
-        contentMetadata.contentType = 'text';
-      } else {
-        // Binary content - check if it's a buffer or string
-        if (Buffer.isBuffer(clip.content)) {
-          // This could be encrypted text or binary data
-          // For text clips, this is encrypted content that needs client-side decryption
-          responseContent = Array.from(clip.content);
-          contentMetadata.contentType = 'binary';
-        } else if (typeof clip.content === 'string') {
-          // String content - treat as text
-          responseContent = clip.content;
-          contentMetadata.contentType = 'text';
-        } else {
-          // Unknown format - try to convert
-          responseContent = clip.content.toString();
-          contentMetadata.contentType = 'text';
-        }
-      }
-      
-      // Handle one-time access for inline content - delete after loading content
-      if (clip.one_time) {
-        console.log('🔥 One-time access for inline content, deleting clip:', clipId);
-        await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
-      }
-    } else {
-      return res.status(404).json({
-        error: 'No content found',
-        message: 'The clip contains no content'
-      });
-    }
-
-    // Prepare response
-    const response = {
-      success: true,
-      content: responseContent,
-      contentType: contentMetadata.contentType || 'binary',
-      expiresAt: clip.expiration_time,
-      oneTime: clip.one_time,
-      hasPassword: false // Quick Share clips never have passwords
-    };
-
-    // Add additional metadata for files
-    if (clip.filesize) {
-      response.filesize = clip.filesize;
-    }
-    if (clip.mime_type) {
-      response.mimeType = clip.mime_type;
-    }
-
-    // For Quick Share clips (4-digit ID), include the secret for decryption
-    if (clipId.length === 4 && clip.password_hash) {
-      // For Quick Share, password_hash contains the actual secret (not 'client-encrypted')
-      console.log('🔑 Adding quickShareSecret for 4-digit clip (inline):', clipId, 'secret:', clip.password_hash);
-      response.quickShareSecret = clip.password_hash;
-    } else if (clipId.length === 10) {
-      // For normal clips, check if they have password protection
-      response.hasPassword = clip.password_hash === 'client-encrypted';
-    }
-    
-    if (clipId.length === 4) {
-      console.log('🔑 Quick Share clip processing (inline):', clipId, 'password_hash:', clip.password_hash);
-    }
-
-    res.json(response);
-
+    // Use shared clip retrieval logic
+    return await handleClipRetrieval(req, res, clip, clipId);
   } catch (error) {
-    console.error('❌ Error retrieving clip:', error.message);
+    console.error('❌ Error in GET /api/clip/:clipId:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to retrieve clip'
