@@ -1070,7 +1070,18 @@ class FileUploadManager {
                 }
             });
             
-            console.log('📡 Making upload initiation request to server...');
+            const requestBody = {
+                filename: anonymousFilename,
+                filesize: fileWithMetadata.length,
+                expiration: options.expiration || '24hr',
+                hasPassword: options.hasPassword || false,
+                oneTime: options.oneTime || false,
+                quickShare: options.quickShare || false,
+                contentType: 'file',
+                isTextContent: false
+            };
+            
+            console.log('📡 Making upload initiation request to server...', requestBody);
             const serverRequestStart = performance.now();
             
             const response = await fetch('/api/upload/initiate', {
@@ -1078,16 +1089,7 @@ class FileUploadManager {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    filename: anonymousFilename,
-                    filesize: fileWithMetadata.length,
-                    expiration: options.expiration || '24hr',
-                    hasPassword: options.hasPassword || false,
-                    oneTime: options.oneTime || false,
-                    quickShare: options.quickShare || false,
-                    contentType: 'file',
-                    isTextContent: false
-                })
+                body: JSON.stringify(requestBody)
             });
             
             const serverRequestTime = performance.now() - serverRequestStart;

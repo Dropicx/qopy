@@ -855,7 +855,14 @@ async function getUploadSession(uploadId) {
     );
     
     if (result.rows[0]) {
-        console.log(`✅ Found session in database: ${uploadId}, uploaded_chunks: ${result.rows[0].uploaded_chunks}/${result.rows[0].total_chunks}`);
+        const session = result.rows[0];
+        console.log(`✅ Found session in database: ${uploadId}`, {
+            uploaded_chunks: `${session.uploaded_chunks}/${session.total_chunks}`,
+            has_password: session.has_password,
+            one_time: session.one_time,
+            quick_share: session.quick_share,
+            is_text_content: session.is_text_content
+        });
     } else {
         console.log(`❌ Session not found in database: ${uploadId}`);
     }
@@ -958,7 +965,10 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             uploadId: session.upload_id, 
             quick_share: session.quick_share, 
             has_password: session.has_password,
-            is_text_content: session.is_text_content
+            one_time: session.one_time,
+            is_text_content: session.is_text_content,
+            uploaded_chunks: session.uploaded_chunks,
+            total_chunks: session.total_chunks
         });
 
         // Ensure expiration_time is set (fallback to 24 hours if missing)
@@ -995,6 +1005,15 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         let accessCodeHash = null;
         let requiresAccessCode = false;
         
+        console.log('🔐 Access Code Analysis:', {
+            uploadId,
+            sessionHasPassword: session.has_password,
+            hasPassword: !!password,
+            passwordLength: password ? password.length : 0,
+            isQuickShare: session.quick_share,
+            hasQuickShareSecret: !!quickShareSecret
+        });
+        
         if (session.quick_share && quickShareSecret) {
             console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
             passwordHash = quickShareSecret;
@@ -1004,8 +1023,14 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             accessCodeHash = await generateAccessCodeHash(password);
             requiresAccessCode = true;
             passwordHash = 'client-encrypted'; // Keep for backward compatibility
+            console.log('🔐 Access Code Hash generated:', {
+                accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+                requiresAccessCode,
+                passwordHash
+            });
         } else {
             // For normal text shares with URL secret but no user password, set to null
+            console.log('ℹ️ No access code required for upload:', uploadId);
             passwordHash = null;
         }
 
@@ -1049,6 +1074,16 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
 
         console.log('📝 Storing file_metadata:', fileMetadata);
 
+        // Log database insert parameters for debugging
+        console.log('💾 Database Insert Parameters:', {
+            clipId,
+            contentType: session.is_text_content ? 'text' : 'file',
+            passwordHash,
+            accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+            requiresAccessCode,
+            isFile
+        });
+
         // Store clip in database (content column removed - all content stored as files)
         await pool.query(`
             INSERT INTO clips 
@@ -1074,6 +1109,8 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             accessCodeHash, // New: Access code hash for password protection
             requiresAccessCode // New: Whether access code is required
         ]);
+
+        console.log('✅ Database insert completed successfully');
 
         // Update statistics
         await updateStatistics('clip_created');
@@ -1253,6 +1290,18 @@ app.post('/api/upload/initiate', [
         }
 
         const { filename, filesize, mimeType = 'application/octet-stream', expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
+        
+        console.log('📤 Upload Initiation Request:', {
+            filename,
+            filesize,
+            mimeType,
+            expiration,
+            hasPassword,
+            oneTime,
+            quickShare,
+            contentType,
+            isTextContent
+        });
         
         // Calculate chunks
         const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
