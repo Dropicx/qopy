@@ -329,10 +329,16 @@ class ClipboardApp {
                 console.log('🔑 File URL with URL secret - trying authentication without password first');
                 
                 let downloadToken = await this.generateDownloadToken(clipId, null, urlSecret);
-                let queryParams = `?downloadToken=${downloadToken}`;
                 
-                // Get clip info with URL secret only
-                let infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                let infoResponse;
+                if (downloadToken === null) {
+                    // Use Zero-Knowledge system - no authentication needed for file info
+                    infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                } else {
+                    // Legacy download token system (should not happen)
+                    let queryParams = `?downloadToken=${downloadToken}`;
+                    infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                }
                 let infoData = await infoResponse.json();
                 
                 if (infoResponse.ok) {
@@ -340,12 +346,24 @@ class ClipboardApp {
                     console.log('✅ File accessible with URL secret only - no password required');
                     
                     // Proceed with authenticated retrieval
-                    const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        }
-                    });
+                    let response;
+                    if (downloadToken === null) {
+                        // Use Zero-Knowledge system - direct retrieval
+                        response = await fetch(`/api/clip/${clipId}`, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        });
+                    } else {
+                        // Legacy download token system (should not happen)
+                        response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        });
+                    }
                     
                     if (response.ok) {
                         const data = await response.json();
@@ -389,20 +407,51 @@ class ClipboardApp {
                     console.log('🔑 URL secret failed, trying with password too');
                     
                     downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                    queryParams = `?downloadToken=${downloadToken}`;
                     
                     // Retry with both URL secret and password
-                    infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    if (downloadToken === null) {
+                        // Use Zero-Knowledge Access Code system
+                        const accessCodeHash = await this.generateAccessCodeHash(password);
+                        infoResponse = await fetch(`/api/clip/${clipId}/info`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                accessCode: accessCodeHash
+                            })
+                        });
+                    } else {
+                        // Legacy download token system (should not happen)
+                        let queryParams = `?downloadToken=${downloadToken}`;
+                        infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    }
                     infoData = await infoResponse.json();
                     
                     if (infoResponse.ok) {
                         // Proceed with authenticated retrieval
-                        const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
-                            method: 'GET',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            }
-                        });
+                        let response;
+                        if (downloadToken === null) {
+                            // Use Zero-Knowledge Access Code system
+                            const accessCodeHash = await this.generateAccessCodeHash(password);
+                            response = await fetch(`/api/clip/${clipId}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    accessCode: accessCodeHash
+                                })
+                            });
+                        } else {
+                            // Legacy download token system (should not happen)
+                            response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                }
+                            });
+                        }
                         
                         if (response.ok) {
                             const data = await response.json();
@@ -434,20 +483,66 @@ class ClipboardApp {
                     console.log('🔐 Normal clip with URL secret - using token directly:', clipId);
                     
                     const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                    const queryParams = `?downloadToken=${downloadToken}`;
                     
-                    let infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    let infoResponse;
+                    if (downloadToken === null) {
+                        // Use Zero-Knowledge Access Code system
+                        if (password) {
+                            const accessCodeHash = await this.generateAccessCodeHash(password);
+                            infoResponse = await fetch(`/api/clip/${clipId}/info`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    accessCode: accessCodeHash
+                                })
+                            });
+                        } else {
+                            infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                        }
+                    } else {
+                        // Legacy download token system (should not happen)
+                        const queryParams = `?downloadToken=${downloadToken}`;
+                        infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    }
                     let infoData = await infoResponse.json();
                     
                     if (infoResponse.ok) {
                         // Authentication successful - proceed with retrieval
                         console.log('✅ Authentication successful for clip:', clipId);
-                        const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
-                            method: 'GET',
-                            headers: {
-                                'Content-Type': 'application/json',
+                        
+                        let response;
+                        if (downloadToken === null) {
+                            // Use Zero-Knowledge Access Code system
+                            if (password) {
+                                const accessCodeHash = await this.generateAccessCodeHash(password);
+                                response = await fetch(`/api/clip/${clipId}`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        accessCode: accessCodeHash
+                                    })
+                                });
+                            } else {
+                                response = await fetch(`/api/clip/${clipId}`, {
+                                    method: 'GET',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    }
+                                });
                             }
-                        });
+                        } else {
+                            // Legacy download token system (should not happen)
+                            response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                }
+                            });
+                        }
                         
                         if (response.ok) {
                             const data = await response.json();
@@ -717,17 +812,37 @@ class ClipboardApp {
                 let queryParams = '';
                 
                 if (clipId.length === 10) {
-                    // Normal clip: generate download token for file authentication
+                    // Normal clip: use Zero-Knowledge system
                     downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                    queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
-                    console.log('🔐 Generated download token for normal clip checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+                    
+                    let response;
+                    if (downloadToken === null) {
+                        // Use Zero-Knowledge Access Code system
+                        if (password) {
+                            const accessCodeHash = await this.generateAccessCodeHash(password);
+                            response = await fetch(`/api/clip/${clipId}/info`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    accessCode: accessCodeHash
+                                })
+                            });
+                        } else {
+                            response = await fetch(`/api/clip/${clipId}/info`);
+                        }
+                    } else {
+                        // Legacy download token system (should not happen)
+                        queryParams = `?downloadToken=${downloadToken}`;
+                        response = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    }
+                    console.log('🔐 Using Zero-Knowledge system for normal clip checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
                 } else {
                     // Quick Share (4-digit): no download token needed
                     console.log('⚡ Quick Share checkClipId - no download token needed:', clipId);
+                    const response = await fetch(`/api/clip/${clipId}/info`);
                 }
-                
-                console.log('🔍 Fetching clip info for:', clipId);
-                const response = await fetch(`/api/clip/${clipId}/info${queryParams}`);
                 const data = await response.json();
                 
                 console.log('🔍 Clip info response:', data);
