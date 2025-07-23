@@ -1143,8 +1143,8 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         let password, urlSecret; // File upload system
         
         try {
-            // Try new text upload system first
-            if (req.body.accessCodeHash || req.body.requiresAccessCode !== undefined) {
+            // Try new text upload system first - check for isTextUpload or quickShareSecret too
+            if (req.body.accessCodeHash || req.body.requiresAccessCode !== undefined || req.body.isTextUpload || req.body.quickShareSecret) {
                 console.log('🔍 Using NEW text upload system');
                 ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType } = req.body);
             } else {
