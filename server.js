@@ -1167,7 +1167,9 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             isQuickShare: session.quick_share,
             hasQuickShareSecret: !!quickShareSecret,
             hasClientAccessCodeHash: !!clientAccessCodeHash,
-            requiresAccessCode: requiresAccessCode
+            clientAccessCodeHashLength: clientAccessCodeHash ? clientAccessCodeHash.length : 0,
+            requiresAccessCode: requiresAccessCode,
+            requiresAccessCodeType: typeof requiresAccessCode
         });
         
         if (session.quick_share && quickShareSecret) {
@@ -1188,11 +1190,16 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
                 passwordHash: 'client-encrypted'
             });
         } else {
+            console.log('🔐 Condition check failed:', {
+                requiresAccessCode: requiresAccessCode,
+                hasClientAccessCodeHash: !!clientAccessCodeHash,
+                condition: requiresAccessCode && clientAccessCodeHash
+            });
             // Normal Share without Password: Only URL secret protection (client-side only)
             console.log('🔐 URL secret only protection (Zero-Knowledge):', uploadId);
             passwordHash = null;
             accessCodeHash = null;
-            requiresAccessCode = false;
+            shouldRequireAccessCode = false;
         }
 
         // NEW: Zero-Knowledge File System - No download tokens needed
