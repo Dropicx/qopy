@@ -973,7 +973,14 @@ async function getUploadSession(uploadId) {
         const cached = await redis.get(`upload:${uploadId}`);
         if (cached) {
             console.log(`✅ Found session in Redis: ${uploadId}`);
-            return JSON.parse(cached);
+            try {
+                const parsed = JSON.parse(cached);
+                console.log(`🔍 Redis session keys:`, Object.keys(parsed));
+                return parsed;
+            } catch (error) {
+                console.error(`❌ Error parsing Redis session:`, error);
+                console.log(`🔍 Raw Redis data:`, cached);
+            }
         }
     }
     
@@ -1108,6 +1115,8 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         console.log('🔍 About to get upload session');
         const session = await getUploadSession(uploadId);
         console.log('🔍 Upload session retrieved:', !!session);
+        console.log('🔍 Session type:', typeof session);
+        console.log('🔍 Session keys:', session ? Object.keys(session) : 'null');
         
         if (!session) {
             return res.status(404).json({
@@ -1116,15 +1125,20 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             });
         }
         
-        console.log('🔑 Upload session details:', { 
-            uploadId: session.upload_id, 
-            quick_share: session.quick_share, 
-            has_password: session.has_password,
-            one_time: session.one_time,
-            is_text_content: session.is_text_content,
-            uploaded_chunks: session.uploaded_chunks,
-            total_chunks: session.total_chunks
-        });
+        try {
+            console.log('🔑 Upload session details:', { 
+                uploadId: session.upload_id, 
+                quick_share: session.quick_share, 
+                has_password: session.has_password,
+                one_time: session.one_time,
+                is_text_content: session.is_text_content,
+                uploaded_chunks: session.uploaded_chunks,
+                total_chunks: session.total_chunks
+            });
+        } catch (error) {
+            console.error('❌ Error logging session details:', error);
+            console.log('🔍 Session object keys:', Object.keys(session));
+        }
 
         console.log('🔍 About to check expiration_time');
         // Ensure expiration_time is set (fallback to 24 hours if missing)
@@ -1155,6 +1169,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
                 total_chunks: session.total_chunks,
                 uploaded_chunks: session.uploaded_chunks
             });
+            console.log('🔍 Full session object:', JSON.stringify(session, null, 2));
             try {
                 // Assemble file from chunks (same as regular files)
                 filePath = await assembleFile(uploadId, session);
