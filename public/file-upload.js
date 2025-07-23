@@ -1714,10 +1714,7 @@ class FileUploadManager {
             successModal.classList.remove('hidden');
         }
         
-        // Also show a toast notification for file upload success
-        this.showToast(`✅ File uploaded successfully! Original: ${originalMetadata.filename || 'Unknown'} (${this.formatFileSize(originalMetadata.size || 0)})`, 'success');
-        
-        // File upload success is now handled by the main success modal above
+        // File upload success is handled by the main success modal above
         
         // Clear the current upload session
         this.currentUploadSession = null;
