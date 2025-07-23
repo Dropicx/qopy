@@ -1149,6 +1149,12 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             }
             
             console.log('🔍 About to call assembleFile for text upload:', uploadId);
+            console.log('🔍 Session details for assembleFile:', {
+                uploadId: session.upload_id,
+                filename: session.filename,
+                total_chunks: session.total_chunks,
+                uploaded_chunks: session.uploaded_chunks
+            });
             try {
                 // Assemble file from chunks (same as regular files)
                 filePath = await assembleFile(uploadId, session);
