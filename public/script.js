@@ -958,10 +958,23 @@ class ClipboardApp {
             if (quickShare) {
                 quickShareSecret = this.generateRandomSecret();
                 urlSecret = null;
+                console.log('🚀 [QuickShare] Mode enabled:', {
+                    quickShareSecretLength: quickShareSecret.length,
+                    quickShareSecretFormat: /^[0-9a-f]{32}$/.test(quickShareSecret) ? 'VALID_HEX' : 'INVALID',
+                    urlSecret: 'null (Quick Share mode)'
+                });
             } else if (!password) {
                 urlSecret = this.generateUrlSecret();
+                console.log('🔐 [NormalMode] URL secret only mode:', {
+                    urlSecretLength: urlSecret.length,
+                    hasPassword: false
+                });
             } else {
                 urlSecret = this.generateUrlSecret();
+                console.log('🔐 [NormalMode] Password + URL secret mode:', {
+                    urlSecretLength: urlSecret.length,
+                    hasPassword: true
+                });
             }
 
             console.log('[TextUpload] Initiating upload session:', {
@@ -1012,6 +1025,11 @@ class ClipboardApp {
                 // Encrypt chunk based on mode
                 let encryptedChunk;
                 if (quickShare) {
+                    console.log(`🚀 [QuickShare] Encrypting chunk ${i} with quickShareSecret:`, {
+                        hasQuickShareSecret: !!quickShareSecret,
+                        quickShareSecretLength: quickShareSecret ? quickShareSecret.length : 0,
+                        chunkSize: chunk.size
+                    });
                     encryptedChunk = await this.encryptFileChunk(chunk, null, quickShareSecret);
                 } else if (!password) {
                     encryptedChunk = await this.encryptFileChunk(chunk, null, urlSecret);
@@ -1100,6 +1118,14 @@ class ClipboardApp {
     // Encrypt binary data (for file chunks)
     async encryptBinaryData(data, password = null, urlSecret = null) {
         try {
+            console.log('🔐 [EncryptBinaryData] Starting encryption with params:', {
+                dataLength: data ? data.length : 'null',
+                hasPassword: !!password,
+                hasUrlSecret: !!urlSecret,
+                passwordType: typeof password,
+                urlSecretType: typeof urlSecret
+            });
+
             // Input validation
             if (!(data instanceof Uint8Array)) {
                 throw new Error('Data must be a Uint8Array');
@@ -1116,9 +1142,18 @@ class ClipboardApp {
             if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
                 throw new Error('URL secret must be a non-empty string or null');
             }
+
+            // Validation: At least one of password or urlSecret must be provided
+            if (!password && !urlSecret) {
+                throw new Error('Either password or urlSecret must be provided for encryption');
+            }
+            
+            console.log('🔐 [EncryptBinaryData] Input validation passed, generating key...');
             
             // Use Enhanced encryption parameters (same as download)
             const key = await this.generateCompatibleEncryptionKey(password, urlSecret);
+            
+            console.log('🔐 [EncryptBinaryData] Key generated successfully, deriving IV...');
             
             // Generate IV: Enhanced derivation for compatibility with download
             let iv;
@@ -1128,6 +1163,8 @@ class ClipboardApp {
                 // For non-password clips, derive IV from URL secret using Enhanced parameters
                 iv = await this.deriveCompatibleIV(null, urlSecret, 'qopy-enhanced-iv-salt-v2');
             }
+            
+            console.log('🔐 [EncryptBinaryData] IV derived successfully, encrypting data...');
             
             // Encrypt the data
             const encryptedData = await window.crypto.subtle.encrypt(
@@ -1144,10 +1181,17 @@ class ClipboardApp {
             combined.set(ivBytes, 0);
             combined.set(encryptedBytes, ivBytes.length);
             
+            console.log('🔐 [EncryptBinaryData] Encryption completed successfully:', {
+                originalSize: data.length,
+                encryptedSize: combined.length,
+                ivLength: ivBytes.length
+            });
+            
             // Return raw bytes
             return combined;
         } catch (error) {
-            throw new Error('Failed to encrypt binary data');
+            console.error('🔐 [EncryptBinaryData] ❌ Encryption failed:', error);
+            throw new Error(`Failed to encrypt binary data: ${error.message}`);
         }
     }
 
@@ -1180,10 +1224,16 @@ class ClipboardApp {
 
     // Generate random secret for Quick Share encryption
     generateRandomSecret() {
+        console.log('🎲 [QuickShare] Generating random secret for Quick Share...');
         // Generate a cryptographically secure random secret (128 bits = 32 hex chars)
         const array = new Uint8Array(16); // 128 bits
         window.crypto.getRandomValues(array);
-        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        const secret = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        console.log('🎲 [QuickShare] Generated secret:', {
+            secretLength: secret.length,
+            secretPreview: secret.substring(0, 8) + '...'
+        });
+        return secret;
     }
 
     // Generate random hash for filenames
@@ -3169,6 +3219,7 @@ class ClipboardApp {
         // Detect format (same as upload)
         const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
         const isEnhancedPassphrase = secret && secret.length >= 40;
+        const isQuickShareSecret = secret && secret.length === 32 && /^[0-9a-f]{32}$/.test(secret);
         
         let keyMaterial;
         let salt;
@@ -3207,6 +3258,21 @@ class ClipboardApp {
                 );
                 salt = customSalt || 'qopy-enhanced-iv-salt-v2';
                 iterations = 100000;
+            } else if (isQuickShareSecret) {
+                // Quick Share format: secret:password
+                const combined = secret + ':' + password;
+                mode = 'QUICKSHARE_COMBINED_IV';
+                console.log('🔐 Quick Share IV derivation (combined mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(combined),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-quickshare-iv-salt-v1';
+                iterations = 100000;
             } else {
                 throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
             }
@@ -3237,6 +3303,19 @@ class ClipboardApp {
                     ['deriveBits']
                 );
                 salt = customSalt || 'qopy-enhanced-iv-salt-v2';
+                iterations = 100000;
+            } else if (isQuickShareSecret) {
+                mode = 'QUICKSHARE_SECRET_ONLY_IV';
+                console.log('🔐 Quick Share IV derivation (secret-only mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(secret),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-quickshare-iv-salt-v1';
                 iterations = 100000;
             } else {
                 throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
