@@ -435,29 +435,32 @@ class ClipboardApp {
                     }
                 }
             } else {
-                // Normal clip (10-digit): Check if we have credentials and use them directly for efficiency
+                // Normal clip (10-digit): First get info to check if password is required
                 if (urlSecret) {
                     // We have URL secret - use Zero-Knowledge system
                     console.log('🔐 Normal clip with URL secret - using Zero-Knowledge system:', clipId);
                     
-                    let infoResponse;
-                    if (password) {
-                        // Use Zero-Knowledge Access Code system
-                        const accessCodeHash = await this.generateAccessCodeHash(password);
-                        infoResponse = await fetch(`/api/clip/${clipId}/info`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                accessCode: accessCodeHash
-                            })
-                        });
-                    } else {
-                        // Non-password clip - try without authentication first
-                        infoResponse = await fetch(`/api/clip/${clipId}/info`);
-                    }
+                    // ALWAYS check clip info first to see if password is required
+                    let infoResponse = await fetch(`/api/clip/${clipId}/info`);
                     let infoData = await infoResponse.json();
+                    
+                    console.log('🔍 Clip info response:', infoData);
+                    
+                    // If clip requires password but user hasn't provided one, show password form
+                    if (infoData.hasPassword && !password) {
+                        console.log('🔒 Clip requires password - showing password section');
+                        this.hideLoading('retrieve-loading');
+                        
+                        // Show password section
+                        const passwordSection = document.getElementById('password-section');
+                        if (passwordSection) {
+                            passwordSection.style.display = 'block';
+                            console.log('✅ Password section shown');
+                        }
+                        
+                        this.showToast('🔒 This clip requires a password. Please enter it above.', 'info');
+                        return;
+                    }
                     
                     if (infoResponse.ok) {
                         // Authentication successful - proceed with retrieval

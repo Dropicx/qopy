@@ -2684,7 +2684,11 @@ app.get('/api/clip/:clipId/info', [
       clipId: clipId,
       content_type: clip.content_type,
       file_path: !!clip.file_path,
-      password_hash: !!clip.password_hash
+      password_hash: !!clip.password_hash,
+      password_hash_value: clip.password_hash,
+      requires_access_code: clip.requires_access_code,
+      requires_access_code_type: typeof clip.requires_access_code,
+      access_code_hash: !!clip.access_code_hash
     });
 
     // NEW: Zero-Knowledge Access Code System - no download tokens needed
