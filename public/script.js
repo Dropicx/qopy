@@ -817,10 +817,16 @@ class ClipboardApp {
         shareButton.disabled = true;
 
         try {
-            // Convert text to file-like object for multi-part upload
-            const textBlob = new Blob([content], { type: 'text/plain; charset=utf-8' });
+            // Convert text to file-like object for multi-part upload (no extension, no mime type)
+            const textBlob = new Blob([content]);
             const randomHash = this.generateRandomHash();
-            const textFile = new File([textBlob], `${randomHash}.txt`, { type: 'text/plain; charset=utf-8' });
+            
+            // Apply padding to text content for security (hide actual size)
+            const textBytes = new Uint8Array(await textBlob.arrayBuffer());
+            const paddedTextBytes = this.addMinimalPadding(textBytes);
+            const paddedTextBlob = new Blob([paddedTextBytes]);
+            
+            const textFile = new File([paddedTextBlob], randomHash);
             
             // Use the existing file upload system for text
             await this.uploadTextAsFile(textFile, content, password, expiration, oneTime, quickShare);
@@ -866,7 +872,6 @@ class ClipboardApp {
                 body: JSON.stringify({
                     filename: file.name,
                     filesize: file.size,
-                    mimeType: file.type || 'text/plain',
                     expiration: expiration,
                     oneTime: oneTime,
                     hasPassword: !!password,
@@ -1062,6 +1067,60 @@ class ClipboardApp {
         const array = new Uint8Array(8); // 64 bits
         window.crypto.getRandomValues(array);
         return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Add minimal padding only for very small text content to obscure actual size
+    addMinimalPadding(data) {
+        const originalSize = data.length;
+        const minimumSize = 10 * 1024; // 10KB minimum for small content
+        
+        // Only pad content smaller than 10KB
+        if (originalSize >= minimumSize) {
+            console.log(`📦 Text size ${originalSize} bytes >= 10KB, no padding needed`);
+            return data; // No padding for larger content
+        }
+        
+        const paddingSize = minimumSize - originalSize;
+        console.log(`🔒 Minimal padding: ${originalSize} bytes → ${minimumSize} bytes (+${paddingSize} padding)`);
+        
+        // Generate cryptographically secure random padding
+        const padding = new Uint8Array(paddingSize);
+        window.crypto.getRandomValues(padding);
+        
+        // Combine original data + padding + size marker (4 bytes for original size)
+        const result = new Uint8Array(originalSize + paddingSize + 4);
+        result.set(data, 0);                                    // Original data first
+        result.set(padding, originalSize);                      // Random padding
+        
+        // Add original size as 4-byte integer at the end (for decryption)
+        const sizeBytes = new ArrayBuffer(4);
+        new DataView(sizeBytes).setUint32(0, originalSize, false); // Big-endian
+        result.set(new Uint8Array(sizeBytes), originalSize + paddingSize);
+        
+        return result;
+    }
+
+    // Remove minimal padding from text content during decryption
+    removeMinimalPadding(paddedData, originalSize = null) {
+        if (!originalSize) {
+            // If no original size provided, return data as-is
+            return paddedData;
+        }
+        
+        if (originalSize > paddedData.length) {
+            console.warn('⚠️ Original size larger than padded data, returning padded data');
+            return paddedData;
+        }
+        
+        // Extract original data by removing padding
+        const originalData = paddedData.slice(0, originalSize);
+        const paddingRemoved = paddedData.length - originalSize;
+        
+        if (paddingRemoved > 0) {
+            console.log(`🔓 Padding removed: ${paddingRemoved} bytes`);
+        }
+        
+        return originalData;
     }
 
     // Hash a secret for use in encryption
@@ -1578,8 +1637,21 @@ class ClipboardApp {
 
             // Decrypt the content using the same method as file downloads
             const decryptedBytes = await this.decryptFile(encryptedBytes, password, urlSecret);
+            
+            // Remove padding if present (check if data has padding marker)
+            let finalDecryptedBytes = decryptedBytes;
+            if (decryptedBytes.length >= 4) {
+                // Check if there's a size marker at the end (padding was applied)
+                const sizeMarker = new DataView(decryptedBytes.buffer.slice(decryptedBytes.length - 4)).getUint32(0, false);
+                if (sizeMarker > 0 && sizeMarker < decryptedBytes.length - 4) {
+                    // Padding was applied, remove it
+                    console.log(`🔓 Removing padding: ${decryptedBytes.length} bytes → ${sizeMarker} bytes`);
+                    finalDecryptedBytes = this.removeMinimalPadding(decryptedBytes, sizeMarker);
+                }
+            }
+            
             const decoder = new TextDecoder();
-            const decryptedText = decoder.decode(decryptedBytes);
+            const decryptedText = decoder.decode(finalDecryptedBytes);
             
             console.log('✅ Text file decrypted successfully');
 

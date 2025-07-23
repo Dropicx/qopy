@@ -1426,12 +1426,20 @@ app.post('/api/upload/initiate', [
             });
         }
 
-        const { filename, filesize, mimeType = 'application/octet-stream', expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
+        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
+        
+        // Set appropriate MIME type based on content type
+        let finalMimeType = mimeType;
+        if (isTextContent || contentType === 'text') {
+            finalMimeType = 'text/plain; charset=utf-8';
+        } else if (!mimeType) {
+            finalMimeType = 'application/octet-stream';
+        }
         
         console.log('📤 Upload Initiation Request:', {
             filename,
             filesize,
-            mimeType,
+            mimeType: finalMimeType,
             expiration,
             hasPassword,
             oneTime,
@@ -1474,7 +1482,7 @@ app.post('/api/upload/initiate', [
                 is_text_content
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         `, [
-            uploadId, filename, filename, filesize, mimeType,
+            uploadId, filename, filename, filesize, finalMimeType,
             CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
             oneTime, quickShare, clientIP, Date.now(), Date.now(),
             isTextContent || contentType === 'text'
@@ -1486,7 +1494,7 @@ app.post('/api/upload/initiate', [
             filename, 
             original_filename: filename,
             filesize, 
-            mime_type: mimeType, 
+            mime_type: finalMimeType, 
             chunk_size: CHUNK_SIZE,
             total_chunks: totalChunks, 
             uploaded_chunks: 0,
@@ -1498,7 +1506,6 @@ app.post('/api/upload/initiate', [
             created_at: Date.now(),
             last_activity: Date.now(),
             is_text_content: isTextContent || contentType === 'text',
-            status: 'uploading',
             status: 'uploading'
         });
 
