@@ -1093,7 +1093,10 @@ async function assembleFile(uploadId, session) {
 // Complete upload
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
     try {
+        console.log('🔍 Upload complete route started');
         const { uploadId } = req.params;
+        console.log('🔍 UploadId from params:', uploadId);
+        
         const { quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType } = req.body;
         console.log('🔑 Upload complete request body:', { 
             quickShareSecret: quickShareSecret,
@@ -1102,7 +1105,10 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             fullRequestBody: req.body
         });
         
+        console.log('🔍 About to get upload session');
         const session = await getUploadSession(uploadId);
+        console.log('🔍 Upload session retrieved:', !!session);
+        
         if (!session) {
             return res.status(404).json({
                 error: 'Upload session not found',
@@ -1120,11 +1126,13 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             total_chunks: session.total_chunks
         });
 
+        console.log('🔍 About to check expiration_time');
         // Ensure expiration_time is set (fallback to 24 hours if missing)
         if (!session.expiration_time) {
             console.warn(`⚠️ Missing expiration_time for session ${uploadId}, using 24 hours as fallback`);
             session.expiration_time = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
         }
+        console.log('🔍 Expiration_time check completed');
 
         // Handle text uploads vs file uploads differently
         let filePath = null;
@@ -1673,7 +1681,9 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
         }
 
         // Store chunk to file system
-        const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${chunkNum}.chunk`);
+        const chunkDir = path.join(STORAGE_PATH, 'chunks', uploadId);
+        await fs.mkdir(chunkDir, { recursive: true });
+        const chunkPath = path.join(chunkDir, `chunk_${chunkNum}`);
         await fs.writeFile(chunkPath, chunkData);
 
         // Clean up temporary uploaded file
