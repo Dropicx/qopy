@@ -2752,8 +2752,11 @@ app.post('/api/clip/:clipId', [
   body('accessCode').optional().isString().withMessage('Access code must be a string')
 ], async (req, res) => {
   try {
+    console.log('🔐 POST /api/clip/:clipId STARTED:', req.params.clipId, 'body:', JSON.stringify(req.body));
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ Validation errors:', errors.array());
       return res.status(400).json({
         error: 'Validation failed',
         details: errors.array()
@@ -2804,10 +2807,12 @@ app.post('/api/clip/:clipId', [
     // Continue with same logic as GET endpoint...
     return await handleClipRetrieval(req, res, clip, clipId);
   } catch (error) {
-    console.error('❌ Error in POST /api/clip/:clipId:', error.message);
+    console.error('❌ Error in POST /api/clip/:clipId:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       error: 'Internal server error',
-      message: 'Failed to retrieve clip'
+      message: 'Failed to retrieve clip',
+      details: error.message
     });
   }
 });
