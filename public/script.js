@@ -1537,9 +1537,20 @@ class ClipboardApp {
             const clipId = data.redirectTo.split('/').pop();
             console.log('🔍 Extracted clipId from redirectTo:', clipId);
             
-            // Generate download token for authentication
-            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-            console.log('🔐 Generated download token for text file download');
+            // NEW: Use Zero-Knowledge Access Code System instead of download tokens
+            let requestBody = {};
+            
+            if (clipId.length === 10 && password) {
+                // Normal clip with password: Use access code for authentication
+                console.log('🔐 Using access code authentication for text file download');
+                requestBody.accessCode = password; // Send password for access control
+            } else if (clipId.length === 10) {
+                // Normal clip without password: No authentication needed (URL secret is client-side)
+                console.log('🔐 No authentication needed - URL secret only (Zero-Knowledge)');
+            } else {
+                // Quick Share (4-digit): No authentication needed
+                console.log('⚡ Quick Share - no authentication needed');
+            }
             
             // Make authenticated POST request
             const response = await fetch(data.redirectTo, {
@@ -1547,9 +1558,7 @@ class ClipboardApp {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    downloadToken: downloadToken
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
@@ -2520,21 +2529,19 @@ class ClipboardApp {
                 urlSecret: urlSecret ? 'present' : 'none'
             });
             
-            // Generate download token for authentication (Enhanced Files don't need tokens)
-            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-            console.log('🔐 Generated download token for authentication');
-            
-            // Prepare request body with access code if password is provided
+            // NEW: Zero-Knowledge Access Code System - no download tokens needed
             const requestBody = {};
-            if (downloadToken !== null) {
-                requestBody.downloadToken = downloadToken;
-            }
-            if (password) {
-                // Hash the access code on client side before sending to server
-                console.log('🔐 Generating client-side access code hash for download');
-                const accessCodeHash = await this.generateAccessCodeHash(password);
-                requestBody.accessCode = accessCodeHash;
-                console.log('🔐 Client-side access code hash generated for download:', accessCodeHash.substring(0, 16) + '...');
+            
+            if (clipId.length === 10 && password) {
+                // Normal clip with password: Use access code for authentication
+                console.log('🔐 Using access code authentication for file download');
+                requestBody.accessCode = password; // Send password for access control
+            } else if (clipId.length === 10) {
+                // Normal clip without password: No authentication needed (URL secret is client-side)
+                console.log('🔐 No authentication needed - URL secret only (Zero-Knowledge)');
+            } else {
+                // Quick Share (4-digit): No authentication needed
+                console.log('⚡ Quick Share - no authentication needed');
             }
             console.log('📥 Request body:', requestBody);
             
