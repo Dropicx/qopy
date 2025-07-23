@@ -455,8 +455,12 @@ class ClipboardApp {
                         const passwordSection = document.getElementById('password-section');
                         if (passwordSection) {
                             passwordSection.style.display = 'block';
+                            passwordSection.classList.remove('hidden');
                             console.log('✅ Password section shown');
                         }
+                        
+                        // BLOCK any further automatic retrievals
+                        this.blockAutoRetrieve = true;
                         
                         this.showToast('🔒 This clip requires a password. Please enter it above.', 'info');
                         return;
@@ -758,6 +762,12 @@ class ClipboardApp {
 
     // Check Clip ID and show password field if needed
     async checkClipId() {
+        // Block automatic retrieval if password form is already shown
+        if (this.blockAutoRetrieve) {
+            console.log('🚫 checkClipId blocked - password form already shown');
+            return;
+        }
+        
         const clipId = document.getElementById('clip-id-input').value.trim();
         const passwordSection = document.getElementById('password-section');
         const passwordInput = document.getElementById('retrieve-password-input');
@@ -1247,6 +1257,9 @@ class ClipboardApp {
     async retrieveContent() {
         const clipId = document.getElementById('clip-id-input').value.trim();
         const password = document.getElementById('retrieve-password-input').value.trim();
+
+        // Reset auto-retrieve block when user manually triggers retrieve
+        this.blockAutoRetrieve = false;
 
         console.log('🔍 Starting retrieveContent with:', { clipId, hasPassword: !!password });
 
