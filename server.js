@@ -2826,10 +2826,17 @@ app.post('/api/clip/:clipId', [
         if (isAlreadyHashed) {
           console.log('🔐 Using client-side hashed access code for validation');
           providedHash = accessCode;
-        } else {
-          console.log('🔐 Generating server-side access code hash for validation');
-          providedHash = await generateAccessCodeHash(accessCode);
-        }
+                 } else {
+           console.log('🔐 Generating server-side access code hash for validation');
+           // Inline hash generation to avoid reference errors
+           const crypto = require('crypto');
+           providedHash = await new Promise((resolve, reject) => {
+             crypto.pbkdf2(accessCode, 'qopy-access-salt-v1', 100000, 64, 'sha512', (err, derivedKey) => {
+               if (err) reject(err);
+               else resolve(derivedKey.toString('hex'));
+             });
+           });
+         }
         
         if (providedHash !== validationClip.access_code_hash) {
           console.log(`❌ Invalid access code for clipId: ${clipId}`);
