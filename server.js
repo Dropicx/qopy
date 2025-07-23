@@ -1152,49 +1152,21 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         let filePath = null;
         let actualFilesize = 0;
 
-        if (isTextUpload) {
-            // Text upload: Assemble from chunks like regular files
-            console.log('📝 Processing text upload:', uploadId);
-            if (session.uploaded_chunks < session.total_chunks) {
-                return res.status(400).json({
-                    error: 'Upload incomplete',
-                    message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
-                });
-            }
-            
-            console.log('🔍 About to call assembleFile for text upload:', uploadId);
-            console.log('🔍 Session details for assembleFile:', {
-                uploadId: session.upload_id,
-                filename: session.filename,
-                total_chunks: session.total_chunks,
-                uploaded_chunks: session.uploaded_chunks
+        // Both text and file uploads use the same logic
+        console.log('📝 Processing upload:', uploadId, 'isTextUpload:', isTextUpload);
+        if (session.uploaded_chunks < session.total_chunks) {
+            return res.status(400).json({
+                error: 'Upload incomplete',
+                message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
             });
-            console.log('🔍 Full session object:', JSON.stringify(session, null, 2));
-            try {
-                // Assemble file from chunks (same as regular files)
-                filePath = await assembleFile(uploadId, session);
-                console.log('✅ assembleFile completed successfully:', filePath);
-                actualFilesize = (await fs.stat(filePath)).size;
-                console.log('📝 Text content assembled from chunks:', filePath, 'size:', actualFilesize);
-            } catch (error) {
-                console.error('❌ Error in assembleFile:', error);
-                throw error;
-            }
-        } else {
-            // File upload: Check if all chunks uploaded then assemble
-            if (session.uploaded_chunks < session.total_chunks) {
-                return res.status(400).json({
-                    error: 'Upload incomplete',
-                    message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
-                });
-            }
-
-            // Assemble file from chunks
-            filePath = await assembleFile(uploadId, session);
-            
-            // Get actual file size (may be different from original if encrypted)
-            actualFilesize = (await fs.stat(filePath)).size;
         }
+
+        // Assemble file from chunks (same logic for both text and files)
+        filePath = await assembleFile(uploadId, session);
+        
+        // Get actual file size
+        actualFilesize = (await fs.stat(filePath)).size;
+        console.log('📝 Content assembled from chunks:', filePath, 'size:', actualFilesize, 'isText:', isTextUpload);
         
         // Get actual file size for both text and file uploads (if not already set)
         if (actualFilesize === 0) {
@@ -1243,7 +1215,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
                 // Normal Share with Password: Use client-generated access code hash
                 console.log('🔐 Using client-side access code hash (Zero-Knowledge):', uploadId);
                 accessCodeHash = clientAccessCodeHash;
-                shouldRequireAccessCode = true;
+                shouldRequireAccessCode = true; // FORCE TRUE
                 passwordHash = 'client-encrypted'; // Mark as client-encrypted for legacy compatibility
                 console.log('🔐 Zero-Knowledge Access Code Hash stored:', {
                     accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
@@ -1283,6 +1255,11 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
 
         console.log('📝 Storing file_metadata:', fileMetadata);
 
+        // FORCE requiresAccessCode to boolean
+        if (requiresAccessCode && clientAccessCodeHash) {
+            shouldRequireAccessCode = true;
+        }
+        
         // Log database insert parameters for debugging
         console.log('💾 Database Insert Parameters:', {
             clipId,
@@ -1291,6 +1268,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
             requiresAccessCode: shouldRequireAccessCode,
             requiresAccessCodeType: typeof shouldRequireAccessCode,
+            FORCED_VALUE: shouldRequireAccessCode,
             isFile
         });
 
