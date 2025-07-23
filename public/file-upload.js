@@ -1289,33 +1289,15 @@ class FileUploadManager {
                 averageChunkTime: (chunkUploadTime / totalChunks).toFixed(2) + 'ms'
             });
 
-            // Complete upload (Zero-Knowledge: NO URL secret sent to server)
+            // Complete upload with access code if required
             console.log('🏁 Completing upload...');
             const completeStart = performance.now();
             
-            console.log('🔐 Zero-Knowledge Upload Complete: No secrets sent to server');
-            
-            const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({})
-            });
+            // Use the completeUpload method to handle access code properly
+            console.log('🔐 Using completeUpload method for access code handling');
+            const result = await this.completeUpload(uploadId);
             
             const completeTime = performance.now() - completeStart;
-
-            if (!completeResponse.ok) {
-                const error = await completeResponse.json();
-                console.error('❌ Upload completion failed:', {
-                    status: completeResponse.status,
-                    error: error.message,
-                    completeTime: completeTime.toFixed(2) + 'ms'
-                });
-                throw new Error(`Upload completion failed: ${error.message}`);
-            }
-
-            const result = await completeResponse.json();
             const totalUploadTime = performance.now() - uploadStartTime;
             
             console.log('🎉 Upload completed successfully:', {

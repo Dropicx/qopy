@@ -951,8 +951,10 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             quickShareSecret: quickShareSecret,
             password: password ? password.substring(0, 3) + '***' : null,
             passwordLength: password ? password.length : 0,
+            passwordType: typeof password,
             hasPassword: !!password,
-            hasUrlSecret: !!urlSecret
+            hasUrlSecret: !!urlSecret,
+            fullRequestBody: req.body
         });
         
         const session = await getUploadSession(uploadId);
