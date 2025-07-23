@@ -1225,6 +1225,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             passwordHash,
             accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
             requiresAccessCode: shouldRequireAccessCode,
+            requiresAccessCodeType: typeof shouldRequireAccessCode,
             isFile
         });
 
@@ -2565,11 +2566,12 @@ app.get('/api/clip/:clipId/info', [
     let hasPassword = false;
     if (clipId.length === 10) {
       // For normal clips (10-digit), check if access code is required
-      hasPassword = clip.requires_access_code === true;
+      hasPassword = clip.requires_access_code || false;
       console.log('🔍 Clip info debug:', {
         clipId,
         contentType: clip.content_type,
         requires_access_code: clip.requires_access_code,
+        requires_access_code_type: typeof clip.requires_access_code,
         hasPassword
       });
     } else {
