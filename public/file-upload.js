@@ -258,13 +258,13 @@ class FileUploadManager {
             
             // Get form settings
             const expiration = document.getElementById('file-expiration')?.value || '24hr';
-            const hasPassword = document.getElementById('file-password-checkbox')?.checked || false;
+            const requiresAccessCode = document.getElementById('file-password-checkbox')?.checked || false;
             const oneTime = document.getElementById('file-one-time-checkbox')?.checked || false;
 
             // Initiate upload
             const uploadSession = await this.initiateUpload(this.selectedFile, {
                 expiration,
-                hasPassword,
+                hasPassword: requiresAccessCode, // Keep backward compatibility
                 oneTime
             });
 
@@ -1152,18 +1152,18 @@ class FileUploadManager {
 
             const { uploadId, chunkSize, totalChunks, compatibleSecret, fileDataToUpload } = uploadSession;
 
-            // Get encryption settings from form
-            const hasPassword = document.getElementById('file-password-checkbox')?.checked || false;
-            const password = hasPassword ? document.getElementById('file-password-input')?.value?.trim() : null;
+            // Get access code settings from form
+            const requiresAccessCode = document.getElementById('file-password-checkbox')?.checked || false;
+            const accessCode = requiresAccessCode ? document.getElementById('file-password-input')?.value?.trim() : null;
             
-            console.log('🔐 Encryption settings analysis:', {
-                hasPassword,
-                passwordLength: password ? password.length : 0,
-                willUseCombinedMode: hasPassword && password
+            console.log('🔐 Access code settings analysis:', {
+                requiresAccessCode,
+                accessCodeLength: accessCode ? accessCode.length : 0,
+                accessCodeProvided: requiresAccessCode && accessCode
             });
             
-            if (hasPassword && !password) {
-                throw new Error('Password protection enabled but no password provided');
+            if (requiresAccessCode && !accessCode) {
+                throw new Error('Access code protection enabled but no access code provided');
             }
 
             // Use compatible encryption (URL-Secret only for file encryption)
@@ -1178,7 +1178,7 @@ class FileUploadManager {
             
             console.log('🔐 Compatible encryption prepared:', {
                 keyType: 'secret-only', // Access Code System: File encryption uses only URL-Secret
-                accessCode: password ? 'enabled' : 'disabled',
+                accessCode: accessCode ? 'enabled' : 'disabled',
                 secretLength: compatibleSecret.length,
                 secretType: compatibleSecret.length >= 40 ? 'Enhanced (43+ chars)' : 'Legacy (16 chars)',
                 ivLength: iv.length,
@@ -1539,13 +1539,13 @@ class FileUploadManager {
     }
 
     async completeUpload(uploadId) {
-        // Get form settings for download token generation
-        const hasPassword = document.getElementById('file-password-checkbox')?.checked || false;
-        const password = hasPassword ? document.getElementById('file-password-input')?.value?.trim() : null;
+        // Get form settings for access code and download token generation
+        const requiresAccessCode = document.getElementById('file-password-checkbox')?.checked || false;
+        const accessCode = requiresAccessCode ? document.getElementById('file-password-input')?.value?.trim() : null;
         const urlSecret = this.currentUploadSession?.urlSecret || null;
         
-        console.log('🔐 Sending authentication parameters for token generation:', {
-            hasPassword: !!password,
+        console.log('🔐 Sending authentication parameters for upload completion:', {
+            requiresAccessCode: !!accessCode,
             hasUrlSecret: !!urlSecret
         });
         
@@ -1555,7 +1555,7 @@ class FileUploadManager {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                password: password,
+                password: accessCode, // Send as 'password' for backward compatibility
                 urlSecret: urlSecret
                 // checksums can be omitted, server will validate automatically
             })
@@ -1650,6 +1650,17 @@ class FileUploadManager {
         const originalMetadata = this.currentUploadSession?.originalMetadata || {};
         const secretType = urlFragment?.length >= 40 ? 'Enhanced (256-bit)' : 'Legacy (128-bit)';
         const isEnhanced = urlFragment?.length >= 40;
+        
+        // Check if access code was used
+        const requiresAccessCode = document.getElementById('file-password-checkbox')?.checked || false;
+        const accessCodeUsed = requiresAccessCode && document.getElementById('file-password-input')?.value?.trim();
+        
+        console.log('🔐 Upload security summary:', {
+            secretType,
+            isEnhanced,
+            requiresAccessCode,
+            accessCodeUsed: !!accessCodeUsed
+        });
         
         // Use the main success modal instead of a separate upload-success div
         document.getElementById('share-url').value = finalUrl;

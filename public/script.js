@@ -2721,6 +2721,11 @@ class ClipboardApp {
         return null;
     }
 
+    // Get access code from user input (alias for backward compatibility)
+    getAccessCodeFromUser() {
+        return this.getPasswordFromUser();
+    }
+
     // Decrypt file using same algorithm as chunks
     async decryptFile(encryptedBytes, password = null, urlSecret = null) {
         console.log('🔓 decryptFile called with:', {

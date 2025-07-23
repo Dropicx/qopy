@@ -632,18 +632,18 @@
                             <label class="checkbox-label">
                                 <input type="checkbox" id="file-password-checkbox">
                                 <span class="checkmark"></span>
-                                Password protect (client-side encryption)
+                                Require access code (additional protection)
                             </label>
                         </div>
                     </div>
 
                     <div class="form-row" id="file-password-section" style="display: none;">
                         <div class="input-group">
-                            <label for="file-password-input" class="label">Password:</label>
+                            <label for="file-password-input" class="label">Access Code:</label>
                             <input 
                                 type="password" 
                                 id="file-password-input" 
-                                placeholder="Enter password for file encryption..."
+                                placeholder="Enter access code for additional protection..."
                                 maxlength="128"
                                 autocomplete="new-password"
                                 class="input"
@@ -698,11 +698,11 @@
                 </div>
 
                 <div id="password-section" class="input-group hidden">
-                    <label for="retrieve-password-input" class="label">Password:</label>
+                    <label for="retrieve-password-input" class="label">Access Code:</label>
                     <input 
                         type="password" 
                         id="retrieve-password-input" 
-                        placeholder="Enter password"
+                        placeholder="Enter access code"
                         maxlength="128"
                         class="input"
                     >
