@@ -1793,7 +1793,13 @@ class ClipboardApp {
             console.log(`📥 Downloaded encrypted text file: ${encryptedBytes.length} bytes`);
 
             // Decrypt the content using the same method as file downloads
-            const decryptedBytes = await this.decryptFile(encryptedBytes, password, urlSecret);
+            const decryptResult = await this.decryptFile(encryptedBytes, password, urlSecret);
+            const decryptedBytes = decryptResult.data; // Extract the actual decrypted data
+            
+            // Log metadata if available
+            if (decryptResult.metadata) {
+                console.log('📋 Text file metadata:', decryptResult.metadata);
+            }
             
             // Remove padding if present (check if data has padding marker)
             let finalDecryptedBytes = decryptedBytes;
@@ -2810,25 +2816,24 @@ class ClipboardApp {
                 try {
                     console.log('📥 Attempting to decrypt file data');
                     // Access Code System: File decryption uses only URL-Secret, not password
-                    decryptedData = await this.decryptFile(encryptedBytes, null, urlSecret);
-                    console.log('🔓 File decrypted successfully, size:', decryptedData.length, 'bytes');
+                    const decryptResult = await this.decryptFile(encryptedBytes, null, urlSecret);
+                    console.log('🔓 File decrypted successfully, size:', decryptResult.data.length, 'bytes');
                     
-                    // Extract metadata from decrypted data
-                    const { metadata, fileData } = await this.extractMetadata(decryptedData, urlSecret);
-                    if (metadata) {
-                        console.log('📋 Extracted metadata:', metadata);
+                    // Check if we have metadata from decryption
+                    if (decryptResult.metadata) {
+                        console.log('📋 Using metadata from decryption:', decryptResult.metadata);
                         // Use original filename and mime type from metadata
-                        const originalFilename = metadata.filename || filename;
-                        const originalMimeType = metadata.mimeType || 'application/octet-stream';
+                        const originalFilename = decryptResult.metadata.filename || filename;
+                        const originalMimeType = decryptResult.metadata.mimeType || 'application/octet-stream';
                         
                         console.log('📁 Using original file info:', {
                             filename: originalFilename,
                             mimeType: originalMimeType,
-                            originalSize: metadata.size
+                            originalSize: decryptResult.metadata.size
                         });
                         
                         // Create blob with correct mime type
-                        const blob = new Blob([fileData], { type: originalMimeType });
+                        const blob = new Blob([decryptResult.data], { type: originalMimeType });
                         console.log('📥 Blob created with mime type:', originalMimeType);
                         
                         // Create download link with original filename
@@ -2851,8 +2856,8 @@ class ClipboardApp {
                         this.showToast('✅ File downloaded successfully!', 'success');
                         return; // Exit early since we handled the download
                     } else {
-                        console.log('📋 No metadata found, using provided filename');
-                        decryptedData = fileData; // Use file data without metadata
+                        console.log('📋 No metadata found, using decrypted data directly');
+                        decryptedData = decryptResult.data; // Use decrypted file data
                     }
                 } catch (decryptError) {
                     console.warn('⚠️ Decryption failed, downloading as-is:', decryptError.message);
@@ -2968,15 +2973,52 @@ class ClipboardApp {
         }
 
         try {
-            // Check if data is large enough to contain IV + encrypted data
-            if (encryptedBytes.length < 12) {
-                throw new Error('File too small to be encrypted');
+            // Check if data is large enough to contain metadata header
+            if (encryptedBytes.length < 16) { // At least 4 bytes metadata length + 12 bytes IV
+                throw new Error('File too small to contain required headers');
+            }
+
+            console.log('🔓 Checking for embedded metadata structure');
+            
+            // Try to extract metadata first (4 bytes length + encrypted metadata + file data)
+            const metadataLengthView = new DataView(encryptedBytes.buffer.slice(0, 4));
+            const metadataLength = metadataLengthView.getUint32(0, true); // Little-endian as used in upload
+            
+            console.log('🔓 Potential metadata length:', metadataLength);
+            
+            let fileData = encryptedBytes;
+            let metadata = null;
+            
+            // Check if metadata length is reasonable (not too large, not zero)
+            if (metadataLength > 0 && metadataLength <= 1024 && (4 + metadataLength) < encryptedBytes.length) {
+                console.log('🔓 Attempting to extract embedded metadata');
+                
+                try {
+                    // Extract metadata using the existing extractMetadata function
+                    const metadataResult = await this.extractMetadata(encryptedBytes, urlSecret);
+                    if (metadataResult.metadata) {
+                        metadata = metadataResult.metadata;
+                        fileData = metadataResult.fileData;
+                        console.log('🔓 Successfully extracted metadata:', metadata);
+                    } else {
+                        console.log('🔓 No valid metadata found, treating as raw encrypted file');
+                    }
+                } catch (metadataError) {
+                    console.warn('⚠️ Failed to extract metadata, treating as raw encrypted file:', metadataError.message);
+                }
+            } else {
+                console.log('🔓 No metadata structure detected, treating as raw encrypted file');
+            }
+
+            // Now decrypt the actual file data (should have IV + encrypted content)
+            if (fileData.length < 12) {
+                throw new Error('File data too small to contain IV');
             }
 
             // Extract IV from first 12 bytes and encrypted data from remaining bytes
-            console.log('🔓 Extracting IV from first 12 bytes');
-            const iv = encryptedBytes.slice(0, 12);
-            const encryptedData = encryptedBytes.slice(12);
+            console.log('🔓 Extracting IV from first 12 bytes of file data');
+            const iv = fileData.slice(0, 12);
+            const encryptedData = fileData.slice(12);
             
             console.log('🔓 Extracted IV and encrypted data:', {
                 ivLength: iv.length,
@@ -2996,8 +3038,23 @@ class ClipboardApp {
                 encryptedData
             );
 
-            console.log('🔓 Decryption successful, result size:', decryptedData.byteLength);
-            return new Uint8Array(decryptedData);
+            const decryptedBytes = new Uint8Array(decryptedData);
+            console.log('🔓 Decryption successful, result size:', decryptedBytes.length);
+            
+            // If we extracted metadata, log it
+            if (metadata) {
+                console.log('🔓 File decrypted with metadata:', {
+                    originalFilename: metadata.filename,
+                    originalSize: metadata.size,
+                    mimeType: metadata.mimeType
+                });
+            }
+            
+            // Return both decrypted data and metadata
+            return { 
+                data: decryptedBytes, 
+                metadata: metadata 
+            };
 
         } catch (error) {
             console.error('❌ Decryption error:', error);
