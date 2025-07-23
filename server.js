@@ -1104,13 +1104,39 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         const { uploadId } = req.params;
         console.log('🔍 UploadId from params:', uploadId);
         
-        const { quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType } = req.body;
-        console.log('🔑 Upload complete request body:', { 
-            quickShareSecret: quickShareSecret,
-            hasAccessCodeHash: !!clientAccessCodeHash,
-            requiresAccessCode: requiresAccessCode,
-            fullRequestBody: req.body
-        });
+        console.log('🔍 Request body:', JSON.stringify(req.body, null, 2));
+        
+        // Support both old file upload system and new text upload system
+        let quickShareSecret, clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
+        let password, urlSecret; // File upload system
+        
+        try {
+            // Try new text upload system first
+            if (req.body.accessCodeHash || req.body.requiresAccessCode !== undefined) {
+                console.log('🔍 Using NEW text upload system');
+                ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType } = req.body);
+            } else {
+                console.log('🔍 Using OLD file upload system');
+                ({ password, urlSecret } = req.body);
+                // Convert old system to new system
+                isTextUpload = false;
+                contentType = 'file';
+                requiresAccessCode = !!password;
+                clientAccessCodeHash = password; // Use password as access code hash for legacy
+            }
+            
+            console.log('🔑 Upload complete request body:', { 
+                quickShareSecret: quickShareSecret,
+                hasAccessCodeHash: !!clientAccessCodeHash,
+                requiresAccessCode: requiresAccessCode,
+                isTextUpload: isTextUpload,
+                contentType: contentType,
+                fullRequestBody: req.body
+            });
+        } catch (destructureError) {
+            console.error('❌ Error destructuring request body:', destructureError);
+            throw destructureError;
+        }
         
         console.log('🔍 About to get upload session');
         const session = await getUploadSession(uploadId);
@@ -1339,10 +1365,12 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error completing upload:', error.message);
+        console.error('❌ Error completing upload:', error);
+        console.error('❌ Error stack:', error.stack);
         res.status(500).json({
             error: 'Internal server error',
-            message: 'Failed to complete upload'
+            message: 'Failed to complete upload',
+            details: error.message
         });
     }
 });
