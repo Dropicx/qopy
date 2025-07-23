@@ -1079,7 +1079,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         console.log('🔑 Upload complete request body:', { 
             quickShareSecret: quickShareSecret,
             hasAccessCodeHash: !!clientAccessCodeHash,
-            requiresAccessCode: clientRequiresAccessCode,
+            requiresAccessCode: requiresAccessCode,
             fullRequestBody: req.body
         });
         
