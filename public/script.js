@@ -1793,13 +1793,7 @@ class ClipboardApp {
             console.log(`📥 Downloaded encrypted text file: ${encryptedBytes.length} bytes`);
 
             // Decrypt the content using the same method as file downloads
-            const decryptResult = await this.decryptFile(encryptedBytes, password, urlSecret);
-            const decryptedBytes = decryptResult.data; // Extract the actual decrypted data
-            
-            // Log metadata if available
-            if (decryptResult.metadata) {
-                console.log('📋 Text file metadata:', decryptResult.metadata);
-            }
+            const decryptedBytes = await this.decryptFile(encryptedBytes, password, urlSecret);
             
             // Remove padding if present (check if data has padding marker)
             let finalDecryptedBytes = decryptedBytes;
@@ -2816,7 +2810,7 @@ class ClipboardApp {
                 try {
                     console.log('📥 Attempting to decrypt file data');
                     // Access Code System: File decryption uses only URL-Secret, not password
-                    const decryptResult = await this.decryptFile(encryptedBytes, null, urlSecret);
+                    const decryptResult = await this.decryptFileWithMetadata(encryptedBytes, null, urlSecret);
                     console.log('🔓 File decrypted successfully, size:', decryptResult.data.length, 'bytes');
                     
                     // Check if we have metadata from decryption
@@ -2959,9 +2953,63 @@ class ClipboardApp {
         return this.getPasswordFromUser();
     }
 
-    // Decrypt file using same algorithm as chunks
+    // Decrypt file using same algorithm as chunks (for TEXT content - simple IV + data structure)
     async decryptFile(encryptedBytes, password = null, urlSecret = null) {
         console.log('🔓 decryptFile called with:', {
+            dataSize: encryptedBytes.length,
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
+
+        if (!password && !urlSecret) {
+            console.error('❌ No decryption keys available for file decryption');
+            throw new Error('No decryption keys available. This might be a Quick Share that requires a server secret.');
+        }
+
+        try {
+            // Check if data is large enough to contain IV + encrypted data
+            if (encryptedBytes.length < 12) {
+                throw new Error('File too small to be encrypted');
+            }
+
+            // Extract IV from first 12 bytes and encrypted data from remaining bytes
+            console.log('🔓 Extracting IV from first 12 bytes');
+            const iv = encryptedBytes.slice(0, 12);
+            const encryptedData = encryptedBytes.slice(12);
+            
+            console.log('🔓 Extracted IV and encrypted data:', {
+                ivLength: iv.length,
+                encryptedDataLength: encryptedData.length
+            });
+
+            // Generate decryption key
+            console.log('🔓 Generating decryption key');
+            const key = await this.generateDecryptionKey(password, urlSecret);
+            console.log('🔓 Decryption key generated successfully');
+
+            // Decrypt the data
+            console.log('🔓 Starting decryption with AES-GCM');
+            const decryptedData = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                encryptedData
+            );
+
+            console.log('🔓 Decryption successful, result size:', decryptedData.byteLength);
+            return new Uint8Array(decryptedData);
+
+        } catch (error) {
+            console.error('❌ Decryption error:', error);
+            if (error.message.includes('decrypt')) {
+                throw new Error('Decryption failed: Invalid decryption key or corrupted data');
+            }
+            throw new Error('Decryption failed: ' + error.message);
+        }
+    }
+
+    // Decrypt file with metadata support (for FILE content - metadata header + IV + data structure)
+    async decryptFileWithMetadata(encryptedBytes, password = null, urlSecret = null) {
+        console.log('🔓 decryptFileWithMetadata called with:', {
             dataSize: encryptedBytes.length,
             hasPassword: !!password,
             hasUrlSecret: !!urlSecret
