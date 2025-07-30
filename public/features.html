@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- SEO Meta Tags -->
-    <title>Qopy Features - Enterprise-Grade Secure Text Sharing with Hybrid Security</title>
-    <meta name="description" content="Discover Qopy's advanced features: enterprise-grade client-side encryption, Quick Share mode, hybrid security, zero-knowledge architecture, QR codes, and API access. The most secure text sharing platform.">
-    <meta name="keywords" content="qopy features, secure text sharing features, client-side encryption, automatic expiration, password protection, one-time access, QR code sharing, API access, pastebin alternative">
+    <title>Qopy Features - Enterprise-Grade Secure Text & File Sharing with Hybrid Security</title>
+    <meta name="description" content="Discover Qopy's advanced features: enterprise-grade client-side encryption, unified text and file sharing, Quick Share mode, hybrid security, zero-knowledge architecture, QR codes, and API access. The most secure sharing platform.">
+    <meta name="keywords" content="qopy features, secure text sharing features, secure file sharing, client-side encryption, automatic expiration, password protection, one-time access, QR code sharing, API access, pastebin alternative">
     <meta name="robots" content="index, follow">
     
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://qopy.app/features.html">
-    <meta property="og:title" content="Qopy Features - Enterprise-Grade Secure Text Sharing with Hybrid Security">
-    <meta property="og:description" content="Discover Qopy's advanced features: enterprise-grade client-side encryption, Quick Share mode, hybrid security, and more.">
+    <meta property="og:title" content="Qopy Features - Enterprise-Grade Secure Text & File Sharing with Hybrid Security">
+    <meta property="og:description" content="Discover Qopy's advanced features: enterprise-grade client-side encryption, unified text and file sharing, Quick Share mode, hybrid security, and more.">
     <meta property="og:image" content="https://qopy.app/logos/Main%20Qopy%20logo.png">
     
     <!-- Canonical URL -->
@@ -138,14 +138,24 @@
             <a href="/" class="back-link">← Back to Qopy</a>
             <a href="/features-de.html" class="back-link" style="margin-left: 1rem;">🇩🇪 Deutsche Version</a>
             
-            <h1>Qopy Features - Enterprise-Grade Secure Text Sharing Redefined</h1>
+            <h1>Qopy Features - Enterprise-Grade Secure Text & File Sharing Redefined</h1>
             
-            <p>Qopy is not just another text sharing service. It's a privacy-first, security-focused platform with enterprise-grade encryption that puts your data protection above everything else. Here's what makes Qopy the ultimate choice for secure text sharing.</p>
+            <p>Qopy is not just another sharing service. It's a privacy-first, security-focused platform with enterprise-grade encryption that puts your data protection above everything else. Our unified system handles both text and file sharing with the same level of security and privacy protection.</p>
             
             <div class="feature-grid">
                 <div class="feature-card">
+                    <h3>Unified Text & File Sharing</h3>
+                    <p>Share both text content and files through a single, secure platform. All content is encrypted client-side before transmission, ensuring maximum privacy regardless of content type.</p>
+                </div>
+                
+                <div class="feature-card">
                     <h3>Enterprise-Grade Client-Side Encryption</h3>
                     <p>Your content is encrypted with AES-256-GCM encryption directly in your browser before it ever reaches our servers. We literally cannot read your content, even if we wanted to.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>Multi-Part File Upload System</h3>
+                    <p>Large files are uploaded in secure chunks with automatic reassembly. Files up to 100MB are supported with progress tracking and resume capability.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -154,8 +164,8 @@
                 </div>
                 
                 <div class="feature-card">
-                    <h3>Password Protection</h3>
-                    <p>Add an optional password to your shared content. Passwords are processed with 100,000 PBKDF2 iterations and never leave your browser.</p>
+                    <h3>Access Code Protection</h3>
+                    <p>Add an optional access code to your shared content. Access codes are processed with 100,000 PBKDF2 iterations and never leave your browser.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -165,7 +175,7 @@
                 
                 <div class="feature-card">
                     <h3>QR Code Sharing</h3>
-                    <p>Generate QR codes for easy mobile sharing. Simply scan the code with any smartphone to access your shared content instantly. QR codes are generated client-side for maximum privacy - no external API calls required.</p>
+                    <p>Generate QR codes for easy mobile sharing. Simply scan the code with any smartphone to access your shared content instantly. QR codes are generated client-side for maximum privacy.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -179,8 +189,18 @@
                 </div>
                 
                 <div class="feature-card">
+                    <h3>Enhanced Security Mode</h3>
+                    <p>10-character codes with URL secrets for sensitive content. Provides additional security layers for confidential information.</p>
+                </div>
+                
+                <div class="feature-card">
                     <h3>REST API Access</h3>
                     <p>Integrate Qopy into your applications with our comprehensive REST API. Note: Client-side encryption is only available through the web interface.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>Redis Caching (Optional)</h3>
+                    <p>Enhanced performance with optional Redis caching for upload sessions. Falls back gracefully to database storage when Redis is unavailable.</p>
                 </div>
             </div>
             
@@ -190,11 +210,11 @@
             <p>Qopy implements cutting-edge encryption techniques for maximum security:</p>
             <ul>
                 <li><strong>AES-256-GCM encryption</strong> - Advanced algorithm used by financial institutions worldwide</li>
-                <li><strong>PBKDF2 key derivation</strong> - 100,000 iterations for password-protected content</li>
-                <li><strong>Hybrid security system</strong> - URL secrets + passwords for defense in depth</li>
-                <li><strong>Deterministic IV derivation</strong> - IV derived from combined secret for password-protected clips</li>
+                <li><strong>PBKDF2 key derivation</strong> - 100,000 iterations for access code-protected content</li>
+                <li><strong>Hybrid security system</strong> - URL secrets + access codes for defense in depth</li>
+                <li><strong>Deterministic IV derivation</strong> - IV derived from combined secret for access code-protected clips</li>
                 <li><strong>Binary storage</strong> - Direct byte concatenation, stored as BYTEA for efficiency</li>
-                <li><strong>Random key generation</strong> - Cryptographically secure random keys for non-password clips</li>
+                <li><strong>Random key generation</strong> - Cryptographically secure random keys for non-protected clips</li>
                 <li><strong>Authenticated encryption</strong> - GCM mode provides both confidentiality and integrity</li>
                 <li><strong>Zero-knowledge architecture</strong> - We literally cannot read your content</li>
             </ul>
@@ -203,11 +223,11 @@
             <p>Qopy's innovative hybrid security combines multiple protection layers:</p>
             <ul>
                 <li><strong>URL secrets</strong> - 16-character random secrets automatically generated and included in share URLs</li>
-                <li><strong>User passwords</strong> - Traditional password protection chosen by users</li>
-                <li><strong>Combined secrets</strong> - Both secrets combined for maximum security (URL_secret:password)</li>
-                <li><strong>Defense in depth</strong> - Even weak passwords are protected by the URL secret</li>
+                <li><strong>User access codes</strong> - Traditional access code protection chosen by users</li>
+                <li><strong>Combined secrets</strong> - Both secrets combined for maximum security (URL_secret:access_code)</li>
+                <li><strong>Defense in depth</strong> - Even weak access codes are protected by the URL secret</li>
                 <li><strong>URL-based access control</strong> - Only those with the complete URL can attempt decryption</li>
-                <li><strong>Two-factor security</strong> - Something you know (password) + something you have (URL)</li>
+                <li><strong>Two-factor security</strong> - Something you know (access code) + something you have (URL)</li>
             </ul>
             
             <h3>Zero-Knowledge Architecture</h3>
@@ -216,10 +236,21 @@
                 <li>We never see your plain text content</li>
                 <li>All encryption happens in your browser</li>
                 <li>Only encrypted data is stored on our servers</li>
-                <li>Passwords never leave your browser</li>
+                <li>Access codes never leave your browser</li>
                 <li>URL secrets never leave your browser</li>
                 <li>Even if our servers were compromised, your data would remain secure</li>
                 <li>No IV transmission - derived deterministically from combined secret</li>
+            </ul>
+            
+            <h3>File Upload Security</h3>
+            <p>Advanced file handling with enterprise-grade security:</p>
+            <ul>
+                <li><strong>Chunked uploads</strong> - Large files split into secure 5MB chunks</li>
+                <li><strong>Automatic reassembly</strong> - Files reassembled server-side with integrity checks</li>
+                <li><strong>Progress tracking</strong> - Real-time upload progress with resume capability</li>
+                <li><strong>File validation</strong> - Comprehensive file type and size validation</li>
+                <li><strong>Secure storage</strong> - Files stored with same encryption as text content</li>
+                <li><strong>Automatic cleanup</strong> - Expired files and orphaned chunks removed automatically</li>
             </ul>
             
             <h3>Rate Limiting & Abuse Prevention</h3>
@@ -229,6 +260,7 @@
                 <li>General API protection for overall stability</li>
                 <li>Content-specific limits to prevent spam</li>
                 <li>IP-based enforcement with temporary processing</li>
+                <li>Upload-specific rate limiting for file sharing</li>
             </ul>
             
             <h3>API Security Limitations</h3>
@@ -250,70 +282,71 @@
                         <th style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">Pastebin</th>
                     </tr>
                     <tr>
-                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Encryption</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">✅ Client-side AES-256</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">❌ None</td>
-                    </tr>
-                    <tr style="background: var(--bg-secondary);">
-                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Registration</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">✅ Not required</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">⚠️ Required for features</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Privacy & Security</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">✅ Enterprise-grade client-side encryption, zero-knowledge, hybrid security</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">❌ No encryption, permanent storage, IP tracking</td>
                     </tr>
                     <tr>
-                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Auto-expiration</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">✅ Guaranteed</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">⚠️ Manual only</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">File Sharing</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">✅ Secure file uploads up to 100MB with chunked transfer</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">❌ Text only, no file support</td>
                     </tr>
-                    <tr style="background: var(--bg-secondary);">
-                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Ads</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">✅ None</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">❌ Intrusive</td>
+                    <tr>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">User Experience</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">✅ No registration, instant sharing</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">⚠️ Account required for features</td>
                     </tr>
                     <tr>
                         <td style="padding: 1rem; border: 1px solid var(--border-color);">Mobile Experience</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">✅ QR codes, responsive</td>
-                        <td style="padding: 1rem; text-align: center; border: 1px solid var(--border-color);">❌ Poor</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">✅ QR codes, responsive design</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">❌ Poor mobile interface</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Content Expiration</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">✅ Guaranteed auto-deletion</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">⚠️ Manual deletion, may persist</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Ads & Monetization</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">✅ Completely ad-free</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">❌ Intrusive advertisements</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Modern Features</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">✅ Enterprise-grade encryption, Quick Share mode, hybrid security, QR codes</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">⚠️ No encryption, limited security options</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">Interface Design</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">✅ Modern, Spotify-inspired UI</td>
+                        <td style="padding: 1rem; border: 1px solid var(--border-color);">❌ Outdated, cluttered design</td>
                     </tr>
                 </table>
+                
+                <p><strong>Why choose Qopy?</strong></p>
+                <ul>
+                    <li><strong>Unified platform</strong> - Share both text and files securely</li>
+                    <li><strong>Enterprise-grade encryption</strong> - Client-side AES-256-GCM encryption for ultimate privacy</li>
+                    <li><strong>Zero-knowledge architecture</strong> - We literally cannot read your content</li>
+                    <li><strong>Quick Share mode</strong> - 4-character codes for ultra-fast sharing</li>
+                    <li><strong>Enhanced security</strong> - 10-character codes with URL secrets for sensitive content</li>
+                    <li><strong>Mobile-optimized</strong> - QR codes and responsive design for easy sharing</li>
+                    <li><strong>Zero distractions</strong> - No ads, no tracking, no bloat</li>
+                    <li><strong>Lightning fast</strong> - Instant sharing with auto-retrieval and keyboard shortcuts</li>
+                </ul>
             </div>
             
-            <h2>Use Cases</h2>
-            
-            <h3>For Developers</h3>
-            <ul>
-                <li>Share code snippets securely with team members</li>
-                <li>Quick debugging assistance without exposing sensitive data</li>
-                <li>API integration for automated workflows</li>
-                <li>Secure sharing of configuration files</li>
-            </ul>
-            
-            <h3>For Business</h3>
-            <ul>
-                <li>Share sensitive documents with clients</li>
-                <li>Secure communication of passwords or credentials</li>
-                <li>Temporary sharing of confidential information</li>
-                <li>Compliance with data protection regulations</li>
-            </ul>
-            
-            <h3>For Personal Use</h3>
-            <ul>
-                <li>Share notes with family members</li>
-                <li>Secure storage of temporary information</li>
-                <li>Privacy-focused communication</li>
-                <li>Mobile-friendly sharing with QR codes</li>
-            </ul>
-            
             <div class="cta-section">
-                <h2>Ready to Experience Secure Text Sharing?</h2>
-                <p>Join thousands of users who trust Qopy for their secure text sharing needs. No registration, no tracking, just pure privacy and security.</p>
-                <a href="/" class="cta-button">Start Sharing Securely Now</a>
+                <h2>Ready to Experience Secure Sharing?</h2>
+                <p>Join thousands of users who trust Qopy for their secure text and file sharing needs.</p>
+                <a href="/" class="cta-button">Start Sharing Securely</a>
             </div>
         </div>
     </div>
 
     <footer>
         <p>No logs, no tracking, auto-expires. Your privacy is protected.</p>
-        <p>Built for secure, anonymous text sharing</p>
+        <p>Built for secure, anonymous text and file sharing</p>
         <div class="legal-links">
             <a href="/features.html">Features</a>
             <span class="separator">|</span>

@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- Primary SEO Meta Tags -->
-    <title>Qopy - Enterprise-Grade Secure Text Sharing | Client-Side Encryption | Quick Share Mode</title>
-    <meta name="description" content="Share text securely with enterprise-grade client-side encryption. Zero-knowledge architecture, Quick Share mode, hybrid security, no registration required. Ultimate privacy-first alternative to Pastebin.">
-    <meta name="keywords" content="text sharing, secure paste, temporary text, client-side encryption, pastebin alternative, secure text sharing, anonymous text sharing, encrypted text, temporary links, privacy-first">
+    <title>Qopy - Enterprise-Grade Secure Text & File Sharing | Client-Side Encryption | Quick Share Mode</title>
+    <meta name="description" content="Share text and files securely with enterprise-grade client-side encryption. Zero-knowledge architecture, Quick Share mode, hybrid security, unified platform, no registration required. Ultimate privacy-first alternative to Pastebin.">
+    <meta name="keywords" content="text sharing, file sharing, secure paste, temporary text, client-side encryption, pastebin alternative, secure text sharing, secure file sharing, anonymous text sharing, encrypted text, temporary links, privacy-first">
     <meta name="author" content="Qopy - LIT Services">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://qopy.app/">
-    <meta property="og:title" content="Qopy - Enterprise-Grade Secure Text Sharing">
-    <meta property="og:description" content="Share text securely with enterprise-grade client-side encryption. Zero-knowledge architecture, Quick Share mode, hybrid security, no registration required.">
+    <meta property="og:title" content="Qopy - Enterprise-Grade Secure Text & File Sharing">
+    <meta property="og:description" content="Share text and files securely with enterprise-grade client-side encryption. Zero-knowledge architecture, Quick Share mode, hybrid security, unified platform, no registration required.">
     <meta property="og:image" content="https://qopy.app/logos/Main%20Qopy%20logo.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -25,8 +25,8 @@
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="https://qopy.app/">
-    <meta property="twitter:title" content="Qopy - Enterprise-Grade Secure Text Sharing">
-    <meta property="twitter:description" content="Share text securely with enterprise-grade client-side encryption. Zero-knowledge architecture, Quick Share mode, hybrid security, no registration required.">
+    <meta property="twitter:title" content="Qopy - Enterprise-Grade Secure Text & File Sharing">
+    <meta property="twitter:description" content="Share text and files securely with enterprise-grade client-side encryption. Zero-knowledge architecture, Quick Share mode, hybrid security, unified platform, no registration required.">
     <meta property="twitter:image" content="https://qopy.app/logos/Main%20Qopy%20logo.png">
     
     <!-- Additional SEO Meta Tags -->
@@ -61,7 +61,7 @@
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "Qopy",
-        "description": "Secure temporary text sharing service with client-side encryption and automatic expiration",
+        "description": "Secure temporary text and file sharing service with client-side encryption and automatic expiration",
         "url": "https://qopy.app",
         "applicationCategory": "ProductivityApplication",
         "operatingSystem": "Web Browser",
@@ -71,17 +71,21 @@
             "priceCurrency": "USD"
         },
         "featureList": [
-                            "Enterprise-grade client-side encryption",
+            "Enterprise-grade client-side encryption",
             "Zero-knowledge architecture",
+            "Unified text and file sharing",
+            "Multi-part file upload system",
             "Quick Share mode",
+            "Enhanced security mode",
             "Hybrid security system",
             "Automatic expiration",
             "No registration required",
-            "Password protection",
+            "Access code protection",
             "One-time access",
             "Client-side QR generation",
             "Mobile responsive",
-            "API access"
+            "API access",
+            "Redis caching (optional)"
         ],
         "author": {
             "@type": "Organization",
@@ -228,12 +232,14 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-what-is-qopy">
-                        <p><strong>Qopy is an enterprise-grade secure text sharing service</strong> that allows you to share text content temporarily without requiring registration. Your content is encrypted client-side with AES-256-GCM and automatically deleted after a specified time period, ensuring ultimate privacy and security.</p>
+                        <p><strong>Qopy is an enterprise-grade secure text and file sharing service</strong> that allows you to share both text content and files temporarily without requiring registration. Your content is encrypted client-side with AES-256-GCM and automatically deleted after a specified time period, ensuring ultimate privacy and security.</p>
                         
                         <p><strong>Key features:</strong></p>
                         <ul>
+                            <li><strong>Unified platform</strong> - Share both text and files securely</li>
                             <li><strong>Client-side encryption</strong> - Content encrypted in your browser before transmission</li>
                             <li><strong>Zero-knowledge architecture</strong> - We literally cannot read your content</li>
+                            <li><strong>Multi-part file uploads</strong> - Large files uploaded in secure chunks</li>
                             <li><strong>Quick Share mode</strong> - 4-character codes for ultra-fast sharing</li>
                             <li><strong>Enhanced security mode</strong> - 10-character codes with URL secrets</li>
                             <li><strong>Mobile-optimized</strong> - QR codes and responsive design</li>
@@ -256,7 +262,7 @@
                             <li>🔄 <strong>PBKDF2 key derivation</strong> - 100,000 iterations for password-protected content</li>
                             <li>🔒 <strong>Deterministic IV derivation</strong> - IV derived from combined secrets for password-protected clips</li>
                             <li>⏰ <strong>Auto-expiration</strong> - Content automatically deletes after your chosen time</li>
-                            <li>🔐 <strong>Password protection</strong> - Optional additional security layer</li>
+                            <li>🔐 <strong>Access code protection</strong> - Optional additional security layer</li>
                             <li>🔥 <strong>One-time access</strong> - Content can self-destruct after first read</li>
                             <li>🛡️ <strong>Multi-layered rate limiting</strong> - Protection against abuse and spam</li>
                             <li>🚫 <strong>No IP tracking</strong> - True privacy-first approach</li>
@@ -273,10 +279,10 @@
                     <div class="faq-answer" id="faq-how-it-works">
                         <p>Simple and powerful:</p>
                         <ol>
-                            <li><strong>Paste your text</strong> - Enter up to 100,000 characters</li>
+                            <li><strong>Paste your text or select your file</strong> - Enter up to 100,000 characters or upload files up to 100MB</li>
                             <li><strong>Choose mode</strong> - Quick Share (4-digit, 5min) or Enhanced Security (10-digit, flexible expiry)</li>
                             <li><strong>Set expiration</strong> - From 5 minutes to 24 hours</li>
-                            <li><strong>Add protection</strong> - Optional password and one-time access</li>
+                            <li><strong>Add protection</strong> - Optional access code and one-time access</li>
                             <li><strong>Get your link</strong> - Share the generated URL with QR code</li>
                             <li><strong>Mobile sharing</strong> - QR codes generated client-side for privacy</li>
                             <li><strong>Auto-retrieval</strong> - Direct links automatically load content</li>
@@ -324,7 +330,7 @@
                             <li>🛡️ <strong>Zero-knowledge</strong> - We literally cannot read your content, even if we wanted to</li>
                             <li>🔒 <strong>Binary database storage</strong> - Only encrypted data is stored as BYTEA, never plain text</li>
                             <li>🚫 <strong>No user accounts</strong> - Completely anonymous usage</li>
-                            <li>📝 <strong>No content logging</strong> - We never analyze or mine your text data</li>
+                            <li>📝 <strong>No content logging</strong> - We never analyze or mine your data</li>
                             <li>⏰ <strong>Automatic deletion</strong> - Encrypted content disappears after expiration</li>
                             <li>🌍 <strong>GDPR compliant</strong> - Follows European privacy standards</li>
                             <li>🚫 <strong>Temporary IP processing</strong> - IP addresses are only processed for rate limiting, not stored permanently</li>
@@ -342,11 +348,12 @@
                     <div class="faq-answer" id="faq-limits">
                         <p>Yes, we have reasonable limits to ensure fair usage:</p>
                         <ul>
-                            <li><strong>Content size</strong> - Maximum 100,000 characters per clip</li>
+                            <li><strong>Text content size</strong> - Maximum 100,000 characters per clip</li>
+                            <li><strong>File size</strong> - Maximum 100MB per file</li>
                             <li><strong>Expiration time</strong> - Between 5 minutes and 24 hours</li>
                             <li><strong>Rate limiting</strong> - Multi-layered strategy with burst protection, API limits, and content-specific restrictions</li>
                             <li><strong>Temporary IP processing</strong> - IP addresses are only processed in memory for rate limiting, not stored permanently</li>
-                            <li><strong>Password length</strong> - Maximum 128 characters</li>
+                            <li><strong>Access code length</strong> - Maximum 128 characters</li>
                             <li><strong>Clip ID</strong> - 10 characters (Enhanced Security) or 4 characters (Quick Share)</li>
                         </ul>
                         <p>These limits help us maintain service quality and prevent abuse while ensuring fair usage for all users.</p>
@@ -366,39 +373,39 @@
                             <li>🔑 <strong>Hybrid security system</strong>:
                                 <ul>
                                     <li><strong>URL secrets</strong> - 16-character random secret in URL fragment (e.g., #x7y9z2...)</li>
-                                    <li><strong>User passwords</strong> - Your chosen password for additional protection</li>
+                                    <li><strong>User access codes</strong> - Your chosen access code for additional protection</li>
                                     <li><strong>Combined secrets</strong> - Both secrets combined for maximum security</li>
                                 </ul>
                             </li>
                             <li>🛡️ <strong>Zero-knowledge</strong> - We never see your plain text content</li>
-                            <li>🔄 <strong>PBKDF2 key derivation</strong> - 100,000 iterations for password-protected content</li>
+                            <li>🔄 <strong>PBKDF2 key derivation</strong> - 100,000 iterations for access code-protected content</li>
                             <li>⚡ <strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
-                            <li>🚫 <strong>No password transmission</strong> - Passwords never leave your browser</li>
-                            <li>🔒 <strong>Deterministic IV</strong> - For password-protected clips, IV is derived from combined secret</li>
+                            <li>🚫 <strong>No access code transmission</strong> - Access codes never leave your browser</li>
+                            <li>🔒 <strong>Deterministic IV</strong> - For access code-protected clips, IV is derived from combined secret</li>
                             <li>📦 <strong>Binary storage</strong> - Direct byte concatenation, stored as BYTEA for efficiency</li>
-                            <li>🛡️ <strong>Defense in depth</strong> - Even weak passwords are protected by URL secret</li>
+                            <li>🛡️ <strong>Defense in depth</strong> - Even weak access codes are protected by URL secret</li>
                             <li>⚡ <strong>Quick Share mode</strong> - Simplified encryption for non-sensitive content</li>
                         </ul>
                         <p><strong>How it works:</strong></p>
                         <ol>
                             <li>You type your content in the browser</li>
                             <li>Qopy generates a random 16-character URL secret</li>
-                            <li>Your password + URL secret are combined for encryption</li>
+                            <li>Your access code + URL secret are combined for encryption</li>
                             <li>Content is encrypted with AES-256-GCM using the combined secret</li>
-                            <li>For password-protected clips, IV is derived deterministically from combined secret</li>
-                            <li>For non-password clips, a random IV is generated</li>
+                            <li>For access code-protected clips, IV is derived deterministically from combined secret</li>
+                            <li>For non-protected clips, a random IV is generated</li>
                             <li>Encrypted data is stored using optimized byte concatenation (40% less overhead)</li>
                             <li>Share URL includes the URL secret as fragment (e.g., /clip/abc123#x7y9z2...)</li>
                             <li>Only encrypted data is stored in our database</li>
-                            <li>When someone retrieves the content, they need both URL secret + password</li>
+                            <li>When someone retrieves the content, they need both URL secret + access code</li>
                             <li>We never see the plain text at any point</li>
-                            <li>Passwords and URL secrets are used only for encryption, never sent to our servers</li>
+                            <li>Access codes and URL secrets are used only for encryption, never sent to our servers</li>
                         </ol>
                         <p><strong>🔒 Enhanced Security Benefits:</strong></p>
                         <ul>
-                            <li><strong>Brute force protection</strong> - Even simple passwords are protected by the URL secret</li>
+                            <li><strong>Brute force protection</strong> - Even simple access codes are protected by the URL secret</li>
                             <li><strong>URL-based access control</strong> - Only those with the complete URL can access the content</li>
-                            <li><strong>Defense in depth</strong> - Two-factor security: something you know (password) + something you have (URL)</li>
+                            <li><strong>Defense in depth</strong> - Two-factor security: something you know (access code) + something you have (URL)</li>
                             <li><strong>Automatic generation</strong> - URL secrets are generated automatically, no user action required</li>
                         </ul>
                         <p><strong>⚠️ Important:</strong> Client-side encryption is only available through the web interface. API calls send content as plaintext to the server.</p>
@@ -434,7 +441,7 @@
                             <li><strong>content</strong> - Text content (1-100,000 characters)</li>
                             <li><strong>expiration</strong> - "5min", "15min", "30min", "1hr", "6hr", "24hr"</li>
                             <li><strong>oneTime</strong> - Boolean, deletes clip after first access</li>
-                            <li><strong>hasPassword</strong> - Boolean, indicates if content is password-protected</li>
+                            <li><strong>hasPassword</strong> - Boolean, indicates if content is access code-protected</li>
                             <li><strong>quickShare</strong> - Boolean, enables Quick Share mode (4-digit ID, 5min expiry)</li>
                         </ul>
                         

@@ -1,6 +1,6 @@
-# Qopy - Enterprise-Grade Secure Temporary Text Sharing
+# Qopy - Enterprise-Grade Secure Temporary Text & File Sharing
 
-Qopy is a privacy-first, secure temporary text sharing web application with enterprise-grade client-side encryption, zero-knowledge architecture, and automatic expiration. Built with modern web technologies and optimized for both development and production environments.
+Qopy is a privacy-first, secure temporary text and file sharing web application with enterprise-grade client-side encryption, zero-knowledge architecture, and automatic expiration. Built with modern web technologies and optimized for both development and production environments.
 
 ## 🔐 Security Features
 
@@ -40,11 +40,11 @@ Qopy is a privacy-first, secure temporary text sharing web application with ente
 - **Still encrypted** - content remains secure with client-side encryption
 - **Perfect for** - quick code snippets, temporary notes, instant sharing
 
-### Normal Mode
+### Enhanced Security Mode
 - **10-character codes** for enhanced security
 - **URL secrets** - 16-character random secrets in URL fragments
 - **Flexible expiration** - 5 minutes to 24 hours
-- **Password protection** - optional additional security layer
+- **Access code protection** - optional additional security layer
 - **Perfect for** - sensitive documents, confidential information, long-term sharing
 
 ### User Experience
@@ -56,6 +56,8 @@ Qopy is a privacy-first, secure temporary text sharing web application with ente
 - **Character counter** - real-time content length tracking (100,000 char limit)
 - **Copy functionality** - one-click copying of URLs, IDs, and content
 - **Typing animation** - engaging logo animation on homepage
+- **File upload support** - drag-and-drop interface for files up to 100MB
+- **Progress tracking** - real-time upload progress with resume capability
 
 ### Advanced Features
 - **QR Code sharing** - client-side QR generation for mobile access
@@ -65,13 +67,19 @@ Qopy is a privacy-first, secure temporary text sharing web application with ente
 - **Toast notifications** - user-friendly success/error messages
 - **FAQ system** - built-in help and information
 - **Privacy notice** - GDPR-compliant privacy information
+- **Multi-part file uploads** - large files split into secure chunks
+- **Redis caching** - optional performance enhancement for upload sessions
 
 ## 🛠️ Technical Features
 
 ### API Endpoints
 - **POST /api/share** - Create new encrypted content
+- **POST /api/upload/initiate** - Initialize file upload session
+- **POST /api/upload/chunk/:uploadId/:chunkNumber** - Upload file chunk
+- **POST /api/upload/complete/:uploadId** - Complete file upload
 - **GET /api/clip/:clipId/info** - Get clip information
 - **GET /api/clip/:clipId** - Retrieve encrypted content
+- **GET /api/file/:clipId** - Retrieve file content
 - **GET /health** - Application health check
 - **GET /api/health** - API health check
 - **GET /ping** - Simple ping endpoint
