@@ -328,19 +328,39 @@ class ClipboardApp {
                 // First try with just URL secret (no password) - many files don't need passwords
                 console.log('🔑 File URL with URL secret - trying authentication without password first');
                 
-                let downloadToken = await this.generateDownloadToken(clipId, null, urlSecret);
-                let queryParams = `?downloadToken=${downloadToken}`;
-                
-                // Get clip info with URL secret only
-                let infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                // Use Zero-Knowledge system - no authentication needed for file info
+                let infoResponse = await fetch(`/api/clip/${clipId}/info`);
                 let infoData = await infoResponse.json();
                 
                 if (infoResponse.ok) {
-                    // Success with URL secret only - no password needed
-                    console.log('✅ File accessible with URL secret only - no password required');
+                    // File info retrieved successfully - check if password is required
+                    console.log('✅ File info retrieved - checking password requirements');
+                    console.log('🔍 File info data:', infoData);
+                    
+                    if (infoData.hasPassword && !password) {
+                        // File requires password but user hasn't provided one
+                        console.log('🔑 File requires password - showing password field');
+                        
+                        this.hideLoading('retrieve-loading');
+                        
+                        const passwordSection = document.getElementById('password-section');
+                        const passwordInput = document.getElementById('retrieve-password-input');
+                        
+                        if (passwordSection && passwordInput) {
+                            passwordSection.classList.remove('hidden');
+                            passwordSection.style.display = 'block'; // Ensure it's visible
+                            passwordInput.focus();
+                        }
+                        
+                        this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
+                        return;
+                    }
+                    
+                    // No password required or password provided - proceed with file retrieval
+                    console.log('✅ File accessible - no password required or password provided');
                     
                     // Proceed with authenticated retrieval
-                    const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+                    let response = await fetch(`/api/clip/${clipId}`, {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json',
@@ -349,6 +369,8 @@ class ClipboardApp {
                     
                     if (response.ok) {
                         const data = await response.json();
+                        // Add hasPassword information from infoData to the response data
+                        data.hasPassword = infoData.hasPassword;
                         await this.showRetrieveResult(data);
                     } else {
                         this.hideLoading('retrieve-loading');
@@ -361,7 +383,7 @@ class ClipboardApp {
                     
                     if (fileRequiresPassword) {
                         // File requires password - show password field
-                        console.log('🔑 File requires password - showing password field');
+                        console.log('🔑 File requires password (from error response) - showing password field');
                         
                         this.hideLoading('retrieve-loading');
                         
@@ -370,6 +392,7 @@ class ClipboardApp {
                         
                         if (passwordSection && passwordInput) {
                             passwordSection.classList.remove('hidden');
+                            passwordSection.style.display = 'block'; // Ensure it's visible
                             passwordInput.focus();
                         }
                         
@@ -378,7 +401,7 @@ class ClipboardApp {
                         // File doesn't require password - wrong URL secret
                         console.log('🔑 File does not require password - wrong URL secret');
                         this.hideLoading('retrieve-loading');
-                        this.showToast('🔐 Access denied: Wrong URL secret', 'error');
+                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                     }
                     return;
                     
@@ -386,32 +409,44 @@ class ClipboardApp {
                     // Authentication failed with URL secret only, but we have a password - try with both
                     console.log('🔑 URL secret failed, trying with password too');
                     
-                    downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                    queryParams = `?downloadToken=${downloadToken}`;
-                    
-                    // Retry with both URL secret and password
-                    infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    // Retry with Zero-Knowledge Access Code system
+                    const accessCodeHash = await this.generateAccessCodeHash(password);
+                    infoResponse = await fetch(`/api/clip/${clipId}/info`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            accessCode: accessCodeHash
+                        })
+                    });
                     infoData = await infoResponse.json();
                     
                     if (infoResponse.ok) {
                         // Proceed with authenticated retrieval
-                        const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
-                            method: 'GET',
+                        const accessCodeHash = await this.generateAccessCodeHash(password);
+                        let response = await fetch(`/api/clip/${clipId}`, {
+                            method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                            }
+                            },
+                            body: JSON.stringify({
+                                accessCode: accessCodeHash
+                            })
                         });
                         
                         if (response.ok) {
                             const data = await response.json();
+                            // Add hasPassword information from infoData to the response data
+                            data.hasPassword = infoData.hasPassword;
                             await this.showRetrieveResult(data);
                         } else {
                             this.hideLoading('retrieve-loading');
-                            this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                     } else {
                         this.hideLoading('retrieve-loading');
-                        this.showToast('🔐 Access denied: Wrong password or URL secret', 'error');
+                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                     }
                     
                 } else {
@@ -424,33 +459,70 @@ class ClipboardApp {
                     }
                 }
             } else {
-                // Normal clip (10-digit): Check if we have credentials and use them directly for efficiency
+                // Normal clip (10-digit): First get info to check if password is required
                 if (urlSecret) {
-                    // We have URL secret - use token directly (avoids unnecessary 401)
-                    console.log('🔐 Normal clip with URL secret - using token directly:', clipId);
+                    // We have URL secret - use Zero-Knowledge system
+                    console.log('🔐 Normal clip with URL secret - using Zero-Knowledge system:', clipId);
                     
-                    const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                    const queryParams = `?downloadToken=${downloadToken}`;
-                    
-                    let infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                    // ALWAYS check clip info first to see if password is required
+                    let infoResponse = await fetch(`/api/clip/${clipId}/info`);
                     let infoData = await infoResponse.json();
+                    
+                    console.log('🔍 Clip info response:', infoData);
+                    
+                    // If clip requires password but user hasn't provided one, show password form
+                    if (infoData.hasPassword && !password) {
+                        console.log('🔒 Clip requires password - showing password section');
+                        this.hideLoading('retrieve-loading');
+                        
+                        // Show password section
+                        const passwordSection = document.getElementById('password-section');
+                        if (passwordSection) {
+                            passwordSection.style.display = 'block';
+                            passwordSection.classList.remove('hidden');
+                            console.log('✅ Password section shown');
+                        }
+                        
+                        // BLOCK any further automatic retrievals
+                        this.blockAutoRetrieve = true;
+                        
+                        this.showToast('🔒 This clip requires a password. Please enter it above.', 'info');
+                        return;
+                    }
                     
                     if (infoResponse.ok) {
                         // Authentication successful - proceed with retrieval
                         console.log('✅ Authentication successful for clip:', clipId);
-                        const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
-                            method: 'GET',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            }
-                        });
+                        
+                        let response;
+                        if (password) {
+                            // Use Zero-Knowledge Access Code system
+                            const accessCodeHash = await this.generateAccessCodeHash(password);
+                            response = await fetch(`/api/clip/${clipId}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    accessCode: accessCodeHash
+                                })
+                            });
+                        } else {
+                            // Non-password clip - direct retrieval
+                            response = await fetch(`/api/clip/${clipId}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                }
+                            });
+                        }
                         
                         if (response.ok) {
                             const data = await response.json();
                             await this.showRetrieveResult(data);
                         } else {
                             console.error('❌ Authenticated retrieval failed:', response.status);
-                            this.showToast('🔐 Authentication failed - please check your credentials', 'error');
+                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                     } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password && infoData?.hasPassword === true) {
                         // Authentication failed but server indicates password required
@@ -510,6 +582,8 @@ class ClipboardApp {
                     
                     if (response.ok) {
                         const data = await response.json();
+                        // Add hasPassword information from infoData to the response data
+                        data.hasPassword = infoData.hasPassword;
                         await this.showRetrieveResult(data);
                     }
                     
@@ -518,28 +592,57 @@ class ClipboardApp {
                     console.log('🔐 Authentication required for clip:', clipId, 'checking if password available');
                     
                     if (urlSecret) {
-                        // We have URL secret - generate token and try again (password optional)
-                        console.log('🔑 URL secret available - generating token and retrying with credentials:', { hasPassword: !!password, hasUrlSecret: !!urlSecret });
+                        // We have URL secret - use Zero-Knowledge system
+                        console.log('🔑 URL secret available - using Zero-Knowledge system:', { hasPassword: !!password, hasUrlSecret: !!urlSecret });
                         
-                        const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                        const queryParams = `?downloadToken=${downloadToken}`;
-                        
-                        // Retry with authentication
-                        infoResponse = await fetch(`/api/clip/${clipId}/info${queryParams}`);
+                        // Retry with Zero-Knowledge Access Code system
+                        if (password) {
+                            const accessCodeHash = await this.generateAccessCodeHash(password);
+                            infoResponse = await fetch(`/api/clip/${clipId}/info`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    accessCode: accessCodeHash
+                                })
+                            });
+                        } else {
+                            infoResponse = await fetch(`/api/clip/${clipId}/info`);
+                        }
                         infoData = await infoResponse.json();
                         
                         if (infoResponse.ok) {
                             // Authentication successful - proceed with retrieval
                             console.log('✅ Authentication successful for clip:', clipId);
-                            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
-                                method: 'GET',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                }
-                            });
+                            
+                            let response;
+                            if (password) {
+                                // Use Zero-Knowledge Access Code system
+                                const accessCodeHash = await this.generateAccessCodeHash(password);
+                                response = await fetch(`/api/clip/${clipId}`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        accessCode: accessCodeHash
+                                    })
+                                });
+                            } else {
+                                // Non-password clip - direct retrieval
+                                response = await fetch(`/api/clip/${clipId}`, {
+                                    method: 'GET',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    }
+                                });
+                            }
                             
                             if (response.ok) {
                                 const data = await response.json();
+                                // Add hasPassword information from infoData to the response data
+                                data.hasPassword = infoData.hasPassword;
                                 await this.showRetrieveResult(data);
                             } else {
                                 console.error('❌ Authenticated retrieval failed:', response.status);
@@ -563,14 +666,14 @@ class ClipboardApp {
                             // Authentication failed with wrong credentials
                             console.error('❌ Authentication failed - invalid credentials:', infoResponse.status);
                             this.hideLoading('retrieve-loading');
-                            this.showToast('🔐 Access denied: Invalid URL secret or password', 'error');
+                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                         
                     } else {
                         // No URL secret - this shouldn't happen for normal clips
                         console.log('❌ No URL secret available for normal clip');
                         this.hideLoading('retrieve-loading');
-                        this.showToast('🔐 Access denied: Invalid URL (missing secret)', 'error');
+                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
                         return;
                     }
                 } else {
@@ -683,6 +786,12 @@ class ClipboardApp {
 
     // Check Clip ID and show password field if needed
     async checkClipId() {
+        // Block automatic retrieval if password form is already shown
+        if (this.blockAutoRetrieve) {
+            console.log('🚫 checkClipId blocked - password form already shown');
+            return;
+        }
+        
         const clipId = document.getElementById('clip-id-input').value.trim();
         const passwordSection = document.getElementById('password-section');
         const passwordInput = document.getElementById('retrieve-password-input');
@@ -704,22 +813,30 @@ class ClipboardApp {
                 const urlSecret = this.extractUrlSecret();
                 const password = this.getPasswordFromUser();
                 
-                // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
-                let downloadToken = null;
-                let queryParams = '';
-                
                 if (clipId.length === 10) {
-                    // Normal clip: generate download token for file authentication
-                    downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                    queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
-                    console.log('🔐 Generated download token for normal clip checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
+                    // Normal clip: use Zero-Knowledge system
+                    let response;
+                    if (password) {
+                        // Use Zero-Knowledge Access Code system
+                        const accessCodeHash = await this.generateAccessCodeHash(password);
+                        response = await fetch(`/api/clip/${clipId}/info`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                accessCode: accessCodeHash
+                            })
+                        });
+                    } else {
+                        response = await fetch(`/api/clip/${clipId}/info`);
+                    }
+                    console.log('🔐 Using Zero-Knowledge system for normal clip checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
                 } else {
                     // Quick Share (4-digit): no download token needed
                     console.log('⚡ Quick Share checkClipId - no download token needed:', clipId);
+                    const response = await fetch(`/api/clip/${clipId}/info`);
                 }
-                
-                console.log('🔍 Fetching clip info for:', clipId);
-                const response = await fetch(`/api/clip/${clipId}/info${queryParams}`);
                 const data = await response.json();
                 
                 console.log('🔍 Clip info response:', data);
@@ -809,10 +926,16 @@ class ClipboardApp {
         shareButton.disabled = true;
 
         try {
-            // Convert text to file-like object for multi-part upload
-            const textBlob = new Blob([content], { type: 'text/plain; charset=utf-8' });
+            // Convert text to file-like object for multi-part upload (no extension, no mime type)
+            const textBlob = new Blob([content]);
             const randomHash = this.generateRandomHash();
-            const textFile = new File([textBlob], `${randomHash}.txt`, { type: 'text/plain; charset=utf-8' });
+            
+            // Apply padding to text content for security (hide actual size)
+            const textBytes = new Uint8Array(await textBlob.arrayBuffer());
+            const paddedTextBytes = this.addMinimalPadding(textBytes);
+            const paddedTextBlob = new Blob([paddedTextBytes]);
+            
+            const textFile = new File([paddedTextBlob], randomHash);
             
             // Use the existing file upload system for text
             await this.uploadTextAsFile(textFile, content, password, expiration, oneTime, quickShare);
@@ -835,10 +958,23 @@ class ClipboardApp {
             if (quickShare) {
                 quickShareSecret = this.generateRandomSecret();
                 urlSecret = null;
+                console.log('🚀 [QuickShare] Mode enabled:', {
+                    quickShareSecretLength: quickShareSecret.length,
+                    quickShareSecretFormat: /^[0-9a-f]{32}$/.test(quickShareSecret) ? 'VALID_HEX' : 'INVALID',
+                    urlSecret: 'null (Quick Share mode)'
+                });
             } else if (!password) {
                 urlSecret = this.generateUrlSecret();
+                console.log('🔐 [NormalMode] URL secret only mode:', {
+                    urlSecretLength: urlSecret.length,
+                    hasPassword: false
+                });
             } else {
                 urlSecret = this.generateUrlSecret();
+                console.log('🔐 [NormalMode] Password + URL secret mode:', {
+                    urlSecretLength: urlSecret.length,
+                    hasPassword: true
+                });
             }
 
             console.log('[TextUpload] Initiating upload session:', {
@@ -858,7 +994,6 @@ class ClipboardApp {
                 body: JSON.stringify({
                     filename: file.name,
                     filesize: file.size,
-                    mimeType: file.type || 'text/plain',
                     expiration: expiration,
                     oneTime: oneTime,
                     hasPassword: !!password,
@@ -890,6 +1025,11 @@ class ClipboardApp {
                 // Encrypt chunk based on mode
                 let encryptedChunk;
                 if (quickShare) {
+                    console.log(`🚀 [QuickShare] Encrypting chunk ${i} with quickShareSecret:`, {
+                        hasQuickShareSecret: !!quickShareSecret,
+                        quickShareSecretLength: quickShareSecret ? quickShareSecret.length : 0,
+                        chunkSize: chunk.size
+                    });
                     encryptedChunk = await this.encryptFileChunk(chunk, null, quickShareSecret);
                 } else if (!password) {
                     encryptedChunk = await this.encryptFileChunk(chunk, null, urlSecret);
@@ -924,14 +1064,22 @@ class ClipboardApp {
             // Complete upload
             console.log(`[TextUpload] Completing upload for uploadId=${uploadId}`);
             const completePayload = {
-                quickShareSecret: quickShareSecret
+                quickShareSecret: quickShareSecret,
+                isTextUpload: true, // Flag to indicate this is a text upload, not a file
+                contentType: 'text'
             };
             
-            // Add authentication parameters for normal clips (server will generate token)
-            if (!quickShare && (password || urlSecret)) {
-                completePayload.password = password;
-                completePayload.urlSecret = urlSecret;
-                console.log('🔐 Sending authentication parameters for token generation');
+            // NEW: Access Code System - only send hashed password for access control
+            // URL Secret and password remain client-side for encryption
+            if (!quickShare && password) {
+                // Generate client-side access code hash for password protection
+                const accessCodeHash = await this.generateAccessCodeHash(password);
+                completePayload.accessCodeHash = accessCodeHash;
+                completePayload.requiresAccessCode = true;
+                console.log('🔐 Sending access code hash for password protection (Zero-Knowledge)');
+            } else if (!quickShare) {
+                completePayload.requiresAccessCode = false;
+                console.log('🔐 No password protection - URL secret only (Zero-Knowledge)');
             }
             
             const completeResponse = await fetch(`/api/upload/complete/${uploadId}`, {
@@ -970,6 +1118,14 @@ class ClipboardApp {
     // Encrypt binary data (for file chunks)
     async encryptBinaryData(data, password = null, urlSecret = null) {
         try {
+            console.log('🔐 [EncryptBinaryData] Starting encryption with params:', {
+                dataLength: data ? data.length : 'null',
+                hasPassword: !!password,
+                hasUrlSecret: !!urlSecret,
+                passwordType: typeof password,
+                urlSecretType: typeof urlSecret
+            });
+
             // Input validation
             if (!(data instanceof Uint8Array)) {
                 throw new Error('Data must be a Uint8Array');
@@ -986,17 +1142,29 @@ class ClipboardApp {
             if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
                 throw new Error('URL secret must be a non-empty string or null');
             }
+
+            // Validation: At least one of password or urlSecret must be provided
+            if (!password && !urlSecret) {
+                throw new Error('Either password or urlSecret must be provided for encryption');
+            }
             
-            const key = await this.generateKey(password, urlSecret);
+            console.log('🔐 [EncryptBinaryData] Input validation passed, generating key...');
             
-            // Generate IV: deterministic for all clips using URL secret
+            // Use Enhanced encryption parameters (same as download)
+            const key = await this.generateCompatibleEncryptionKey(password, urlSecret);
+            
+            console.log('🔐 [EncryptBinaryData] Key generated successfully, deriving IV...');
+            
+            // Generate IV: Enhanced derivation for compatibility with download
             let iv;
             if (password) {
-                iv = await this.deriveIV(password, urlSecret);
+                iv = await this.deriveCompatibleIV(password, urlSecret);
             } else {
-                // For non-password clips, derive IV from URL secret
-                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
+                // For non-password clips, derive IV from URL secret using Enhanced parameters
+                iv = await this.deriveCompatibleIV(null, urlSecret, 'qopy-enhanced-iv-salt-v2');
             }
+            
+            console.log('🔐 [EncryptBinaryData] IV derived successfully, encrypting data...');
             
             // Encrypt the data
             const encryptedData = await window.crypto.subtle.encrypt(
@@ -1005,7 +1173,6 @@ class ClipboardApp {
                 data
             );
             
-            // Direct byte concatenation: IV + encrypted data (no key storage needed)
             const encryptedBytes = new Uint8Array(encryptedData);
             const ivBytes = new Uint8Array(iv);
             
@@ -1014,30 +1181,59 @@ class ClipboardApp {
             combined.set(ivBytes, 0);
             combined.set(encryptedBytes, ivBytes.length);
             
+            console.log('🔐 [EncryptBinaryData] Encryption completed successfully:', {
+                originalSize: data.length,
+                encryptedSize: combined.length,
+                ivLength: ivBytes.length
+            });
+            
             // Return raw bytes
             return combined;
         } catch (error) {
-            throw new Error('Failed to encrypt binary data');
+            console.error('🔐 [EncryptBinaryData] ❌ Encryption failed:', error);
+            throw new Error(`Failed to encrypt binary data: ${error.message}`);
         }
     }
 
-    // Generate URL secret for enhanced security
+    // Generate enhanced URL secret for maximum security (like File Share)
     generateUrlSecret() {
-        // Generate a random 16-character secret for URL fragment
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        let result = '';
-        for (let i = 0; i < 16; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
+        console.log('🔐 [ENTROPY] Generating enhanced secure passphrase for Text Share...');
+        
+        const startTime = performance.now();
+        
+        // Generate 256 bits of entropy (32 bytes) for maximum security
+        const entropyBytes = new Uint8Array(32);
+        window.crypto.getRandomValues(entropyBytes);
+        
+        // Convert to base64 for a longer, more secure passphrase
+        const base64Passphrase = btoa(String.fromCharCode.apply(null, entropyBytes));
+        
+        const generationTime = performance.now() - startTime;
+        
+        console.log('✅ Enhanced passphrase generated for Text Share:', {
+            type: 'BASE64_ENCODED',
+            entropyBits: 256,
+            length: base64Passphrase.length,
+            preview: base64Passphrase.substring(0, 8) + '...',
+            format: 'Proton Drive style',
+            generationTime: generationTime.toFixed(2) + 'ms'
+        });
+        
+        return base64Passphrase;
     }
 
     // Generate random secret for Quick Share encryption
     generateRandomSecret() {
+        console.log('🎲 [QuickShare] Generating random secret for Quick Share...');
         // Generate a cryptographically secure random secret (128 bits = 32 hex chars)
         const array = new Uint8Array(16); // 128 bits
         window.crypto.getRandomValues(array);
-        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        const secret = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        console.log('🎲 [QuickShare] Generated secret:', {
+            secretLength: secret.length,
+            secretPreview: secret.substring(0, 8) + '...'
+        });
+        return secret;
     }
 
     // Generate random hash for filenames
@@ -1046,6 +1242,60 @@ class ClipboardApp {
         const array = new Uint8Array(8); // 64 bits
         window.crypto.getRandomValues(array);
         return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Add minimal padding only for very small text content to obscure actual size
+    addMinimalPadding(data) {
+        const originalSize = data.length;
+        const minimumSize = 10 * 1024; // 10KB minimum for small content
+        
+        // Only pad content smaller than 10KB
+        if (originalSize >= minimumSize) {
+            console.log(`📦 Text size ${originalSize} bytes >= 10KB, no padding needed`);
+            return data; // No padding for larger content
+        }
+        
+        const paddingSize = minimumSize - originalSize;
+        console.log(`🔒 Minimal padding: ${originalSize} bytes → ${minimumSize} bytes (+${paddingSize} padding)`);
+        
+        // Generate cryptographically secure random padding
+        const padding = new Uint8Array(paddingSize);
+        window.crypto.getRandomValues(padding);
+        
+        // Combine original data + padding + size marker (4 bytes for original size)
+        const result = new Uint8Array(originalSize + paddingSize + 4);
+        result.set(data, 0);                                    // Original data first
+        result.set(padding, originalSize);                      // Random padding
+        
+        // Add original size as 4-byte integer at the end (for decryption)
+        const sizeBytes = new ArrayBuffer(4);
+        new DataView(sizeBytes).setUint32(0, originalSize, false); // Big-endian
+        result.set(new Uint8Array(sizeBytes), originalSize + paddingSize);
+        
+        return result;
+    }
+
+    // Remove minimal padding from text content during decryption
+    removeMinimalPadding(paddedData, originalSize = null) {
+        if (!originalSize) {
+            // If no original size provided, return data as-is
+            return paddedData;
+        }
+        
+        if (originalSize > paddedData.length) {
+            console.warn('⚠️ Original size larger than padded data, returning padded data');
+            return paddedData;
+        }
+        
+        // Extract original data by removing padding
+        const originalData = paddedData.slice(0, originalSize);
+        const paddingRemoved = paddedData.length - originalSize;
+        
+        if (paddingRemoved > 0) {
+            console.log(`🔓 Padding removed: ${paddingRemoved} bytes`);
+        }
+        
+        return originalData;
     }
 
     // Hash a secret for use in encryption
@@ -1081,6 +1331,9 @@ class ClipboardApp {
     async retrieveContent() {
         const clipId = document.getElementById('clip-id-input').value.trim();
         const password = document.getElementById('retrieve-password-input').value.trim();
+
+        // Reset auto-retrieve block when user manually triggers retrieve
+        this.blockAutoRetrieve = false;
 
         console.log('🔍 Starting retrieveContent with:', { clipId, hasPassword: !!password });
 
@@ -1140,29 +1393,34 @@ class ClipboardApp {
             const urlSecret = this.extractUrlSecret();
             console.log('🔗 URL secret extracted:', urlSecret ? 'present' : 'none');
             
-            // Generate download token only for normal clips (10-digit), not Quick Share (4-digit)
-            let downloadToken = null;
-            let queryParams = '';
-            
-            if (clipId.length === 10) {
-                // Normal clip: generate download token for file authentication
-                downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-                queryParams = downloadToken ? `?downloadToken=${downloadToken}` : '';
-                console.log('🔐 Generated download token for normal clip retrieveContent:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
-            } else {
-                // Quick Share (4-digit): no download token needed
-                console.log('⚡ Quick Share retrieveContent - no download token needed:', clipId);
-            }
-            
-            // Always use GET - no password needed for server authentication
-            // Content is already encrypted client-side
-            console.log('📡 Making API request to:', `/api/clip/${clipId}${queryParams}`);
-            const response = await fetch(`/api/clip/${clipId}${queryParams}`, {
+            // NEW: Zero-Knowledge Access Code System - No download tokens
+            // URL Secret stays client-side for encryption, password sent for access control only
+            let requestBody = null;
+            let fetchOptions = {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 }
-            });
+            };
+            
+            if (clipId.length === 10 && password) {
+                // Normal clip with password: Use POST with access code for authentication
+                console.log('🔐 Normal clip with password - using access code authentication (Zero-Knowledge):', clipId);
+                fetchOptions.method = 'POST';
+                requestBody = { accessCode: password };
+                fetchOptions.body = JSON.stringify(requestBody);
+            } else if (clipId.length === 10) {
+                // Normal clip without password: URL secret only (client-side)
+                console.log('🔐 Normal clip without password - URL secret only (Zero-Knowledge):', clipId);
+                // Stay with GET request, no authentication needed
+            } else {
+                // Quick Share (4-digit): no authentication needed
+                console.log('⚡ Quick Share - no authentication needed:', clipId);
+            }
+            
+            // Make API request with Zero-Knowledge access code system
+            console.log('📡 Making Zero-Knowledge API request to:', `/api/clip/${clipId}`);
+            const response = await fetch(`/api/clip/${clipId}`, fetchOptions);
 
             console.log('📡 API response status:', response.status);
             const data = await response.json();
@@ -1189,6 +1447,9 @@ class ClipboardApp {
                 // Check if this is a file first
                 if (data.contentType === 'file' && data.redirectTo) {
                     console.log('📁 Detected file content, calling handleFileDownload directly');
+                    // Since we're in retrieveContent, the user has already been authenticated
+                    // and provided a password, so we don't need to check hasPassword again
+                    data.hasPassword = false; // User is already authenticated
                     this.handleFileDownload(data);
                     return;
                 }
@@ -1196,6 +1457,9 @@ class ClipboardApp {
                 // Check if this is a file by checking for file_path
                 if (data.file_path) {
                     console.log('📁 Detected file by file_path, calling handleFileDownload directly');
+                    // Since we're in retrieveContent, the user has already been authenticated
+                    // and provided a password, so we don't need to check hasPassword again
+                    data.hasPassword = false; // User is already authenticated
                     this.handleFileDownload(data);
                     return;
                 }
@@ -1246,15 +1510,14 @@ class ClipboardApp {
             } else {
                 console.error('❌ API error response:', data);
                 
-                // Handle file authentication errors specifically
-                if (data.requiresAuth) {
-                    if (response.status === 401) {
-                        throw new Error('🔐 This file requires authentication. Please check your URL for the secret or enter the correct password.');
-                    } else if (response.status === 403) {
-                        throw new Error('🔐 Access denied. Please check your URL secret or password for this file.');
-                    }
+                // Handle authentication errors with generic messages to prevent brute force attacks
+                if (response.status === 401 || response.status === 403) {
+                    // Generic error message for authentication failures
+                    // This prevents attackers from knowing if the clip exists or what type it is
+                    throw new Error('❌ Access denied: Invalid credentials or clip not found');
                 }
                 
+                // Handle other errors
                 if (data.message) {
                     throw new Error(`❌ ${data.error || 'Server error'}: ${data.message}`);
                 } else {
@@ -1367,6 +1630,7 @@ class ClipboardApp {
             hasContent: !!data.content,
             hasFile: !!data.file_path,
             hasRedirectTo: !!data.redirectTo,
+            hasQuickShareSecret: !!data.quickShareSecret,
             keys: Object.keys(data)
         });
 
@@ -1380,10 +1644,6 @@ class ClipboardApp {
         // Check if this is a file redirect (for files stored on disk)
         if (data.contentType === 'file' && data.redirectTo) {
             console.log('📁 Detected file content with redirect, calling handleFileDownload');
-            // Check if this file needs password
-            this.checkFilePasswordRequirement(data);
-            // Immediately hide all text elements before calling handleFileDownload
-            this.hideAllTextElements();
             this.handleFileDownload(data);
             return;
         }
@@ -1391,10 +1651,6 @@ class ClipboardApp {
         // Check if this is a file by checking for file_path
         if (data.file_path) {
             console.log('📁 Detected file by file_path, calling handleFileDownload');
-            // Check if this file needs password
-            this.checkFilePasswordRequirement(data);
-            // Immediately hide all text elements before calling handleFileDownload
-            this.hideAllTextElements();
             this.handleFileDownload(data);
             return;
         }
@@ -1403,10 +1659,6 @@ class ClipboardApp {
         // BUT: If contentType is 'text', treat it as text content even if it has filename/filesize
         if (data.filename && data.filesize && data.contentType !== 'text') {
             console.log('📁 Detected file by filename/filesize, calling handleFileDownload');
-            // Check if this file needs password
-            this.checkFilePasswordRequirement(data);
-            // Immediately hide all text elements before calling handleFileDownload
-            this.hideAllTextElements();
             this.handleFileDownload(data);
             return;
         }
@@ -1428,9 +1680,26 @@ class ClipboardApp {
         } else if (Array.isArray(data.content)) {
             // Binary content - could be encrypted text or binary data
             try {
-                // Try to decrypt as text first
-                const urlSecret = this.extractUrlSecret();
-                const password = this.getPasswordFromUser();
+                // Extract decryption keys, prioritizing quickShareSecret for Quick Shares
+                let urlSecret = null;
+                let password = null;
+                
+                if (data.quickShareSecret) {
+                    // Quick Share: use the secret from server response
+                    console.log('⚡ Quick Share detected with server secret, using for decryption');
+                    urlSecret = data.quickShareSecret;
+                    password = null;
+                } else {
+                    // Normal clip: extract from URL and user input
+                    urlSecret = this.extractUrlSecret();
+                    password = this.getPasswordFromUser();
+                }
+                
+                console.log('🔑 Decryption keys:', {
+                    hasUrlSecret: !!urlSecret,
+                    hasPassword: !!password,
+                    isQuickShare: !!data.quickShareSecret
+                });
                 
                 if (urlSecret || password) {
                     // Attempt decryption
@@ -1443,56 +1712,91 @@ class ClipboardApp {
                     document.getElementById('retrieved-content').textContent = text;
                 }
             } catch (error) {
-                console.error('❌ Decryption failed:', error);
-                document.getElementById('retrieved-content').textContent = '[Encrypted content - decryption failed]';
+                console.error('❌ Content decryption error:', error);
+                this.showToast('❌ Failed to decrypt content: ' + error.message, 'error');
+                return;
             }
         } else {
-            // Fallback
-            document.getElementById('retrieved-content').textContent = data.content || '[No content]';
+            // Other content types
+            document.getElementById('retrieved-content').textContent = 'Content type not supported for display';
         }
-        
-        // Use current time as created time since API doesn't provide it
+
+        // Set metadata
         document.getElementById('created-time').textContent = new Date().toLocaleString();
-        
-        // Format expiration time with better error handling
+
+        // Format expiration time
         try {
             const expiresAt = data.expiresAt;
-            
             if (expiresAt) {
-                // Convert to number if it's a string
                 const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
-                
                 const expiryDate = new Date(expiresAtNumber);
-                
+
                 if (!isNaN(expiryDate.getTime())) {
-                    const timeRemaining = this.formatTimeRemaining(expiryDate.getTime());
-                    const formattedDate = expiryDate.toLocaleString();
-                    document.getElementById('expires-time').textContent = `${formattedDate} (${timeRemaining} remaining)`;
+                    const now = new Date();
+                    const timeLeft = expiryDate - now;
+
+                    if (timeLeft <= 0) {
+                        document.getElementById('expiry-info').textContent = 'This content has expired';
+                        document.getElementById('expiry-info').style.color = 'var(--error-color)';
+                    } else {
+                        const minutes = Math.floor(timeLeft / 60000);
+                        const hours = Math.floor(minutes / 60);
+                        const days = Math.floor(hours / 24);
+
+                        let timeLeftText;
+                        if (days > 0) {
+                            timeLeftText = `${days} day${days > 1 ? 's' : ''}`;
+                        } else if (hours > 0) {
+                            timeLeftText = `${hours} hour${hours > 1 ? 's' : ''}`;
+                        } else {
+                            timeLeftText = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+                        }
+
+                        document.getElementById('expiry-info').textContent = `Expires in ${timeLeftText} (${expiryDate.toLocaleString()})`;
+                        document.getElementById('expiry-info').style.color = 'var(--text-secondary)';
+                    }
                 } else {
-                    document.getElementById('expires-time').textContent = 'Invalid date';
+                    document.getElementById('expiry-info').textContent = 'Unknown expiration';
                 }
             } else {
-                document.getElementById('expires-time').textContent = 'Not available';
+                document.getElementById('expiry-info').textContent = 'No expiration set';
             }
         } catch (error) {
-            document.getElementById('expires-time').textContent = 'Error formatting date';
+            console.error('❌ Expiry time parsing error:', error);
+            document.getElementById('expiry-info').textContent = 'Unknown expiration';
         }
-        
-        const oneTimeNotice = document.getElementById('one-time-notice');
+
+        // Handle one-time access notification
         if (data.oneTime) {
-            oneTimeNotice.classList.remove('hidden');
+            document.getElementById('one-time-info').style.display = 'block';
         } else {
-            oneTimeNotice.classList.add('hidden');
+            document.getElementById('one-time-info').style.display = 'none';
         }
-        
-        // Show text-related elements
-        this.showTextElements();
-        
-        document.getElementById('content-result').classList.remove('hidden');
-        document.getElementById('content-result').style.display = 'block';
-        
-        // Scroll to result
-        document.getElementById('content-result').scrollIntoView({ behavior: 'smooth' });
+
+        // Show the result
+        document.getElementById('result-container').style.display = 'block';
+        this.hideLoading('retrieve-loading');
+
+        // Auto-focus on copy button for better UX
+        setTimeout(() => {
+            const copyButton = document.getElementById('copy-content-button');
+            if (copyButton) {
+                copyButton.focus();
+            }
+        }, 100);
+
+        // Handle file information if this is a text upload as file
+        if (data.filename && data.filesize) {
+            console.log('📝 Text content uploaded as file - setting file metadata');
+            
+            if (data.quickShareSecret) {
+                console.log('⚡ Quick Share detected with server secret, using for decryption');
+                urlSecret = data.quickShareSecret;
+            } else {
+                // Extract URL secret for normal clips
+                urlSecret = this.extractUrlSecret();
+            }
+        }
     }
 
     // Handle text file download and decryption
@@ -1523,9 +1827,20 @@ class ClipboardApp {
             const clipId = data.redirectTo.split('/').pop();
             console.log('🔍 Extracted clipId from redirectTo:', clipId);
             
-            // Generate download token for authentication
-            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-            console.log('🔐 Generated download token for text file download');
+            // NEW: Use Zero-Knowledge Access Code System instead of download tokens
+            let requestBody = {};
+            
+            if (clipId.length === 10 && password) {
+                // Normal clip with password: Use access code for authentication
+                console.log('🔐 Using access code authentication for text file download');
+                requestBody.accessCode = password; // Send password for access control
+            } else if (clipId.length === 10) {
+                // Normal clip without password: No authentication needed (URL secret is client-side)
+                console.log('🔐 No authentication needed - URL secret only (Zero-Knowledge)');
+            } else {
+                // Quick Share (4-digit): No authentication needed
+                console.log('⚡ Quick Share - no authentication needed');
+            }
             
             // Make authenticated POST request
             const response = await fetch(data.redirectTo, {
@@ -1533,9 +1848,7 @@ class ClipboardApp {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    downloadToken: downloadToken
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
@@ -1555,8 +1868,21 @@ class ClipboardApp {
 
             // Decrypt the content using the same method as file downloads
             const decryptedBytes = await this.decryptFile(encryptedBytes, password, urlSecret);
+            
+            // Remove padding if present (check if data has padding marker)
+            let finalDecryptedBytes = decryptedBytes;
+            if (decryptedBytes.length >= 4) {
+                // Check if there's a size marker at the end (padding was applied)
+                const sizeMarker = new DataView(decryptedBytes.buffer.slice(decryptedBytes.length - 4)).getUint32(0, false);
+                if (sizeMarker > 0 && sizeMarker < decryptedBytes.length - 4) {
+                    // Padding was applied, remove it
+                    console.log(`🔓 Removing padding: ${decryptedBytes.length} bytes → ${sizeMarker} bytes`);
+                    finalDecryptedBytes = this.removeMinimalPadding(decryptedBytes, sizeMarker);
+                }
+            }
+            
             const decoder = new TextDecoder();
-            const decryptedText = decoder.decode(decryptedBytes);
+            const decryptedText = decoder.decode(finalDecryptedBytes);
             
             console.log('✅ Text file decrypted successfully');
 
@@ -2139,7 +2465,7 @@ class ClipboardApp {
             combined.set(ivBytes, 0);
             combined.set(encryptedBytes, ivBytes.length);
             
-            // Return raw bytes instead of base64
+            // Return raw bytes
             return combined;
         } catch (error) {
             throw new Error('Failed to encrypt content');
@@ -2323,9 +2649,31 @@ class ClipboardApp {
             file_path: data.file_path,
             redirectTo: data.redirectTo,
             contentType: data.contentType,
+            hasPassword: data.hasPassword,
             keys: Object.keys(data)
         });
         
+        // Check if password is required
+        const urlSecret = this.extractUrlSecret();
+        const passwordRequired = urlSecret && data.hasPassword;
+        
+        if (passwordRequired) {
+            // Password required - show password field and don't show file yet
+            console.log('🔒 Password required for file - showing password field');
+            this.checkFilePasswordRequirement(data);
+            
+            // Show info message
+            this.showToast('🔐 This file requires a password. Please enter it and click Retrieve.', 'info');
+            return; // Don't show file download UI yet
+        }
+        
+        // No password required - show file download UI
+        console.log('✅ No password required - showing file download UI');
+        this.showFileDownloadUI(data);
+    }
+
+    // Show file download UI (separate function for cleaner code)
+    showFileDownloadUI(data) {
         // Hide all text-related elements first
         this.hideAllTextElements();
         
@@ -2484,9 +2832,21 @@ class ClipboardApp {
                 urlSecret: urlSecret ? 'present' : 'none'
             });
             
-            // Generate download token for authentication
-            const downloadToken = await this.generateDownloadToken(clipId, password, urlSecret);
-            console.log('🔐 Generated download token for authentication');
+            // NEW: Zero-Knowledge Access Code System - no download tokens needed
+            const requestBody = {};
+            
+            if (clipId.length === 10 && password) {
+                // Normal clip with password: Use access code for authentication
+                console.log('🔐 Using access code authentication for file download');
+                requestBody.accessCode = password; // Send password for access control
+            } else if (clipId.length === 10) {
+                // Normal clip without password: No authentication needed (URL secret is client-side)
+                console.log('🔐 No authentication needed - URL secret only (Zero-Knowledge)');
+            } else {
+                // Quick Share (4-digit): No authentication needed
+                console.log('⚡ Quick Share - no authentication needed');
+            }
+            console.log('📥 Request body:', requestBody);
             
             // Start download with authentication
             console.log('📥 Making authenticated download request to:', `/api/file/${clipId}`);
@@ -2495,9 +2855,7 @@ class ClipboardApp {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    downloadToken: downloadToken
-                })
+                body: JSON.stringify(requestBody)
             });
             
             console.log('📥 Download response status:', response.status);
@@ -2522,11 +2880,53 @@ class ClipboardApp {
             let decryptedData;
             
             // Try to decrypt if we have encryption keys
-            if (password || urlSecret) {
+            if (urlSecret) {
                 try {
                     console.log('📥 Attempting to decrypt file data');
-                    decryptedData = await this.decryptFile(encryptedBytes, password, urlSecret);
-                    console.log('🔓 File decrypted successfully, size:', decryptedData.length, 'bytes');
+                    // Access Code System: File decryption uses only URL-Secret, not password
+                    const decryptResult = await this.decryptFileWithMetadata(encryptedBytes, null, urlSecret);
+                    console.log('🔓 File decrypted successfully, size:', decryptResult.data.length, 'bytes');
+                    
+                    // Check if we have metadata from decryption
+                    if (decryptResult.metadata) {
+                        console.log('📋 Using metadata from decryption:', decryptResult.metadata);
+                        // Use original filename and mime type from metadata
+                        const originalFilename = decryptResult.metadata.filename || filename;
+                        const originalMimeType = decryptResult.metadata.mimeType || 'application/octet-stream';
+                        
+                        console.log('📁 Using original file info:', {
+                            filename: originalFilename,
+                            mimeType: originalMimeType,
+                            originalSize: decryptResult.metadata.size
+                        });
+                        
+                        // Create blob with correct mime type
+                        const blob = new Blob([decryptResult.data], { type: originalMimeType });
+                        console.log('📥 Blob created with mime type:', originalMimeType);
+                        
+                        // Create download link with original filename
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = originalFilename;
+                        
+                        console.log('📥 Triggering download with original filename:', originalFilename);
+                        
+                        // Trigger download
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        // Clean up
+                        window.URL.revokeObjectURL(url);
+                        
+                        console.log('✅ Download completed successfully with original filename');
+                        this.showToast('✅ File downloaded successfully!', 'success');
+                        return; // Exit early since we handled the download
+                    } else {
+                        console.log('📋 No metadata found, using decrypted data directly');
+                        decryptedData = decryptResult.data; // Use decrypted file data
+                    }
                 } catch (decryptError) {
                     console.warn('⚠️ Decryption failed, downloading as-is:', decryptError.message);
                     decryptedData = encryptedBytes;
@@ -2537,8 +2937,8 @@ class ClipboardApp {
                 decryptedData = encryptedBytes;
             }
             
-            // Create blob from decrypted data
-            console.log('📥 Creating blob from data');
+            // Create blob from decrypted data (fallback if no metadata)
+            console.log('📥 Creating blob from data (fallback)');
             const blob = new Blob([decryptedData]);
             console.log('📥 Blob created, size:', blob.size, 'bytes');
             
@@ -2559,7 +2959,7 @@ class ClipboardApp {
             // Clean up
             window.URL.revokeObjectURL(url);
             
-            console.log('✅ Download completed successfully');
+            console.log('✅ Download completed successfully (fallback)');
             this.showToast('✅ File downloaded successfully!', 'success');
             
         } catch (error) {
@@ -2568,46 +2968,8 @@ class ClipboardApp {
         }
     }
 
-    // Generate download token for authentication
-    async generateDownloadToken(clipId, password, urlSecret) {
-        try {
-            // Create a combined secret for token generation
-            let tokenData = clipId; // Always include clip ID
-            
-            // Add URL secret if available
-            if (urlSecret) {
-                tokenData += ':' + urlSecret;
-            }
-            
-            // Add password if available
-            if (password) {
-                tokenData += ':' + password;
-            }
-            
-            // Generate SHA-256 hash of the combined data
-            const encoder = new TextEncoder();
-            const data = encoder.encode(tokenData);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = new Uint8Array(hashBuffer);
-            
-            // Convert to hex string
-            const token = Array.from(hashArray)
-                .map(b => b.toString(16).padStart(2, '0'))
-                .join('');
-            
-            console.log('🔐 Download token generated from:', {
-                clipId: clipId,
-                hasUrlSecret: !!urlSecret,
-                hasPassword: !!password,
-                tokenLength: token.length
-            });
-            
-            return token;
-        } catch (error) {
-            console.error('❌ Failed to generate download token:', error);
-            throw new Error('Failed to generate authentication token');
-        }
-    }
+    // Generate download token for authentication (DEPRECATED - Zero-Knowledge system)
+
 
     // Extract URL secret from current URL fragment
     extractUrlSecret() {
@@ -2624,14 +2986,48 @@ class ClipboardApp {
 
     // Get password from user input (if available)
     getPasswordFromUser() {
+        // Use the regular password input (for both text and file content)
         const passwordInput = document.getElementById('retrieve-password-input');
         if (passwordInput && passwordInput.value.trim()) {
             return passwordInput.value.trim();
         }
+        
         return null;
     }
 
-    // Decrypt file using same algorithm as chunks
+    // Generate access code hash on client side (same as server)
+    async generateAccessCodeHash(password, salt = 'qopy-access-salt-v1') {
+        const encoder = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            'raw',
+            encoder.encode(password),
+            'PBKDF2',
+            false,
+            ['deriveBits']
+        );
+        
+        const derivedBits = await window.crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode(salt),
+                iterations: 100000,
+                hash: 'SHA-512'
+            },
+            keyMaterial,
+            512 // 64 bytes = 512 bits
+        );
+        
+        return Array.from(new Uint8Array(derivedBits), byte => 
+            byte.toString(16).padStart(2, '0')
+        ).join('');
+    }
+
+    // Get access code from user input (alias for backward compatibility)
+    getAccessCodeFromUser() {
+        return this.getPasswordFromUser();
+    }
+
+    // Decrypt file using same algorithm as chunks (for TEXT content - simple IV + data structure)
     async decryptFile(encryptedBytes, password = null, urlSecret = null) {
         console.log('🔓 decryptFile called with:', {
             dataSize: encryptedBytes.length,
@@ -2640,15 +3036,18 @@ class ClipboardApp {
         });
 
         if (!password && !urlSecret) {
-            throw new Error('No decryption keys available');
+            console.error('❌ No decryption keys available for file decryption');
+            throw new Error('No decryption keys available. This might be a Quick Share that requires a server secret.');
         }
 
         try {
-            // Extract IV (first 12 bytes) and encrypted data
+            // Check if data is large enough to contain IV + encrypted data
             if (encryptedBytes.length < 12) {
                 throw new Error('File too small to be encrypted');
             }
 
+            // Extract IV from first 12 bytes and encrypted data from remaining bytes
+            console.log('🔓 Extracting IV from first 12 bytes');
             const iv = encryptedBytes.slice(0, 12);
             const encryptedData = encryptedBytes.slice(12);
             
@@ -2675,24 +3074,300 @@ class ClipboardApp {
 
         } catch (error) {
             console.error('❌ Decryption error:', error);
+            if (error.message.includes('decrypt')) {
+                throw new Error('Decryption failed: Invalid decryption key or corrupted data');
+            }
             throw new Error('Decryption failed: ' + error.message);
         }
     }
 
-    // Generate decryption key (same as upload)
+    // Decrypt file with metadata support (for FILE content - metadata header + IV + data structure)
+    async decryptFileWithMetadata(encryptedBytes, password = null, urlSecret = null) {
+        console.log('🔓 decryptFileWithMetadata called with:', {
+            dataSize: encryptedBytes.length,
+            hasPassword: !!password,
+            hasUrlSecret: !!urlSecret
+        });
+
+        if (!password && !urlSecret) {
+            console.error('❌ No decryption keys available for file decryption');
+            throw new Error('No decryption keys available. This might be a Quick Share that requires a server secret.');
+        }
+
+        try {
+            // File structure: IV (12 bytes) + encrypted([metadata_length][encrypted_metadata][file_data])
+            if (encryptedBytes.length < 12) {
+                throw new Error('File too small to contain IV');
+            }
+
+            console.log('🔓 Extracting IV from first 12 bytes');
+            const iv = encryptedBytes.slice(0, 12);
+            const encryptedData = encryptedBytes.slice(12);
+            
+            console.log('🔓 Extracted IV and encrypted data:', {
+                ivLength: iv.length,
+                encryptedDataLength: encryptedData.length
+            });
+
+            console.log('🔓 Generating decryption key');
+            const key = await this.generateDecryptionKey(password, urlSecret);
+            console.log('🔓 Decryption key generated successfully');
+
+            console.log('🔓 Starting decryption with AES-GCM');
+            const decryptedData = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                encryptedData
+            );
+
+            console.log('🔓 Decryption successful, now parsing metadata structure');
+            const decryptedBytes = new Uint8Array(decryptedData);
+            
+            // Now parse metadata from decrypted data: [metadata_length][encrypted_metadata][file_data]
+            if (decryptedBytes.length < 4) {
+                console.log('🔓 No metadata structure - returning raw decrypted data');
+                return {
+                    data: decryptedBytes,
+                    metadata: null
+                };
+            }
+
+            console.log('🔓 Checking for embedded metadata structure in decrypted data');
+            
+            // Read metadata length (4 bytes, little-endian)
+            const metadataLength = new DataView(decryptedBytes.buffer.slice(0, 4)).getUint32(0, true);
+            console.log('🔓 Metadata length from decrypted data:', metadataLength);
+
+            // Sanity checks for metadata
+            if (metadataLength > 0 && metadataLength <= 1024 && (4 + metadataLength) < decryptedBytes.length) {
+                console.log('🔓 Valid metadata structure detected in decrypted data');
+                
+                // Extract encrypted metadata and file data
+                const encryptedMetadata = decryptedBytes.slice(4, 4 + metadataLength);
+                const fileData = decryptedBytes.slice(4 + metadataLength);
+                
+                console.log('🔓 Metadata extraction from decrypted data:', {
+                    metadataLength: metadataLength,
+                    encryptedMetadataSize: encryptedMetadata.length,
+                    fileDataSize: fileData.length
+                });
+
+                // Decrypt metadata using metadata-specific parameters
+                try {
+                    const metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
+                    const metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
+                    
+                    const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv: metadataIV },
+                        metadataKey,
+                        encryptedMetadata
+                    );
+                    
+                    const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
+                    const metadata = JSON.parse(metadataJson);
+                    
+                    console.log('🔓 Successfully decrypted metadata from decrypted data:', metadata);
+
+                    return {
+                        data: fileData,
+                        metadata: metadata
+                    };
+                    
+                } catch (metadataError) {
+                    console.warn('⚠️ Failed to decrypt metadata from decrypted data, returning file data only:', metadataError.message);
+                    return {
+                        data: fileData,
+                        metadata: null
+                    };
+                }
+            }
+
+            // No valid metadata structure found
+            console.log('🔓 No valid metadata structure in decrypted data, returning as raw file data');
+            return {
+                data: decryptedBytes,
+                metadata: null
+            };
+
+        } catch (error) {
+            console.log('❌ Decryption error:', error.name);
+            throw new Error('Decryption failed: ' + error.message);
+        }
+    }
+
+    // Generate decryption key (same as upload - use generateKey for compatibility)
     async generateDecryptionKey(password = null, urlSecret = null) {
         console.log('🔑 generateDecryptionKey called with:', {
             hasPassword: !!password,
             hasUrlSecret: !!urlSecret
         });
 
+        // Use the compatible enhanced encryption key generation for file downloads
+        return await this.generateCompatibleEncryptionKey(password, urlSecret);
+    }
+
+    // Derive compatible IV (same as upload system)
+    async deriveCompatibleIV(password = null, secret = null, customSalt = null) {
+        console.log('🔐 deriveCompatibleIV called with:', {
+            hasPassword: !!password,
+            hasSecret: !!secret,
+            customSalt
+        });
+
+        const encoder = new TextEncoder();
+        
+        // Detect format (same as upload)
+        const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
+        const isEnhancedPassphrase = secret && secret.length >= 40;
+        const isQuickShareSecret = secret && secret.length === 32 && /^[0-9a-f]{32}$/.test(secret);
+        
+        let keyMaterial;
+        let salt;
+        let iterations;
+        let mode;
+        
+        if (password && secret) {
+            // Combined mode
+            if (isOldUrlSecret) {
+                // Legacy format: urlSecret:password
+                const combined = secret + ':' + password;
+                mode = 'LEGACY_COMBINED_IV';
+                console.log('🔐 Legacy IV derivation (combined mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(combined),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-iv-salt-v1';
+                iterations = 100000;
+            } else if (isEnhancedPassphrase) {
+                // Enhanced format: passphrase:password
+                const combined = secret + ':' + password;
+                mode = 'ENHANCED_COMBINED_IV';
+                console.log('🔐 Enhanced IV derivation (combined mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(combined),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-enhanced-iv-salt-v2';
+                iterations = 100000;
+            } else if (isQuickShareSecret) {
+                // Quick Share format: secret:password
+                const combined = secret + ':' + password;
+                mode = 'QUICKSHARE_COMBINED_IV';
+                console.log('🔐 Quick Share IV derivation (combined mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(combined),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-quickshare-iv-salt-v1';
+                iterations = 100000;
+            } else {
+                throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
+            }
+        } else if (secret) {
+            // Secret-only mode
+            if (isOldUrlSecret) {
+                mode = 'LEGACY_SECRET_ONLY_IV';
+                console.log('🔐 Legacy IV derivation (secret-only mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(secret),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-iv-salt-v1';
+                iterations = 100000;
+            } else if (isEnhancedPassphrase) {
+                mode = 'ENHANCED_SECRET_ONLY_IV';
+                console.log('🔐 Enhanced IV derivation (secret-only mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(secret),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-enhanced-iv-salt-v2';
+                iterations = 100000;
+            } else if (isQuickShareSecret) {
+                mode = 'QUICKSHARE_SECRET_ONLY_IV';
+                console.log('🔐 Quick Share IV derivation (secret-only mode)');
+                
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(secret),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-quickshare-iv-salt-v1';
+                iterations = 100000;
+            } else {
+                throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
+            }
+        } else {
+            throw new Error('Either password or secret must be provided for IV derivation');
+        }
+
+        console.log('🔍 [DEBUG] IV PBKDF2 Configuration:', {
+            mode,
+            salt,
+            iterations,
+            hashAlgorithm: 'SHA-256',
+            outputBits: 96
+        });
+
+        // Derive IV using PBKDF2
+        const ivBits = await window.crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode(salt),
+                iterations: iterations,
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            96 // 12 bytes = 96 bits
+        );
+
+        const iv = new Uint8Array(ivBits);
+        console.log('🔐 Compatible IV derived successfully:', {
+            mode,
+            ivLength: iv.length,
+            ivPreview: Array.from(iv.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join(' ')
+        });
+
+        return iv;
+    }
+
+    // Generate compatible encryption key (same as upload system)
+    async generateCompatibleEncryptionKey(password = null, secret = null) {
+        console.log('🔑 generateCompatibleEncryptionKey called with:', {
+            hasPassword: !!password,
+            hasSecret: !!secret
+        });
+
         const encoder = new TextEncoder();
         
         let keyMaterial;
-        if (password && urlSecret) {
-            // Password + URL secret mode
-            console.log('🔑 Using password + URL secret mode');
-            const combined = urlSecret + ':' + password;
+        if (password && secret) {
+            // Combined mode
+            console.log('🔑 Using combined mode for key generation');
+            const combined = secret + ':' + password;
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
                 encoder.encode(combined),
@@ -2700,19 +3375,19 @@ class ClipboardApp {
                 false,
                 ['deriveKey']
             );
-        } else if (urlSecret) {
-            // URL secret only mode
-            console.log('🔑 Using URL secret only mode');
+        } else if (secret) {
+            // Secret-only mode (Enhanced Files)
+            console.log('🔑 Using secret-only mode for key generation');
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
-                encoder.encode(urlSecret),
+                encoder.encode(secret),
                 'PBKDF2',
                 false,
                 ['deriveKey']
             );
         } else if (password) {
-            // Password only mode (should not happen for files, but handle it)
-            console.log('🔑 Using password only mode');
+            // Password-only mode
+            console.log('🔑 Using password-only mode for key generation');
             keyMaterial = await window.crypto.subtle.importKey(
                 'raw',
                 encoder.encode(password),
@@ -2721,16 +3396,15 @@ class ClipboardApp {
                 ['deriveKey']
             );
         } else {
-            throw new Error('Either password or URL secret must be provided');
+            throw new Error('Either password or secret must be provided for key generation');
         }
-        
-        console.log('🔑 Deriving key with PBKDF2');
+
         // Derive key using PBKDF2
         const derivedKey = await window.crypto.subtle.deriveKey(
             {
                 name: 'PBKDF2',
-                salt: encoder.encode('qopy-salt-v1'),
-                iterations: 100000,
+                salt: encoder.encode('qopy-enhanced-salt-v2'),
+                iterations: 250000, // Same as upload system
                 hash: 'SHA-256'
             },
             keyMaterial,
@@ -2738,9 +3412,71 @@ class ClipboardApp {
             false,
             ['encrypt', 'decrypt']
         );
-        
-        console.log('🔑 Key derivation successful');
+
+        console.log('🔑 Compatible encryption key derived successfully');
         return derivedKey;
+    }
+
+    // Extract metadata from file during download (compatible with upload system)
+    async extractMetadata(fileWithMetadata, urlSecret) {
+        try {
+            console.log('📋 extractMetadata called with:', {
+                dataSize: fileWithMetadata.length,
+                hasUrlSecret: !!urlSecret
+            });
+
+            if (fileWithMetadata.length < 4) {
+                console.log('📋 File too small for metadata');
+                return { metadata: null, fileData: fileWithMetadata };
+            }
+            
+            // Read metadata length (4 bytes, little-endian)
+            const metadataLength = new DataView(fileWithMetadata.buffer.slice(0, 4)).getUint32(0, true);
+            
+            console.log('📋 Metadata length from header:', metadataLength);
+            
+            if (metadataLength > fileWithMetadata.length - 4 || metadataLength > 1024) { // Sanity check
+                console.log('📋 No valid metadata found, treating as raw file');
+                return { metadata: null, fileData: fileWithMetadata };
+            }
+            
+            // Extract encrypted metadata
+            const encryptedMetadata = fileWithMetadata.slice(4, 4 + metadataLength);
+            const fileData = fileWithMetadata.slice(4 + metadataLength);
+            
+            console.log('📋 Extracted encrypted metadata and file data:', {
+                encryptedMetadataLength: encryptedMetadata.length,
+                fileDataLength: fileData.length
+            });
+            
+            // Decrypt metadata using compatible key generation (same as upload)
+            const metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
+            const metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
+            
+            console.log('📋 Metadata decryption parameters:', {
+                keyType: 'compatible',
+                ivSalt: 'qopy-metadata-salt',
+                ivPreview: Array.from(metadataIV.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join(' ')
+            });
+            
+            console.log('📋 Decrypting metadata with derived key and IV');
+            
+            const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: metadataIV },
+                metadataKey,
+                encryptedMetadata
+            );
+            
+            const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
+            const metadata = JSON.parse(metadataJson);
+            
+            console.log('📋 Successfully extracted metadata:', metadata);
+            return { metadata, fileData };
+            
+        } catch (error) {
+            console.warn('⚠️ Failed to extract metadata (wrong key or corrupted):', error.message);
+            return { metadata: null, fileData: fileWithMetadata };
+        }
     }
 }
 

@@ -703,6 +703,135 @@ async function cleanupExpiredClips() {
   }
 }
 
+// Helper function for clip retrieval (shared between GET and POST endpoints)
+async function handleClipRetrieval(req, res, clip, clipId) {
+  try {
+    // Update access count and timestamp
+    await pool.query(`
+      UPDATE clips 
+      SET access_count = access_count + 1, accessed_at = $1 
+      WHERE clip_id = $2
+    `, [Date.now(), clipId]);
+    
+    // Update statistics
+    await updateStatistics('clip_accessed');
+
+    // Handle content based on storage type
+    let responseContent;
+    let contentMetadata = {};
+    
+    if (clip.content_type === 'file') {
+      // File stored on disk - redirect to file endpoint
+      return res.json({
+        success: true,
+        contentType: 'file',
+        redirectTo: `/api/file/${clipId}`,
+        filename: clip.original_filename,
+        filesize: clip.filesize,
+        mimeType: clip.mime_type,
+        expiresAt: clip.expiration_time,
+        oneTime: clip.one_time
+      });
+    } else if (clip.file_path) {
+      // Content stored as file - redirect to file endpoint for unified handling
+      if (clip.content_type === 'text') {
+        // Text content stored as file - redirect to file endpoint but mark as text
+        const response = {
+          success: true,
+          contentType: 'text',
+          redirectTo: `/api/file/${clipId}`,
+          filename: clip.original_filename,
+          filesize: clip.filesize,
+          mimeType: clip.mime_type || 'text/plain',
+          expiresAt: clip.expiration_time,
+          oneTime: clip.one_time,
+          isTextFile: true // Special flag to indicate this should be decrypted and shown as text
+        };
+        
+        // For Quick Share clips (4-digit ID), include the secret for decryption
+        if (clipId.length === 4 && clip.password_hash) {
+          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId, 'secret:', clip.password_hash);
+          response.quickShareSecret = clip.password_hash;
+        }
+        
+        return res.json(response);
+      } else {
+        // Regular file - redirect to file endpoint
+        return res.json({
+          success: true,
+          contentType: 'file',
+          redirectTo: `/api/file/${clipId}`,
+          filename: clip.original_filename,
+          filesize: clip.filesize,
+          mimeType: clip.mime_type,
+          expiresAt: clip.expiration_time,
+          oneTime: clip.one_time
+        });
+      }
+    } else if (clip.content) {
+      // Content stored inline in database
+      if (clip.content_type === 'text') {
+        responseContent = clip.content; // Already a string
+        contentMetadata.contentType = 'text';
+      } else {
+        // Binary content
+        if (Buffer.isBuffer(clip.content)) {
+          responseContent = Array.from(clip.content);
+          contentMetadata.contentType = 'binary';
+        } else if (typeof clip.content === 'string') {
+          responseContent = clip.content;
+          contentMetadata.contentType = 'text';
+        } else {
+          responseContent = clip.content.toString();
+          contentMetadata.contentType = 'text';
+        }
+      }
+      
+      // Handle one-time access for inline content
+      if (clip.one_time) {
+        console.log('🔥 One-time access for inline content, deleting clip:', clipId);
+        await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
+      }
+    } else {
+      return res.status(404).json({
+        error: 'No content found',
+        message: 'The clip contains no content'
+      });
+    }
+
+    // Prepare response for inline content
+    const response = {
+      success: true,
+      content: responseContent,
+      contentType: contentMetadata.contentType || 'binary',
+      expiresAt: clip.expiration_time,
+      oneTime: clip.one_time,
+      hasPassword: false
+    };
+
+    // Add file metadata if available
+    if (clip.filesize) response.filesize = clip.filesize;
+    if (clip.mime_type) response.mimeType = clip.mime_type;
+
+    // For Quick Share clips, include the secret for decryption
+    if (clipId.length === 4 && clip.password_hash) {
+      console.log('🔑 Adding quickShareSecret for 4-digit clip (inline):', clipId, 'secret:', clip.password_hash);
+      response.quickShareSecret = clip.password_hash;
+    } else if (clipId.length === 10) {
+      response.hasPassword = clip.requires_access_code || false;
+    }
+    
+    return res.json(response);
+
+  } catch (error) {
+    console.error('❌ Error in handleClipRetrieval:', error.message);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to retrieve clip'
+    });
+  }
+}
+
 // Helper function to safely delete files with permission handling
 async function safeDeleteFile(filePath) {
     try {
@@ -840,27 +969,73 @@ async function createUploadSession(sessionData) {
 async function getUploadSession(uploadId) {
     console.log(`🔍 Getting upload session: ${uploadId}`);
     
-    if (redis) {
-        const cached = await redis.get(`upload:${uploadId}`);
-        if (cached) {
-            console.log(`✅ Found session in Redis: ${uploadId}`);
-            return JSON.parse(cached);
+    try {
+        if (redis) {
+            console.log(`🔍 Checking Redis for session: ${uploadId}`);
+            const cached = await redis.get(`upload:${uploadId}`);
+            if (cached) {
+                console.log(`✅ Found session in Redis: ${uploadId}`);
+                try {
+                    const parsed = JSON.parse(cached);
+                    console.log(`🔍 Redis session keys:`, Object.keys(parsed));
+                    console.log(`🔍 Redis session sample values:`, {
+                        upload_id: parsed.upload_id,
+                        filename: parsed.filename,
+                        total_chunks: parsed.total_chunks,
+                        uploaded_chunks: parsed.uploaded_chunks,
+                        is_text_content: parsed.is_text_content
+                    });
+                    return parsed;
+                } catch (error) {
+                    console.error(`❌ Error parsing Redis session:`, error);
+                    console.log(`🔍 Raw Redis data:`, cached);
+                    // Fall through to database lookup
+                }
+            } else {
+                console.log(`❌ No session found in Redis: ${uploadId}`);
+            }
         }
+    } catch (redisError) {
+        console.error(`❌ Redis error:`, redisError);
     }
     
     // Fallback to database
-    const result = await pool.query(
-        'SELECT * FROM upload_sessions WHERE upload_id = $1',
-        [uploadId]
-    );
-    
-    if (result.rows[0]) {
-        console.log(`✅ Found session in database: ${uploadId}, uploaded_chunks: ${result.rows[0].uploaded_chunks}/${result.rows[0].total_chunks}`);
-    } else {
-        console.log(`❌ Session not found in database: ${uploadId}`);
+    console.log(`🔍 Falling back to database for session: ${uploadId}`);
+    try {
+        const result = await pool.query(
+            'SELECT * FROM upload_sessions WHERE upload_id = $1',
+            [uploadId]
+        );
+        
+        if (result.rows[0]) {
+            const session = result.rows[0];
+            console.log(`✅ Found session in database: ${uploadId}`, {
+                uploaded_chunks: `${session.uploaded_chunks}/${session.total_chunks}`,
+                has_password: session.has_password,
+                one_time: session.one_time,
+                quick_share: session.quick_share,
+                is_text_content: session.is_text_content
+            });
+            
+            // Cache it for next time
+            if (redis) {
+                try {
+                    await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(session));
+                    console.log(`✅ Cached database session in Redis: ${uploadId}`);
+                } catch (cacheError) {
+                    console.error(`❌ Error caching session:`, cacheError);
+                }
+            }
+            
+            return session;
+        } else {
+            console.log(`❌ Session not found in database: ${uploadId}`);
+            return null;
+        }
+    } catch (dbError) {
+        console.error(`❌ Database error:`, dbError);
+        return null;
     }
-    
-    return result.rows[0] || null;
 }
 
 async function updateUploadSession(uploadId, updates) {
@@ -900,33 +1075,52 @@ async function saveChunkToFile(uploadId, chunkNumber, chunkData) {
 }
 
 async function assembleFile(uploadId, session) {
-    const finalPath = path.join(STORAGE_PATH, 'files', `${uploadId}_${session.filename}`);
-    await fs.mkdir(path.dirname(finalPath), { recursive: true });
-    
-    const writeStream = require('fs').createWriteStream(finalPath);
-    
-    for (let i = 0; i < session.total_chunks; i++) {
-        // Use the same path format as chunk upload: ${uploadId}_${chunkNumber}.chunk
-        const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${i}.chunk`);
-        console.log(`🔍 Reading chunk from: ${chunkPath}`);
-        const chunkData = await fs.readFile(chunkPath);
-        writeStream.write(chunkData);
-    }
-    
-    writeStream.end();
-    
-    // Clean up chunks - remove individual chunk files (not directory)
-    for (let i = 0; i < session.total_chunks; i++) {
-        const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${i}.chunk`);
-        try {
-            await fs.unlink(chunkPath);
-            console.log(`🧹 Cleaned up chunk: ${chunkPath}`);
-        } catch (error) {
-            console.warn(`⚠️ Could not delete chunk ${chunkPath}:`, error.message);
+    try {
+        console.log(`🔍 assembleFile started for uploadId: ${uploadId}, filename: ${session.filename}`);
+        const finalPath = path.join(STORAGE_PATH, 'files', `${uploadId}_${session.filename}`);
+        console.log(`🔍 Final path: ${finalPath}`);
+        
+        await fs.mkdir(path.dirname(finalPath), { recursive: true });
+        console.log(`🔍 Directory created/verified: ${path.dirname(finalPath)}`);
+        
+        const writeStream = require('fs').createWriteStream(finalPath);
+        
+        for (let i = 0; i < session.total_chunks; i++) {
+            // Use the same path format as saveChunkToFile: /chunks/{uploadId}/chunk_{chunkNumber}
+            const chunkPath = path.join(STORAGE_PATH, 'chunks', uploadId, `chunk_${i}`);
+            console.log(`🔍 Reading chunk ${i} from: ${chunkPath}`);
+            
+            // Check if chunk file exists
+            const chunkExists = await fs.pathExists(chunkPath);
+            if (!chunkExists) {
+                throw new Error(`Chunk file not found: ${chunkPath}`);
+            }
+            
+            const chunkData = await fs.readFile(chunkPath);
+            console.log(`🔍 Chunk ${i} size: ${chunkData.length} bytes`);
+            writeStream.write(chunkData);
         }
+        
+        writeStream.end();
+        console.log(`🔍 Write stream ended, file assembled: ${finalPath}`);
+        
+        // Clean up chunks - remove individual chunk files (not directory)
+        for (let i = 0; i < session.total_chunks; i++) {
+            const chunkPath = path.join(STORAGE_PATH, 'chunks', uploadId, `chunk_${i}`);
+            try {
+                await fs.unlink(chunkPath);
+                console.log(`🧹 Cleaned up chunk: ${chunkPath}`);
+            } catch (error) {
+                console.warn(`⚠️ Could not delete chunk ${chunkPath}:`, error.message);
+            }
+        }
+        
+        console.log(`✅ assembleFile completed successfully: ${finalPath}`);
+        return finalPath;
+    } catch (error) {
+        console.error(`❌ Error in assembleFile for uploadId ${uploadId}:`, error);
+        throw error;
     }
-    
-    return finalPath;
 }
 
 // Multi-part upload endpoints
@@ -938,15 +1132,50 @@ async function assembleFile(uploadId, session) {
 // Complete upload
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
     try {
+        console.log('🔍 Upload complete route started');
         const { uploadId } = req.params;
-        const { quickShareSecret, password, urlSecret } = req.body;
-        console.log('🔑 Upload complete request body:', { 
-            quickShareSecret: quickShareSecret,
-            hasPassword: !!password,
-            hasUrlSecret: !!urlSecret
-        });
+        console.log('🔍 UploadId from params:', uploadId);
         
+        console.log('🔍 Request body:', JSON.stringify(req.body, null, 2));
+        
+        // Support both old file upload system and new text upload system
+        let quickShareSecret, clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
+        let password, urlSecret; // File upload system
+        
+        try {
+            // Try new text upload system first - check for isTextUpload or quickShareSecret too
+            if (req.body.accessCodeHash || req.body.requiresAccessCode !== undefined || req.body.isTextUpload || req.body.quickShareSecret) {
+                console.log('🔍 Using NEW text upload system');
+                ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType } = req.body);
+            } else {
+                console.log('🔍 Using OLD file upload system');
+                ({ password, urlSecret } = req.body);
+                // Convert old system to new system
+                isTextUpload = false;
+                contentType = 'file';
+                requiresAccessCode = !!password;
+                clientAccessCodeHash = password; // Use password as access code hash for legacy
+            }
+            
+            console.log('🔑 Upload complete request body:', { 
+                quickShareSecret: quickShareSecret,
+                hasAccessCodeHash: !!clientAccessCodeHash,
+                requiresAccessCode: requiresAccessCode,
+                isTextUpload: isTextUpload,
+                contentType: contentType,
+                fullRequestBody: req.body
+            });
+        } catch (destructureError) {
+            console.error('❌ Error destructuring request body:', destructureError);
+            throw destructureError;
+        }
+        
+        console.log('🔍 About to get upload session');
         const session = await getUploadSession(uploadId);
+        console.log('🔍 Upload session retrieved:', !!session);
+        console.log('🔍 Session type:', typeof session);
+        console.log('🔍 Session keys:', session ? Object.keys(session) : 'null');
+        
         if (!session) {
             return res.status(404).json({
                 error: 'Upload session not found',
@@ -954,104 +1183,189 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             });
         }
         
-        console.log('🔑 Upload session details:', { 
-            uploadId: session.upload_id, 
-            quick_share: session.quick_share, 
-            has_password: session.has_password,
-            is_text_content: session.is_text_content
-        });
+        try {
+            console.log('🔑 Upload session details:', { 
+                uploadId: session.upload_id, 
+                quick_share: session.quick_share, 
+                has_password: session.has_password,
+                one_time: session.one_time,
+                is_text_content: session.is_text_content,
+                uploaded_chunks: session.uploaded_chunks,
+                total_chunks: session.total_chunks
+            });
+        } catch (error) {
+            console.error('❌ Error logging session details:', error);
+            console.log('🔍 Session object keys:', Object.keys(session));
+            console.log('🔍 Session object values:', Object.values(session));
+            
+            // FORCE session structure to be compatible
+            if (!session.upload_id) session.upload_id = session.id;
+            if (!session.quick_share) session.quick_share = false;
+            if (!session.has_password) session.has_password = false;
+            if (!session.one_time) session.one_time = false;
+            if (!session.is_text_content) session.is_text_content = false;
+            if (!session.uploaded_chunks) session.uploaded_chunks = 0;
+            if (!session.total_chunks) session.total_chunks = 1;
+            
+            console.log('🔧 FORCED session structure:', {
+                uploadId: session.upload_id,
+                quick_share: session.quick_share,
+                has_password: session.has_password,
+                one_time: session.one_time,
+                is_text_content: session.is_text_content,
+                uploaded_chunks: session.uploaded_chunks,
+                total_chunks: session.total_chunks
+            });
+        }
 
+        console.log('🔍 About to check expiration_time');
         // Ensure expiration_time is set (fallback to 24 hours if missing)
         if (!session.expiration_time) {
             console.warn(`⚠️ Missing expiration_time for session ${uploadId}, using 24 hours as fallback`);
             session.expiration_time = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
         }
+        console.log('🔍 Expiration_time check completed');
 
-        if (session.uploaded_chunks < session.total_chunks) {
+        // Handle text uploads vs file uploads differently
+        let filePath = null;
+        let actualFilesize = 0;
+
+        // Both text and file uploads use the same logic
+        console.log('📝 Processing upload:', uploadId, 'isTextUpload:', isTextUpload);
+        
+        // SAFE session access with fallbacks
+        const uploadedChunks = session.uploaded_chunks || 0;
+        const totalChunks = session.total_chunks || 1;
+        
+        console.log('📝 Chunk check:', { uploadedChunks, totalChunks });
+        
+        if (uploadedChunks < totalChunks) {
             return res.status(400).json({
                 error: 'Upload incomplete',
-                message: `Only ${session.uploaded_chunks}/${session.total_chunks} chunks uploaded`
+                message: `Only ${uploadedChunks}/${totalChunks} chunks uploaded`
             });
         }
 
-        // Assemble file
-        const filePath = await assembleFile(uploadId, session);
+        console.log('📝 About to assemble file:', uploadId);
+        // Assemble file from chunks (same logic for both text and files)
+        filePath = await assembleFile(uploadId, session);
+        console.log('📝 File assembled successfully:', filePath);
         
-        // Get actual file size (may be different from original if encrypted)
-        const actualFileSize = (await fs.stat(filePath)).size;
+        // Get actual file size
+        actualFilesize = (await fs.stat(filePath)).size;
+        console.log('📝 Content assembled from chunks:', filePath, 'size:', actualFilesize, 'isText:', isTextUpload);
+        
+        // Get actual file size for both text and file uploads (if not already set)
+        if (actualFilesize === 0) {
+            actualFilesize = (await fs.stat(filePath)).size;
+        }
         
         // Create clip - use quick_share setting for text content, normal IDs for files
         const clipId = generateClipId(session.is_text_content ? session.quick_share : false);
+        console.log('🔍 Generated clipId:', clipId);
         
         // All content is now stored as files (no database content storage)
         let isFile = true;
         
         if (session.is_text_content) {
-            console.log(`📝 Text content stored as file: ${filePath} (${actualFileSize} bytes encrypted)`);
+            console.log(`📝 Text content stored as file: ${filePath} (${actualFilesize} bytes encrypted)`);
         }
 
-        // Handle Quick Share secret and password hash
+        // NEW: Zero-Knowledge Access Code System
         let passwordHash = null;
-        if (session.quick_share && quickShareSecret) {
-            console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
-            passwordHash = quickShareSecret;
-        } else if (session.has_password) {
-            // Only set 'client-encrypted' for actual user passwords, not for URL secrets
-            passwordHash = 'client-encrypted';
-        } else {
-            // For normal text shares with URL secret but no user password, set to null
-            passwordHash = null;
+        let accessCodeHash = null;
+        let shouldRequireAccessCode = false;
+        
+        try {
+            console.log('🔐 Zero-Knowledge Access Code Analysis:', {
+                uploadId,
+                sessionHasPassword: session.has_password,
+                isQuickShare: session.quick_share,
+                hasQuickShareSecret: !!quickShareSecret,
+                hasClientAccessCodeHash: !!clientAccessCodeHash,
+                clientAccessCodeHashLength: clientAccessCodeHash ? clientAccessCodeHash.length : 0,
+                requiresAccessCode: requiresAccessCode,
+                requiresAccessCodeType: typeof requiresAccessCode
+            });
+        } catch (error) {
+            console.error('❌ Error in Zero-Knowledge Access Code Analysis:', error);
+        }
+        
+        try {
+            if (session.quick_share && quickShareSecret) {
+                // Quick Share: Store secret in password_hash field (legacy compatibility)
+                console.log('🔑 Setting Quick Share secret for upload:', uploadId, 'secret:', quickShareSecret);
+                passwordHash = quickShareSecret;
+                accessCodeHash = null;
+                shouldRequireAccessCode = false;
+            } else if (requiresAccessCode && clientAccessCodeHash) {
+                // Normal Share with Password: Use client-generated access code hash
+                console.log('🔐 Using client-side access code hash (Zero-Knowledge):', uploadId);
+                accessCodeHash = clientAccessCodeHash;
+                shouldRequireAccessCode = true; // FORCE TRUE
+                passwordHash = 'client-encrypted'; // Mark as client-encrypted for legacy compatibility
+                console.log('🔐 Zero-Knowledge Access Code Hash stored:', {
+                    accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+                    requiresAccessCode: shouldRequireAccessCode,
+                    passwordHash: 'client-encrypted'
+                });
+            } else {
+                console.log('🔐 Condition check failed:', {
+                    requiresAccessCode: requiresAccessCode,
+                    hasClientAccessCodeHash: !!clientAccessCodeHash,
+                    condition: requiresAccessCode && clientAccessCodeHash
+                });
+                // Normal Share without Password: Only URL secret protection (client-side only)
+                console.log('🔐 URL secret only protection (Zero-Knowledge):', uploadId);
+                passwordHash = null;
+                accessCodeHash = null;
+                shouldRequireAccessCode = false;
+            }
+        } catch (error) {
+            console.error('❌ Error in upload logic:', error);
+            throw error;
         }
 
-        // Generate download token BEFORE JSON.stringify
-        let downloadToken = null;
-        
-        // For file uploads, generate token if urlSecret is present (password optional)
-        // For text uploads, handle Quick Share vs Normal mode differently
-        const isFileUpload = !session.is_text_content || session.original_filename !== `${uploadId.substring(0, 8)}.txt`;
-        
-        if (isFileUpload) {
-            // File uploads: generate token if urlSecret is present (password is optional)
-            if (urlSecret) {
-                downloadToken = await generateDownloadToken(clipId, password, urlSecret);
-                console.log('🔐 Generated download token for file upload:', clipId, 'hasPassword:', !!password, 'hasUrlSecret:', !!urlSecret);
-            } else {
-                console.log('⚠️ No urlSecret provided for file upload - no download token generated');
-            }
-        } else {
-            // Text uploads: handle Quick Share vs Normal mode
-            if (session.quick_share) {
-                // Quick Share: No download token needed - uses quickShareSecret in password_hash field
-                downloadToken = null;
-                console.log('⚡ Quick Share text upload - no download token needed (uses quickShareSecret)');
-            } else {
-                // Normal text: generate token if urlSecret is present (password is optional for URL-only protection)
-                if (urlSecret) {
-                    downloadToken = await generateDownloadToken(clipId, password, urlSecret);
-                    console.log('🔐 Generated download token for normal text upload:', clipId, 'hasPassword:', !!password, 'hasUrlSecret:', !!urlSecret);
-                } else {
-                    console.log('ℹ️ Normal text upload without urlSecret - no download token generated');
-                }
-            }
-        }
+        // NEW: Zero-Knowledge File System - No download tokens needed
+        // All authentication happens via access codes, URL secrets remain client-side
+        console.log('🔐 Zero-Knowledge File System: No download tokens generated - client handles all encryption and URL secrets');
 
-        // Create file metadata object
+        // Create file metadata object (Zero-Knowledge)
         const fileMetadata = {
             uploadId,
             originalUploadSession: true,
             originalFileSize: session.filesize, // Store original size in metadata
-            actualFileSize: actualFileSize,
-            downloadToken: downloadToken
+            actualFileSize: actualFilesize,
+            // No downloadToken - using Zero-Knowledge access code system
+            zeroKnowledge: true
         };
 
         console.log('📝 Storing file_metadata:', fileMetadata);
+
+        // FORCE requiresAccessCode to boolean
+        if (requiresAccessCode && clientAccessCodeHash) {
+            shouldRequireAccessCode = true;
+        }
+        
+        // Log database insert parameters for debugging
+        console.log('💾 Database Insert Parameters:', {
+            clipId,
+            contentType: session.is_text_content ? 'text' : 'file',
+            passwordHash,
+            accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+            requiresAccessCode: shouldRequireAccessCode,
+            requiresAccessCodeType: typeof shouldRequireAccessCode,
+            FORCED_VALUE: shouldRequireAccessCode,
+            isFile
+        });
 
         // Store clip in database (content column removed - all content stored as files)
         await pool.query(`
             INSERT INTO clips 
             (clip_id, content_type, expiration_time, password_hash, one_time, quick_share, created_at,
-             file_path, original_filename, mime_type, filesize, is_file, file_metadata)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             file_path, original_filename, mime_type, filesize, is_file, file_metadata,
+             access_code_hash, requires_access_code)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         `, [
             clipId,
             // Keep content_type = 'text' for text content, even when stored as file
@@ -1064,10 +1378,14 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
             isFile ? filePath : null,
             session.original_filename,
             session.mime_type,
-            actualFileSize, // Use actual file size (encrypted if applicable)
+            actualFilesize, // Use actual file size (encrypted if applicable)
             isFile,
-            JSON.stringify(fileMetadata)
+            JSON.stringify(fileMetadata),
+            accessCodeHash, // New: Access code hash for password protection
+            shouldRequireAccessCode // New: Whether access code is required
         ]);
+
+        console.log('✅ Database insert completed successfully');
 
         // Update statistics
         await updateStatistics('clip_created');
@@ -1108,10 +1426,12 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error completing upload:', error.message);
+        console.error('❌ Error completing upload:', error);
+        console.error('❌ Error stack:', error.stack);
         res.status(500).json({
             error: 'Internal server error',
-            message: 'Failed to complete upload'
+            message: 'Failed to complete upload',
+            details: error.message
         });
     }
 });
@@ -1188,10 +1508,7 @@ function generateUploadId() {
     return uuidv4().replace(/-/g, '').substring(0, 16).toUpperCase();
 }
 
-// Calculate SHA256 checksum for chunk validation
-function calculateChecksum(data) {
-    return crypto.createHash('sha256').update(data).digest('hex');
-}
+// Checksum calculation removed - not needed for security
 
 // Cache helper functions
 async function setCache(key, value, ttl = 3600) {
@@ -1232,7 +1549,7 @@ app.use('/api/upload', uploadLimiter);
 app.post('/api/upload/initiate', [
     body('filename').isString().isLength({ min: 1, max: 255 }).withMessage('Valid filename required'),
     body('filesize').isInt({ min: 1, max: MAX_FILE_SIZE }).withMessage(`File size must be between 1 byte and ${MAX_FILE_SIZE} bytes`),
-    body('mimeType').isString().isLength({ min: 1, max: 100 }).withMessage('Valid MIME type required'),
+    body('mimeType').optional().isString().isLength({ min: 1, max: 100 }).withMessage('Valid MIME type required'),
     body('expiration').optional().isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
     body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
     body('oneTime').optional().isBoolean().withMessage('oneTime must be a boolean'),
@@ -1250,6 +1567,32 @@ app.post('/api/upload/initiate', [
         }
 
         const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
+        
+        // Set appropriate MIME type based on content type
+        let finalMimeType = mimeType;
+        if (isTextContent || contentType === 'text') {
+            finalMimeType = 'text/plain; charset=utf-8';
+        } else if (!mimeType) {
+            finalMimeType = 'application/octet-stream';
+        }
+        
+        console.log('📤 Upload Initiation Request:', {
+            filename,
+            filesize,
+            mimeType: finalMimeType,
+            expiration,
+            hasPassword,
+            oneTime,
+            quickShare,
+            contentType,
+            isTextContent
+        });
+        
+        console.log('🔐 Upload Initiation - hasPassword flag analysis:', {
+            hasPasswordFromRequest: hasPassword,
+            hasPasswordType: typeof hasPassword,
+            willSetHasPasswordInDB: hasPassword
+        });
         
         // Calculate chunks
         const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
@@ -1279,7 +1622,7 @@ app.post('/api/upload/initiate', [
                 is_text_content
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         `, [
-            uploadId, filename, filename, filesize, mimeType,
+            uploadId, filename, filename, filesize, finalMimeType,
             CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
             oneTime, quickShare, clientIP, Date.now(), Date.now(),
             isTextContent || contentType === 'text'
@@ -1291,7 +1634,7 @@ app.post('/api/upload/initiate', [
             filename, 
             original_filename: filename,
             filesize, 
-            mime_type: mimeType, 
+            mime_type: finalMimeType, 
             chunk_size: CHUNK_SIZE,
             total_chunks: totalChunks, 
             uploaded_chunks: 0,
@@ -1303,8 +1646,7 @@ app.post('/api/upload/initiate', [
             created_at: Date.now(),
             last_activity: Date.now(),
             is_text_content: isTextContent || contentType === 'text',
-            status: 'uploading',
-            checksums: []
+            status: 'uploading'
         });
 
         res.json({
@@ -1426,21 +1768,20 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
             });
         }
 
-        // Calculate checksum
-        const checksum = calculateChecksum(chunkData);
-        
         // Store chunk to file system
-        const chunkPath = path.join(STORAGE_PATH, 'chunks', `${uploadId}_${chunkNum}.chunk`);
+        const chunkDir = path.join(STORAGE_PATH, 'chunks', uploadId);
+        await fs.mkdir(chunkDir, { recursive: true });
+        const chunkPath = path.join(chunkDir, `chunk_${chunkNum}`);
         await fs.writeFile(chunkPath, chunkData);
 
         // Clean up temporary uploaded file
         await fs.unlink(req.file.path);
 
-        // Store chunk metadata in database
+        // Store chunk metadata in database (no checksum needed)
         await pool.query(`
-            INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, checksum, storage_path, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-        `, [uploadId, chunkNum, chunkData.length, checksum, chunkPath, Date.now()]);
+            INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, storage_path, created_at)
+            VALUES ($1, $2, $3, $4, $5)
+        `, [uploadId, chunkNum, chunkData.length, chunkPath, Date.now()]);
 
         // Update upload session
         await pool.query(`
@@ -1467,7 +1808,6 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
             success: true,
             chunkNumber: chunkNum,
             received: true,
-            checksum,
             uploadedChunks: session.uploaded_chunks + 1,
             totalChunks: session.total_chunks
         });
@@ -1688,26 +2028,109 @@ app.get('/file/:clipId', [
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// DEPRECATED: Download token functions - replaced by Zero-Knowledge access code system
+/*
 // Helper function to generate download token (same algorithm as client)
 async function generateDownloadToken(clipId, password, urlSecret) {
     const crypto = require('crypto');
     
-    let tokenData = clipId;
+    // Detect if this is an Enhanced Passphrase (44+ characters)
+    const isEnhancedPassphrase = urlSecret && urlSecret.length >= 40;
     
-    if (urlSecret) {
-        tokenData += ':' + urlSecret;
+    if (isEnhancedPassphrase) {
+        // Enhanced Files (Zero-Knowledge): No download token needed
+        // Files are directly downloadable (encrypted) and client decrypts with URL fragment
+        console.log('🔐 Server: Enhanced File (Zero-Knowledge): No download token needed - direct download of encrypted file');
+        return null;
+    } else {
+        // Use Legacy Token Algorithm for normal/legacy clips
+        console.log('🔐 Server: Using Legacy Token Algorithm');
+        
+        let tokenData = clipId;
+        
+        if (urlSecret) {
+            tokenData += ':' + urlSecret;
+        }
+        
+        if (password) {
+            tokenData += ':' + password;
+        }
+        
+        const hash = crypto.createHash('sha256');
+        hash.update(tokenData);
+        const token = hash.digest('hex');
+        
+        console.log('🔐 Server: Legacy download token generated:', {
+            clipId: clipId,
+            hasUrlSecret: !!urlSecret,
+            hasPassword: !!password,
+            secretType: urlSecret?.length === 16 ? 'Legacy (16 chars)' : 'Unknown',
+            tokenLength: token.length,
+            algorithm: 'Legacy'
+        });
+        
+        return token;
     }
-    
-    if (password) {
-        tokenData += ':' + password;
-    }
-    
-    const hash = crypto.createHash('sha256');
-    hash.update(tokenData);
-    return hash.digest('hex');
 }
 
 // Helper function to validate download token against clip
+// Generate access code hash for password protection
+async function generateAccessCodeHash(password, salt = 'qopy-access-salt-v1') {
+    const crypto = require('crypto');
+    return new Promise((resolve, reject) => {
+        crypto.pbkdf2(password, salt, 100000, 64, 'sha512', (err, derivedKey) => {
+            if (err) reject(err);
+            else resolve(derivedKey.toString('hex'));
+        });
+    });
+}
+
+// Validate access code for password-protected files
+async function validateAccessCode(clipId, providedPassword) {
+    try {
+        const result = await pool.query(
+            'SELECT access_code_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
+            [clipId]
+        );
+        
+        if (result.rows.length === 0) {
+            return false;
+        }
+        
+        const clip = result.rows[0];
+        
+        // If no access code required, always allow
+        if (!clip.requires_access_code) {
+            return true;
+        }
+        
+        // If access code required but no hash stored, deny
+        if (!clip.access_code_hash) {
+            return false;
+        }
+        
+        // Check if provided password is already hashed (client-side hashing)
+        const isAlreadyHashed = providedPassword.length === 128 && /^[a-f0-9]+$/i.test(providedPassword);
+        
+        let providedHash;
+        if (isAlreadyHashed) {
+            // Password is already hashed on client side
+            console.log('🔐 Using client-side hashed access code for validation');
+            providedHash = providedPassword; // Use the hash directly
+        } else {
+            // Legacy: Generate hash from provided password
+            console.log('🔐 Generating server-side access code hash for validation');
+            providedHash = await generateAccessCodeHash(providedPassword);
+        }
+        
+        return providedHash === clip.access_code_hash;
+        
+    } catch (error) {
+        console.error('❌ Error validating access code:', error);
+        return false;
+    }
+}
+
 async function validateDownloadToken(clipId, providedToken) {
     try {
         const result = await pool.query(
@@ -1797,6 +2220,7 @@ async function validateDownloadToken(clipId, providedToken) {
         return false;
     }
 }
+*/
 
 // Authenticated file download API (POST with token)
 app.post('/api/file/:clipId', [
@@ -1809,7 +2233,7 @@ app.post('/api/file/:clipId', [
         }
         return true;
     }),
-    body('downloadToken').optional().isString().isLength({ min: 64, max: 64 }).withMessage('Download token must be 64 characters')
+    body('accessCode').optional().isString().withMessage('Access code must be a string')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -1821,35 +2245,95 @@ app.post('/api/file/:clipId', [
         }
 
         const { clipId } = req.params;
-        const { downloadToken } = req.body;
+        const { accessCode } = req.body;
 
-        console.log(`🔐 Authenticated download request for clipId: ${clipId}`);
+        console.log(`🔐 Zero-Knowledge download request for clipId: ${clipId}`);
 
-        // Check if this is Quick Share (4-digit) - Quick Share doesn't use download tokens
+        // Check if this is Quick Share (4-digit) - Quick Share doesn't need authentication
         const isQuickShare = clipId.length === 4;
         
-        if (!isQuickShare) {
-            // Normal clips require download token
-            if (!downloadToken) {
-                console.log(`❌ No download token provided for normal clip: ${clipId}`);
+        if (isQuickShare) {
+            console.log(`⚡ Quick Share download - no authentication needed for clipId: ${clipId}`);
+        } else {
+            console.log(`🔐 Normal clip download - checking access code for clipId: ${clipId}`);
+        }
+
+        // Check access code for password-protected files
+        const clipResult = await pool.query(
+            'SELECT requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
+            [clipId]
+        );
+        
+        if (clipResult.rows.length > 0 && clipResult.rows[0].requires_access_code) {
+            if (!accessCode) {
+                console.log(`❌ Access code required but not provided for clipId: ${clipId}`);
                 return res.status(401).json({
-                    error: 'Authentication required',
-                    message: 'Download token required for this file'
+                    error: 'Access code required',
+                    message: 'This file requires an access code'
                 });
             }
             
-            // Validate download token for normal clips only
-            const tokenValid = await validateDownloadToken(clipId, downloadToken);
-            if (!tokenValid) {
-                console.log(`❌ Invalid download token for clipId: ${clipId}`);
-                return res.status(401).json({
-                    error: 'Authentication failed',
-                    message: 'Invalid download token - wrong password or URL secret'
+            // Inline access code validation to avoid reference errors
+            try {
+                const validationResult = await pool.query(
+                    'SELECT access_code_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
+                    [clipId]
+                );
+                
+                if (validationResult.rows.length === 0) {
+                    console.log(`❌ Clip not found for access code validation: ${clipId}`);
+                    return res.status(404).json({
+                        error: 'Clip not found',
+                        message: 'The requested clip does not exist'
+                    });
+                }
+                
+                const validationClip = validationResult.rows[0];
+                
+                // If access code required but no hash stored, deny
+                if (!validationClip.access_code_hash) {
+                    console.log(`❌ No access code hash stored for clipId: ${clipId}`);
+                    return res.status(401).json({
+                        error: 'Access denied',
+                        message: 'Invalid access code configuration'
+                    });
+                }
+                
+                // Check if provided access code matches stored hash
+                const isAlreadyHashed = accessCode.length === 128 && /^[a-f0-9]+$/i.test(accessCode);
+                let providedHash;
+                
+                if (isAlreadyHashed) {
+                    console.log('🔐 Using client-side hashed access code for file validation');
+                    providedHash = accessCode;
+                } else {
+                    console.log('🔐 Generating server-side access code hash for file validation');
+                    // Inline hash generation to avoid reference errors
+                    const crypto = require('crypto');
+                    providedHash = await new Promise((resolve, reject) => {
+                        crypto.pbkdf2(accessCode, 'qopy-access-salt-v1', 100000, 64, 'sha512', (err, derivedKey) => {
+                            if (err) reject(err);
+                            else resolve(derivedKey.toString('hex'));
+                        });
+                    });
+                }
+                
+                if (providedHash !== validationClip.access_code_hash) {
+                    console.log(`❌ Invalid access code for file clipId: ${clipId}`);
+                    return res.status(401).json({
+                        error: 'Access denied',
+                        message: 'Invalid access code'
+                    });
+                }
+                
+                console.log(`✅ Access code validated for file clipId: ${clipId}`);
+            } catch (validateError) {
+                console.error('❌ Error validating access code for file:', validateError);
+                return res.status(500).json({
+                    error: 'Internal server error',
+                    message: 'Failed to validate access code'
                 });
             }
-            console.log(`✅ Download token validated for clipId: ${clipId}`);
-        } else {
-            console.log(`⚡ Quick Share download - no token validation needed for clipId: ${clipId}`);
         }
 
         // Continue with existing download logic...
@@ -1959,7 +2443,9 @@ app.get('/api/file/:clipId', [
 // TEXT SHARING (using new upload system for consistency)
 // ==========================================
 
-// Create share - handles both text and binary content using unified approach
+// DEPRECATED: /api/share endpoint - replaced by upload system (/api/upload/initiate + /api/upload/complete)
+// This endpoint is no longer used since all text sharing now uses the unified file upload system
+/*
 app.post('/api/share', [
   body('content').custom((value) => {
     // Validate content as binary array or string
@@ -2205,6 +2691,7 @@ app.post('/api/share', [
     });
   }
 });
+*/
 
 // Get clip info
 app.get('/api/clip/:clipId/info', [
@@ -2229,7 +2716,6 @@ app.get('/api/clip/:clipId/info', [
     }
 
     const { clipId } = req.params;
-    const { downloadToken } = req.query; // Get download token from query params
 
     const result = await pool.query(
       'SELECT clip_id, content_type, expiration_time, one_time, password_hash, file_metadata FROM clips WHERE clip_id = $1 AND is_expired = false',
@@ -2250,57 +2736,33 @@ app.get('/api/clip/:clipId/info', [
       clipId: clipId,
       content_type: clip.content_type,
       file_path: !!clip.file_path,
-      password_hash: !!clip.password_hash
+      password_hash: !!clip.password_hash,
+      password_hash_value: clip.password_hash,
+      requires_access_code: clip.requires_access_code,
+      requires_access_code_type: typeof clip.requires_access_code,
+      access_code_hash: !!clip.access_code_hash
     });
 
-    // Authentication logic: All 10-digit clips need authentication (except Quick Share)
+    // NEW: Zero-Knowledge Access Code System - no download tokens needed
     const isQuickShare = clipId.length === 4;
-    const isNormalClip = clipId.length === 10;
     
-    console.log('🔍 Info endpoint logic check:', {
-      isQuickShare,
-      isNormalClip,
-      willRequireAuth: isNormalClip && !isQuickShare
-    });
-    
-    if (isNormalClip && !isQuickShare) {
-      console.log('🔐 Normal clip detected, validating download token for clipId:', clipId);
-      
-      if (!downloadToken) {
-        console.log('❌ No download token provided for normal clip:', clipId);
-        return res.status(401).json({
-          error: 'Authentication required',
-          message: 'This clip requires authentication. Please provide the correct URL with secret or password.',
-          requiresAuth: true,
-          hasPassword: clip.password_hash !== null
-        });
-      }
-
-      // Validate the download token
-      const isValidToken = await validateDownloadToken(clipId, downloadToken);
-      if (!isValidToken) {
-        console.log('❌ Invalid download token for normal clip:', clipId);
-        return res.status(403).json({
-          error: 'Access denied',
-          message: 'Invalid credentials for this clip. Please check your URL secret or password.',
-          requiresAuth: true,
-          hasPassword: clip.password_hash !== null
-        });
-      }
-
-      console.log('✅ Download token validated for normal clip:', clipId);
-    } else if (isQuickShare) {
+    if (isQuickShare) {
       console.log('⚡ Quick Share clip - no authentication required:', clipId);
+    } else {
+      console.log('🔐 Normal clip - checking access code requirement:', clipId);
     }
 
-    // Determine if clip has password based on ID length and password_hash content
+    // NEW: Determine if clip requires access code based on requires_access_code column
     let hasPassword = false;
     if (clipId.length === 10) {
-      // For normal clips (10-digit), check if password_hash is 'client-encrypted' (indicates password protection)
-      hasPassword = clip.password_hash === 'client-encrypted';
+      // For normal clips (10-digit), check if access code is required
+      // Check both requires_access_code and password_hash for backward compatibility
+      hasPassword = clip.requires_access_code || clip.password_hash === 'client-encrypted' || false;
       console.log('🔍 Clip info debug:', {
         clipId,
         contentType: clip.content_type,
+        requires_access_code: clip.requires_access_code,
+        requires_access_code_type: typeof clip.requires_access_code,
         password_hash: clip.password_hash,
         hasPassword
       });
@@ -2327,7 +2789,140 @@ app.get('/api/clip/:clipId/info', [
   }
 });
 
-// Get clip (no password authentication needed - content is encrypted client-side)
+// POST clip with access code authentication (Zero-Knowledge system)
+app.post('/api/clip/:clipId', [
+  param('clipId').custom((value) => {
+    // Support both 4-character (Quick Share) and 10-character (normal) IDs
+    if (value.length !== 4 && value.length !== 10) {
+      throw new Error('Clip ID must be 4 or 10 characters');
+    }
+    if (!/^[A-Z0-9]+$/.test(value)) {
+      throw new Error('Clip ID must contain only uppercase letters and numbers');
+    }
+    return true;
+  }),
+  body('accessCode').optional().isString().withMessage('Access code must be a string')
+], async (req, res) => {
+  try {
+    console.log('🔐 POST /api/clip/:clipId STARTED:', req.params.clipId, 'body:', JSON.stringify(req.body));
+    
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('❌ Validation errors:', errors.array());
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { clipId } = req.params;
+    const { accessCode } = req.body;
+
+    console.log('🔐 POST /api/clip/:clipId with access code authentication:', clipId, 'hasAccessCode:', !!accessCode);
+
+    // Get clip from database
+    const result = await pool.query(
+      'SELECT * FROM clips WHERE clip_id = $1 AND is_expired = false',
+      [clipId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Clip not found',
+        message: 'The requested clip does not exist or has expired'
+      });
+    }
+
+    const clip = result.rows[0];
+
+    // Validate access code if required
+    if (clip.requires_access_code) {
+      if (!accessCode) {
+        console.log(`❌ Access code required but not provided for clipId: ${clipId}`);
+        return res.status(401).json({
+          error: 'Access code required',
+          message: 'This clip requires an access code'
+        });
+      }
+      
+      // Inline access code validation to avoid reference errors
+      try {
+        const validationResult = await pool.query(
+          'SELECT access_code_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
+          [clipId]
+        );
+        
+        if (validationResult.rows.length === 0) {
+          console.log(`❌ Clip not found for access code validation: ${clipId}`);
+          return res.status(404).json({
+            error: 'Clip not found',
+            message: 'The requested clip does not exist'
+          });
+        }
+        
+        const validationClip = validationResult.rows[0];
+        
+        // If access code required but no hash stored, deny
+        if (!validationClip.access_code_hash) {
+          console.log(`❌ No access code hash stored for clipId: ${clipId}`);
+          return res.status(401).json({
+            error: 'Access denied',
+            message: 'Invalid access code configuration'
+          });
+        }
+        
+        // Check if provided access code matches stored hash
+        const isAlreadyHashed = accessCode.length === 128 && /^[a-f0-9]+$/i.test(accessCode);
+        let providedHash;
+        
+        if (isAlreadyHashed) {
+          console.log('🔐 Using client-side hashed access code for validation');
+          providedHash = accessCode;
+                 } else {
+           console.log('🔐 Generating server-side access code hash for validation');
+           // Inline hash generation to avoid reference errors
+           const crypto = require('crypto');
+           providedHash = await new Promise((resolve, reject) => {
+             crypto.pbkdf2(accessCode, 'qopy-access-salt-v1', 100000, 64, 'sha512', (err, derivedKey) => {
+               if (err) reject(err);
+               else resolve(derivedKey.toString('hex'));
+             });
+           });
+         }
+        
+        if (providedHash !== validationClip.access_code_hash) {
+          console.log(`❌ Invalid access code for clipId: ${clipId}`);
+          return res.status(401).json({
+            error: 'Access denied',
+            message: 'Invalid access code'
+          });
+        }
+        
+        console.log(`✅ Access code validated for clipId: ${clipId}`);
+      } catch (validateError) {
+        console.error('❌ Error validating access code:', validateError);
+        return res.status(500).json({
+          error: 'Internal server error',
+          message: 'Failed to validate access code'
+        });
+      }
+      console.log(`✅ Access code validated for clipId: ${clipId}`);
+    }
+
+    // Continue with same logic as GET endpoint...
+    return await handleClipRetrieval(req, res, clip, clipId);
+  } catch (error) {
+    console.error('❌ Error in POST /api/clip/:clipId:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to retrieve clip',
+      details: error.message
+    });
+  }
+});
+
+// Get clip (Zero-Knowledge system - no authentication for URL-secret-only clips)
 app.get('/api/clip/:clipId', [
   param('clipId').custom((value) => {
     // Support both 4-character (Quick Share) and 10-character (normal) IDs
@@ -2350,7 +2945,8 @@ app.get('/api/clip/:clipId', [
     }
 
     const { clipId } = req.params;
-    const { downloadToken } = req.query; // Get download token from query params
+
+    console.log('🔐 GET /api/clip/:clipId Zero-Knowledge request:', clipId);
 
     // Get clip from database
     const result = await pool.query(
@@ -2375,184 +2971,23 @@ app.get('/api/clip/:clipId', [
       password_hash: !!clip.password_hash
     });
 
-    // Authentication logic: All 10-digit clips need authentication (except Quick Share)
+    // Zero-Knowledge system: Check if access code is required
+    if (clip.requires_access_code) {
+      console.log(`❌ Access code required for clipId: ${clipId}, use POST endpoint`);
+      return res.status(401).json({
+        error: 'Access code required',
+        message: 'This clip requires an access code. Use POST request with access code.',
+        requiresAccessCode: true
+      });
+    }
+
     const isQuickShare = clipId.length === 4;
-    const isNormalClip = clipId.length === 10;
-    
-    console.log('🔍 Main endpoint logic check:', {
-      isQuickShare,
-      isNormalClip,
-      willRequireAuth: isNormalClip && !isQuickShare
-    });
-    
-    if (isNormalClip && !isQuickShare) {
-      console.log('🔐 Normal clip detected in main endpoint, validating download token for clipId:', clipId);
-      
-      if (!downloadToken) {
-        console.log('❌ No download token provided for normal clip in main endpoint:', clipId);
-        return res.status(401).json({
-          error: 'Authentication required',
-          message: 'This clip requires authentication. Please provide the correct URL with secret or password.',
-          requiresAuth: true,
-          hasPassword: clip.password_hash !== null
-        });
-      }
+    console.log(`✅ Zero-Knowledge GET access granted for clipId: ${clipId}, isQuickShare: ${isQuickShare}`);
 
-      // Validate the download token
-      const isValidToken = await validateDownloadToken(clipId, downloadToken);
-      if (!isValidToken) {
-        console.log('❌ Invalid download token for normal clip in main endpoint:', clipId);
-        return res.status(403).json({
-          error: 'Access denied',
-          message: 'Invalid credentials for this clip. Please check your URL secret or password.',
-          requiresAuth: true,
-          hasPassword: clip.password_hash !== null
-        });
-      }
-
-      console.log('✅ Download token validated for normal clip in main endpoint:', clipId);
-    } else if (isQuickShare) {
-      console.log('⚡ Quick Share clip in main endpoint - no authentication required:', clipId);
-    }
-
-    // Update access count and timestamp
-    await pool.query(`
-      UPDATE clips 
-      SET access_count = access_count + 1, accessed_at = $1 
-      WHERE clip_id = $2
-    `, [Date.now(), clipId]);
-    
-    // Update statistics
-    await updateStatistics('clip_accessed');
-
-    // Handle content based on storage type
-    let responseContent;
-    let contentMetadata = {};
-    
-    if (clip.content_type === 'file') {
-      // File stored on disk - redirect to file endpoint
-      // Note: One-time deletion happens in /api/file/ endpoint, not here
-      return res.json({
-        success: true,
-        contentType: 'file',
-        redirectTo: `/api/file/${clipId}`,
-        filename: clip.original_filename,
-        filesize: clip.filesize,
-        mimeType: clip.mime_type,
-        expiresAt: clip.expiration_time,
-        oneTime: clip.one_time
-      });
-    } else if (clip.file_path) {
-      // Content stored as file - redirect to file endpoint for unified handling
-      if (clip.content_type === 'text') {
-        // Text content stored as file - redirect to file endpoint but mark as text
-        const response = {
-          success: true,
-          contentType: 'text',
-          redirectTo: `/api/file/${clipId}`,
-          filename: clip.original_filename,
-          filesize: clip.filesize,
-          mimeType: clip.mime_type || 'text/plain',
-          expiresAt: clip.expiration_time,
-          oneTime: clip.one_time,
-          isTextFile: true // Special flag to indicate this should be decrypted and shown as text
-        };
-        
-        // For Quick Share clips (4-digit ID), include the secret for decryption
-        if (clipId.length === 4 && clip.password_hash) {
-          // For Quick Share, password_hash contains the actual secret (not 'client-encrypted')
-          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId, 'secret:', clip.password_hash);
-          response.quickShareSecret = clip.password_hash;
-        } else {
-          console.log('🔑 Not adding quickShareSecret for clip:', clipId, 'length:', clipId.length, 'password_hash:', clip.password_hash);
-        }
-        
-        return res.json(response);
-      } else {
-        // Regular file - redirect to file endpoint
-        return res.json({
-          success: true,
-          contentType: 'file',
-          redirectTo: `/api/file/${clipId}`,
-          filename: clip.original_filename,
-          filesize: clip.filesize,
-          mimeType: clip.mime_type,
-          expiresAt: clip.expiration_time,
-          oneTime: clip.one_time
-        });
-      }
-    } else if (clip.content) {
-      // Content stored inline in database
-      if (clip.content_type === 'text') {
-        // Text content stored as string (unencrypted)
-        responseContent = clip.content; // Already a string
-        contentMetadata.contentType = 'text';
-      } else {
-        // Binary content - check if it's a buffer or string
-        if (Buffer.isBuffer(clip.content)) {
-          // This could be encrypted text or binary data
-          // For text clips, this is encrypted content that needs client-side decryption
-          responseContent = Array.from(clip.content);
-          contentMetadata.contentType = 'binary';
-        } else if (typeof clip.content === 'string') {
-          // String content - treat as text
-          responseContent = clip.content;
-          contentMetadata.contentType = 'text';
-        } else {
-          // Unknown format - try to convert
-          responseContent = clip.content.toString();
-          contentMetadata.contentType = 'text';
-        }
-      }
-      
-      // Handle one-time access for inline content - delete after loading content
-      if (clip.one_time) {
-        console.log('🔥 One-time access for inline content, deleting clip:', clipId);
-        await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
-      }
-    } else {
-      return res.status(404).json({
-        error: 'No content found',
-        message: 'The clip contains no content'
-      });
-    }
-
-    // Prepare response
-    const response = {
-      success: true,
-      content: responseContent,
-      contentType: contentMetadata.contentType || 'binary',
-      expiresAt: clip.expiration_time,
-      oneTime: clip.one_time,
-      hasPassword: false // Quick Share clips never have passwords
-    };
-
-    // Add additional metadata for files
-    if (clip.filesize) {
-      response.filesize = clip.filesize;
-    }
-    if (clip.mime_type) {
-      response.mimeType = clip.mime_type;
-    }
-
-    // For Quick Share clips (4-digit ID), include the secret for decryption
-    if (clipId.length === 4 && clip.password_hash) {
-      // For Quick Share, password_hash contains the actual secret (not 'client-encrypted')
-      console.log('🔑 Adding quickShareSecret for 4-digit clip (inline):', clipId, 'secret:', clip.password_hash);
-      response.quickShareSecret = clip.password_hash;
-    } else if (clipId.length === 10) {
-      // For normal clips, check if they have password protection
-      response.hasPassword = clip.password_hash === 'client-encrypted';
-    }
-    
-    if (clipId.length === 4) {
-      console.log('🔑 Quick Share clip processing (inline):', clipId, 'password_hash:', clip.password_hash);
-    }
-
-    res.json(response);
-
+    // Use shared clip retrieval logic
+    return await handleClipRetrieval(req, res, clip, clipId);
   } catch (error) {
-    console.error('❌ Error retrieving clip:', error.message);
+    console.error('❌ Error in GET /api/clip/:clipId:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to retrieve clip'
@@ -2854,36 +3289,128 @@ function gracefulShutdown() {
 // Initialize and start server
 async function startServer() {
     try {
-        console.log('🚀 Starting Qopy server with automatic database migration...');
-        
         // Test database connection
         const client = await pool.connect();
-        console.log('✅ Database connection established');
-        
-        await runDatabaseMigration(client);
+        await client.query('SELECT NOW() as current_time');
         
         // Ensure storage directory exists
         await initializeStorage();
 
-        client.release();
-        
-        app.listen(PORT, () => {
-            console.log(`🚀 Qopy server running on port ${PORT}`);
-            console.log(`📊 Admin dashboard: ${process.env.NODE_ENV === 'production' ? 'https://' : 'http://localhost:'}${PORT}/admin`);
-        });
-    } catch (error) {
-        console.error('❌ Failed to start server:', error.message);
-        process.exit(1);
-    }
-}
+        // ========================================
+        // SPALTENABGLEICHUNG: upload_sessions
+        // ========================================
+        // Schema-Definition (CREATE TABLE):
+        const SCHEMA_COLUMNS = [
+            'id', 'upload_id', 'filename', 'original_filename', 'filesize', 
+            'mime_type', 'chunk_size', 'total_chunks', 'uploaded_chunks', 
+            'status', 'expiration_time', 'has_password', 
+            'one_time', 'quick_share', 'is_text_content', 'client_ip', 
+            'created_at', 'last_activity', 'completed_at'
+        ];
 
-// Comprehensive database migration function
-async function runDatabaseMigration(client) {
-    console.log('🔄 Running automatic database migration...');
-    
-    try {
-        // 1. CREATE STATISTICS TABLE
-        console.log('📊 Creating statistics table...');
+        // Code-Verwendung (INSERT Statements):
+        const INSERT_COLUMNS_1 = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type', 
+            'chunk_size', 'total_chunks', 'has_password', 'one_time', 
+            'quick_share', 'is_text_content', 'expiration_time', 'created_at', 'last_activity'
+        ];
+
+        const INSERT_COLUMNS_2 = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type', 
+            'chunk_size', 'total_chunks', 'expiration_time', 'has_password', 
+            'one_time', 'quick_share', 'client_ip', 'created_at', 'last_activity'
+        ];
+
+        // Code-Verwendung (session. Eigenschaften):
+        const SESSION_PROPERTIES = [
+            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type',
+            'chunk_size', 'total_chunks', 'uploaded_chunks', 'status', 
+            'expiration_time', 'has_password', 'one_time', 'quick_share', 
+            'is_text_content', 'client_ip', 'created_at', 'last_activity', 'completed_at'
+        ];
+
+        // Prüfe auf fehlende Spalten im Schema
+        const missingInSchema = [...new Set([...INSERT_COLUMNS_1, ...INSERT_COLUMNS_2, ...SESSION_PROPERTIES])]
+            .filter(col => !SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im Schema: ${missingInSchema.join(', ')}`);
+        }
+
+        // Prüfe auf ungenutzte Spalten im Schema
+        const unusedInSchema = SCHEMA_COLUMNS.filter(col => 
+            !INSERT_COLUMNS_1.includes(col) && 
+            !INSERT_COLUMNS_2.includes(col) && 
+            !SESSION_PROPERTIES.includes(col)
+        );
+        
+        if (unusedInSchema.length > 0) {
+            console.warn(`⚠️ Ungenutzte Spalten im Schema: ${unusedInSchema.join(', ')}`);
+        }
+
+        console.log('✅ Spaltenabgleichung upload_sessions abgeschlossen');
+
+        // ========================================
+        // SPALTENABGLEICHUNG: file_chunks
+        // ========================================
+        const CHUNKS_SCHEMA_COLUMNS = [
+            'id', 'upload_id', 'chunk_number', 'chunk_size', 
+            'storage_path', 'created_at'
+        ];
+
+        const CHUNKS_INSERT_COLUMNS = [
+            'upload_id', 'chunk_number', 'chunk_size', 'checksum', 'storage_path', 'created_at'
+        ];
+
+        const CHUNKS_SESSION_PROPERTIES = [
+            'upload_id', 'chunk_number', 'chunk_size', 'checksum', 'storage_path', 'created_at'
+        ];
+
+        const missingInChunksSchema = [...new Set([...CHUNKS_INSERT_COLUMNS, ...CHUNKS_SESSION_PROPERTIES])]
+            .filter(col => !CHUNKS_SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInChunksSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im file_chunks Schema: ${missingInChunksSchema.join(', ')}`);
+        }
+
+        // Prüfe auf ungenutzte Spalten im Schema
+        const unusedInChunksSchema = CHUNKS_SCHEMA_COLUMNS.filter(col => 
+            !CHUNKS_INSERT_COLUMNS.includes(col) && 
+            !CHUNKS_SESSION_PROPERTIES.includes(col)
+        );
+        
+        if (unusedInChunksSchema.length > 0) {
+            console.warn(`⚠️ Ungenutzte Spalten im file_chunks Schema: ${unusedInChunksSchema.join(', ')}`);
+        }
+
+        console.log('✅ Spaltenabgleichung file_chunks abgeschlossen');
+
+        // ========================================
+        // SPALTENABGLEICHUNG: clips
+        // ========================================
+        const CLIPS_SCHEMA_COLUMNS = [
+            'id', 'clip_id', 'password_hash', 'one_time', 'quick_share', 
+            'expiration_time', 'access_count', 'max_accesses', 
+            'created_at', 'accessed_at', 'content_type', 'file_metadata', 
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'is_expired',
+            'access_code_hash', 'requires_access_code'
+        ];
+
+        const CLIPS_INSERT_COLUMNS = [
+            'clip_id', 'expiration_time', 'password_hash', 'one_time', 'quick_share', 'created_at',
+            'file_path', 'original_filename', 'mime_type', 'filesize', 'is_file', 'file_metadata', 'content_type',
+            'access_code_hash', 'requires_access_code'
+        ];
+
+        const missingInClipsSchema = CLIPS_INSERT_COLUMNS.filter(col => !CLIPS_SCHEMA_COLUMNS.includes(col));
+        
+        if (missingInClipsSchema.length > 0) {
+            console.warn(`⚠️ Fehlende Spalten im clips Schema: ${missingInClipsSchema.join(', ')}`);
+        }
+
+        console.log('✅ Spaltenabgleichung clips abgeschlossen');
+        
+        // Create statistics table if it doesn't exist
         await client.query(`
             CREATE TABLE IF NOT EXISTS statistics (
                 id SERIAL PRIMARY KEY,
@@ -2897,46 +3424,7 @@ async function runDatabaseMigration(client) {
             )
         `);
 
-        // 2. CREATE CLIPS TABLE
-        console.log('📋 Creating clips table...');
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS clips (
-                id SERIAL PRIMARY KEY,
-                clip_id VARCHAR(10) UNIQUE NOT NULL,
-                password_hash VARCHAR(255),
-                one_time BOOLEAN DEFAULT false,
-                quick_share BOOLEAN DEFAULT false,
-                expiration_time BIGINT NOT NULL,
-                access_count INTEGER DEFAULT 0,
-                created_at BIGINT NOT NULL,
-                accessed_at BIGINT,
-                is_expired BOOLEAN DEFAULT false
-            )
-        `);
-
-        // 3. EXTEND CLIPS TABLE FOR FILE SUPPORT
-        console.log('🗂️ Extending clips table for file support...');
-        const clipExtensions = [
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) DEFAULT \'text\'',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_metadata JSONB',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255)',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_file BOOLEAN DEFAULT false',
-            'ALTER TABLE clips ADD COLUMN IF NOT EXISTS content BYTEA'
-        ];
-
-        for (const query of clipExtensions) {
-            try {
-                await client.query(query);
-            } catch (error) {
-                console.warn(`⚠️ Column extension warning: ${error.message}`);
-            }
-        }
-
-        // 4. CREATE UPLOAD_SESSIONS TABLE
-        console.log('📤 Creating upload_sessions table...');
+        // Create upload_sessions table for multi-part uploads
         await client.query(`
             CREATE TABLE IF NOT EXISTS upload_sessions (
                 id SERIAL PRIMARY KEY,
@@ -2962,36 +3450,163 @@ async function runDatabaseMigration(client) {
             )
         `);
 
-        // 5. CREATE FILE_CHUNKS TABLE
-        console.log('🧩 Creating file_chunks table...');
+        // Migrate existing upload_sessions table if needed
+        try {
+            await client.query(`ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS is_text_content BOOLEAN DEFAULT false`);
+            // Security migration: Remove original_content column (Zero-Knowledge principle)
+            await client.query(`ALTER TABLE upload_sessions DROP COLUMN IF EXISTS original_content`);
+            console.log('✅ upload_sessions table migration completed (original_content removed for security)');
+        } catch (migrationError) {
+            console.warn(`⚠️ upload_sessions migration warning: ${migrationError.message}`);
+        }
+
+        // Create file_chunks table for storing upload chunks
         await client.query(`
             CREATE TABLE IF NOT EXISTS file_chunks (
                 id SERIAL PRIMARY KEY,
                 upload_id VARCHAR(50) NOT NULL,
                 chunk_number INTEGER NOT NULL,
                 chunk_size INTEGER NOT NULL,
-                checksum VARCHAR(64) NOT NULL,
                 storage_path VARCHAR(500) NOT NULL,
                 created_at BIGINT NOT NULL,
-                UNIQUE(upload_id, chunk_number)
+                UNIQUE(upload_id, chunk_number),
+                FOREIGN KEY (upload_id) REFERENCES upload_sessions(upload_id) ON DELETE CASCADE
             )
         `);
 
-        // Add foreign key constraint if it doesn't exist
+        // Migration: Remove checksum column from file_chunks (security improvement)
         try {
-            await client.query(`
-                ALTER TABLE file_chunks 
-                ADD CONSTRAINT fk_file_chunks_upload_id 
-                FOREIGN KEY (upload_id) REFERENCES upload_sessions(upload_id) ON DELETE CASCADE
+            // Check if checksum column exists before trying to drop it
+            const checksumColumnCheck = await client.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'file_chunks' AND column_name = 'checksum'
             `);
-        } catch (error) {
-            if (!error.message.includes('already exists')) {
-                console.warn(`⚠️ Foreign key warning: ${error.message}`);
+            
+            if (checksumColumnCheck.rows.length > 0) {
+                await client.query(`ALTER TABLE file_chunks DROP COLUMN checksum`);
+                console.log('🗑️ Removed checksum column from file_chunks table (security improvement)');
+            } else {
+                console.log('ℹ️ checksum column already removed from file_chunks table');
             }
+        } catch (checksumMigrationError) {
+            console.warn(`⚠️ checksum column migration warning: ${checksumMigrationError.message}`);
         }
 
-        // 6. CREATE UPLOAD_STATISTICS TABLE
-        console.log('📈 Creating upload_statistics table...');
+        // Create clips table if it doesn't exist (base table for text sharing)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS clips (
+                id SERIAL PRIMARY KEY,
+                clip_id VARCHAR(10) UNIQUE NOT NULL,
+                password_hash VARCHAR(255),
+                one_time BOOLEAN DEFAULT false,
+                quick_share BOOLEAN DEFAULT false,
+                expiration_time BIGINT NOT NULL,
+                access_count INTEGER DEFAULT 0,
+                max_accesses INTEGER DEFAULT 1,
+                created_at BIGINT NOT NULL
+            )
+        `);
+
+        // Extend clips table for file metadata (only if table exists)
+        try {
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) DEFAULT 'text'`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_metadata JSONB`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS filesize BIGINT`);
+            // upload_id column removed - was never used, uploadId stored in file_metadata JSON instead
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_file BOOLEAN DEFAULT false`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT false`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS accessed_at BIGINT`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS access_code_hash VARCHAR(255)`);
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS requires_access_code BOOLEAN DEFAULT false`);
+            console.log('🔐 Access Code System: Database columns added successfully');
+            
+            // Verify Access Code columns were created successfully
+            try {
+                const accessCodeCheck = await client.query(`
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'clips' AND column_name IN ('access_code_hash', 'requires_access_code')
+                `);
+                
+                if (accessCodeCheck.rows.length === 2) {
+                    console.log('✅ Access Code System: Database columns verified successfully');
+                } else {
+                    console.warn('⚠️ Access Code System: Some columns may not have been created properly');
+                }
+            } catch (verifyError) {
+                console.warn('⚠️ Access Code System: Could not verify database columns:', verifyError.message);
+            }
+            
+            // Update existing expired clips to have is_expired = true
+            await client.query(`
+                UPDATE clips 
+                SET is_expired = true 
+                WHERE expiration_time < $1 AND is_expired = false
+            `, [Date.now()]);
+            
+            // Fix content_type for existing files (files with file_path but content_type = 'text')
+            await client.query(`
+                UPDATE clips 
+                SET content_type = 'file' 
+                WHERE file_path IS NOT NULL AND content_type = 'text'
+            `);
+            
+                            // Remove unused columns (content, client_ip, last_accessed, upload_id, max_accesses)
+                try {
+                    // Check which unused columns exist before trying to drop them
+                    const unusedColumnsCheck = await client.query(`
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'clips' AND column_name IN ('content', 'client_ip', 'last_accessed', 'upload_id', 'max_accesses')
+                    `);
+                
+                const existingUnusedColumns = unusedColumnsCheck.rows.map(row => row.column_name);
+                
+                                 for (const columnName of existingUnusedColumns) {
+                     // Drop index first if it exists (specifically for upload_id column)
+                     if (columnName === 'upload_id') {
+                         try {
+                             await client.query(`DROP INDEX IF EXISTS idx_clips_upload_id`);
+                             console.log('🗑️ Removed unused index idx_clips_upload_id');
+                         } catch (indexError) {
+                             console.warn(`⚠️ Could not remove index: ${indexError.message}`);
+                         }
+                     }
+                     
+                     await client.query(`ALTER TABLE clips DROP COLUMN ${columnName}`);
+                     console.log(`🗑️ Removed unused ${columnName} column from clips table`);
+                 }
+                
+                if (existingUnusedColumns.length === 0) {
+                    console.log('ℹ️ All unused columns already removed from clips table');
+                } else {
+                    console.log(`🧹 Cleaned up ${existingUnusedColumns.length} unused columns: ${existingUnusedColumns.join(', ')}`);
+                }
+            } catch (dropError) {
+                console.warn(`⚠️ Could not remove unused columns: ${dropError.message}`);
+            }
+            
+            console.log('✅ Clips table extended with file metadata columns');
+        } catch (alterError) {
+            console.warn(`⚠️ Clips table extension warning: ${alterError.message}`);
+        }
+        
+        // Initialize statistics if table is empty
+        const statsCheck = await client.query('SELECT COUNT(*) as count FROM statistics');
+        if (parseInt(statsCheck.rows[0].count) === 0) {
+            await client.query(`
+                INSERT INTO statistics (total_clips, total_accesses, quick_share_clips, 
+                                      password_protected_clips, one_time_clips, normal_clips, last_updated)
+                VALUES (0, 0, 0, 0, 0, 0, $1)
+            `, [Date.now()]);
+            console.log('📊 Statistics table initialized');
+        }
+
+        // Create upload_statistics table for monitoring
         await client.query(`
             CREATE TABLE IF NOT EXISTS upload_statistics (
                 id SERIAL PRIMARY KEY,
@@ -3007,35 +3622,27 @@ async function runDatabaseMigration(client) {
             )
         `);
 
-        // 7. CREATE ALL NECESSARY INDEXES
-        console.log('🔗 Creating database indexes...');
+        // Create all necessary indexes
         const indexes = [
-            'CREATE INDEX IF NOT EXISTS idx_clips_clip_id ON clips(clip_id)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_expiration ON clips(expiration_time)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_content_type ON clips(content_type)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_file_path ON clips(file_path)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_is_expired ON clips(is_expired)',
             'CREATE INDEX IF NOT EXISTS idx_upload_sessions_upload_id ON upload_sessions(upload_id)',
             'CREATE INDEX IF NOT EXISTS idx_upload_sessions_status_expiration ON upload_sessions(status, expiration_time)',
             'CREATE INDEX IF NOT EXISTS idx_upload_sessions_created_at ON upload_sessions(created_at)',
             'CREATE INDEX IF NOT EXISTS idx_file_chunks_upload_chunk ON file_chunks(upload_id, chunk_number)',
             'CREATE INDEX IF NOT EXISTS idx_file_chunks_created_at ON file_chunks(created_at)',
             'CREATE INDEX IF NOT EXISTS idx_upload_statistics_date ON upload_statistics(date)',
-            'CREATE INDEX IF NOT EXISTS idx_statistics_id ON statistics(id)'
+            'CREATE INDEX IF NOT EXISTS idx_clips_content_type ON clips(content_type)',
+            'CREATE INDEX IF NOT EXISTS idx_clips_file_path ON clips(file_path)'
         ];
 
         for (const indexQuery of indexes) {
             try {
                 await client.query(indexQuery);
-            } catch (error) {
-                console.warn(`⚠️ Index creation warning: ${error.message}`);
+            } catch (indexError) {
+                console.warn(`⚠️ Index creation warning: ${indexError.message}`);
             }
         }
 
-        // 8. CREATE DATABASE FUNCTIONS
-        console.log('⚙️ Creating database functions...');
-        
-        // Cleanup function for expired uploads
+        // Create cleanup function for expired uploads
         await client.query(`
             CREATE OR REPLACE FUNCTION cleanup_expired_uploads() RETURNS void AS $$
             BEGIN
@@ -3045,7 +3652,7 @@ async function runDatabaseMigration(client) {
             $$ LANGUAGE plpgsql
         `);
 
-        // Statistics trigger function
+        // Create statistics trigger function
         await client.query(`
             CREATE OR REPLACE FUNCTION update_upload_stats() RETURNS TRIGGER AS $$
             BEGIN
@@ -3072,8 +3679,7 @@ async function runDatabaseMigration(client) {
             $$ LANGUAGE plpgsql
         `);
 
-        // 9. CREATE TRIGGERS
-        console.log('🔄 Creating database triggers...');
+        // Create trigger
         await client.query(`DROP TRIGGER IF EXISTS trigger_upload_stats ON upload_sessions`);
         await client.query(`
             CREATE TRIGGER trigger_upload_stats
@@ -3081,110 +3687,76 @@ async function runDatabaseMigration(client) {
                 FOR EACH ROW EXECUTE FUNCTION update_upload_stats()
         `);
 
-        // 10. DATA MIGRATIONS AND CLEANUP
-        console.log('🧹 Running data migrations...');
-        
-        // Update existing expired clips
-        await client.query(`
-            UPDATE clips 
-            SET is_expired = true 
-            WHERE expiration_time < $1 AND is_expired = false
-        `, [Date.now()]);
-        
-        // Fix content_type for existing files
-        await client.query(`
-            UPDATE clips 
-            SET content_type = 'file' 
-            WHERE file_path IS NOT NULL AND content_type = 'text'
-        `);
-
-        // Remove unused columns safely
-        try {
-            const unusedColumnsCheck = await client.query(`
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'clips' AND column_name IN ('client_ip', 'last_accessed', 'upload_id', 'max_accesses')
-            `);
-            
-            const existingUnusedColumns = unusedColumnsCheck.rows.map(row => row.column_name);
-            
-            for (const columnName of existingUnusedColumns) {
-                if (columnName === 'upload_id') {
-                    try {
-                        await client.query(`DROP INDEX IF EXISTS idx_clips_upload_id`);
-                    } catch (indexError) {
-                        console.warn(`⚠️ Index removal warning: ${indexError.message}`);
-                    }
-                }
-                
-                await client.query(`ALTER TABLE clips DROP COLUMN ${columnName}`);
-                console.log(`🗑️ Removed unused column: ${columnName}`);
-            }
-        } catch (dropError) {
-            console.warn(`⚠️ Column cleanup warning: ${dropError.message}`);
-        }
-
-        // 11. INITIALIZE DATA
-        console.log('📊 Initializing default data...');
-        
-        // Initialize statistics if empty
-        const statsCheck = await client.query('SELECT COUNT(*) as count FROM statistics');
-        if (parseInt(statsCheck.rows[0].count) === 0) {
-            await client.query(`
-                INSERT INTO statistics (total_clips, total_accesses, quick_share_clips, 
-                                      password_protected_clips, one_time_clips, normal_clips, last_updated)
-                VALUES (0, 0, 0, 0, 0, 0, $1)
-            `, [Date.now()]);
-            console.log('📊 Statistics table initialized');
-        }
-
-        // Initialize upload statistics for today
+        // Insert initial statistics data
         await client.query(`
             INSERT INTO upload_statistics (date, total_uploads, total_file_size, completed_uploads, failed_uploads, text_clips, file_clips, avg_upload_time)
             VALUES (CURRENT_DATE, 0, 0, 0, 0, 0, 0, 0)
             ON CONFLICT (date) DO NOTHING
         `);
 
-        // 12. SCHEMA VALIDATION
-        console.log('✅ Validating database schema...');
+        console.log('✅ Multi-part upload database migration completed successfully!');
         
-        // Check that all required tables exist
-        const requiredTables = ['clips', 'statistics', 'upload_sessions', 'file_chunks', 'upload_statistics'];
-        const tableCheck = await client.query(`
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' AND table_name = ANY($1)
-        `, [requiredTables]);
-        
-        const existingTables = tableCheck.rows.map(row => row.table_name);
-        const missingTables = requiredTables.filter(table => !existingTables.includes(table));
-        
-        if (missingTables.length > 0) {
-            throw new Error(`Missing required tables: ${missingTables.join(', ')}`);
+        // Run database migration for clip_id column length
+        try {
+            // Check if clips table exists first
+            const tableExists = await client.query(`
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'clips'
+                );
+            `);
+            
+            if (!tableExists.rows[0].exists) {
+                // Table doesn't exist, skip migration
+            } else {
+                const currentDef = await client.query(`
+                    SELECT column_name, data_type, character_maximum_length 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'clips' AND column_name = 'clip_id'
+                `);
+                
+                if (currentDef.rows.length > 0) {
+                    const currentLength = currentDef.rows[0].character_maximum_length;
+                    
+                    if (currentLength < 10) {
+                        await client.query('ALTER TABLE clips ALTER COLUMN clip_id TYPE VARCHAR(10)');
+                        
+                        // Verify migration
+                        const newDef = await client.query(`
+                            SELECT column_name, data_type, character_maximum_length 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'clips' AND column_name = 'clip_id'
+                        `);
+                        
+                        const newLength = newDef.rows[0].character_maximum_length;
+                        
+                        if (newLength >= 10) {
+                            // Add comment (ignore errors)
+                            try {
+                                await client.query(`
+                                    COMMENT ON COLUMN clips.clip_id IS 'Clip ID: 4 characters for Quick Share, 10 characters for normal clips'
+                                `);
+                            } catch (commentError) {
+                                // Comment addition failed, but migration succeeded
+                            }
+                        } else {
+                            console.error('❌ Migration failed - column length not updated');
+                        }
+                    }
+                }
+            }
+        } catch (migrationError) {
+            console.error('❌ Migration error:', migrationError.message);
         }
-
-        // Check critical columns in clips table
-        const criticalColumns = ['clip_id', 'content_type', 'file_path', 'filesize', 'is_expired'];
-        const columnCheck = await client.query(`
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'clips' AND column_name = ANY($1)
-        `, [criticalColumns]);
         
-        const existingColumns = columnCheck.rows.map(row => row.column_name);
-        const missingColumns = criticalColumns.filter(col => !existingColumns.includes(col));
+        client.release();
         
-        if (missingColumns.length > 0) {
-            throw new Error(`Missing critical columns in clips table: ${missingColumns.join(', ')}`);
-        }
-
-        console.log('✅ Database migration completed successfully!');
-        console.log(`📊 Tables: ${existingTables.join(', ')}`);
-        console.log(`🗂️ Clips columns: ${existingColumns.length} columns validated`);
-
-    } catch (migrationError) {
-        console.error('❌ Database migration failed:', migrationError.message);
-        throw migrationError;
+        app.listen(PORT, () => {
+            console.log(`🚀 Qopy server running on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error('❌ Failed to start server:', error.message);
+        process.exit(1);
     }
 }
 
