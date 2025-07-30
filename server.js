@@ -3522,6 +3522,8 @@ async function startServer() {
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS accessed_at BIGINT`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS access_code_hash VARCHAR(255)`);
             await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS requires_access_code BOOLEAN DEFAULT false`);
+            // Add quick_share column for existing tables (critical for upload functionality)
+            await client.query(`ALTER TABLE clips ADD COLUMN IF NOT EXISTS quick_share BOOLEAN DEFAULT false`);
             console.log('🔐 Access Code System: Database columns added successfully');
             
             // Verify Access Code columns were created successfully
