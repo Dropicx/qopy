@@ -317,4 +317,4 @@ This project is dual-licensed:
 
 **Qopy** - Secure, private, temporary text sharing. Developed by [LIT Services](https://lit.services).
 
-*Version: minimal-1.0.0 | Last Updated: January 2025*
+*Version: minimal-1.0.0 | Last Updated: August 2025*

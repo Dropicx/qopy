@@ -1,38 +1,50 @@
 [
   {
-    "timestamp": 1754311689328,
+    "timestamp": 1754312588870,
     "memoryTotal": 33568817152,
-    "memoryUsed": 16303656960,
-    "memoryFree": 17265160192,
-    "memoryUsagePercent": 48.567862508163,
-    "memoryEfficiency": 51.432137491837,
+    "memoryUsed": 15686352896,
+    "memoryFree": 17882464256,
+    "memoryUsagePercent": 46.72894140109855,
+    "memoryEfficiency": 53.27105859890145,
     "cpuCount": 12,
-    "cpuLoad": 0.15166666666666667,
+    "cpuLoad": 0.1725,
     "platform": "linux",
-    "uptime": 68865.04
+    "uptime": 69764.58
   },
   {
-    "timestamp": 1754311719330,
+    "timestamp": 1754312618873,
     "memoryTotal": 33568817152,
-    "memoryUsed": 16251838464,
-    "memoryFree": 17316978688,
-    "memoryUsagePercent": 48.413497533772144,
-    "memoryEfficiency": 51.586502466227856,
+    "memoryUsed": 15696683008,
+    "memoryFree": 17872134144,
+    "memoryUsagePercent": 46.759714341215044,
+    "memoryEfficiency": 53.240285658784956,
     "cpuCount": 12,
-    "cpuLoad": 0.16166666666666665,
+    "cpuLoad": 0.21916666666666665,
     "platform": "linux",
-    "uptime": 68895.04
+    "uptime": 69794.58
   },
   {
-    "timestamp": 1754311749331,
+    "timestamp": 1754312648873,
     "memoryTotal": 33568817152,
-    "memoryUsed": 16281038848,
-    "memoryFree": 17287778304,
-    "memoryUsagePercent": 48.50048416743213,
-    "memoryEfficiency": 51.49951583256787,
+    "memoryUsed": 15730585600,
+    "memoryFree": 17838231552,
+    "memoryUsagePercent": 46.860708641510136,
+    "memoryEfficiency": 53.139291358489864,
     "cpuCount": 12,
-    "cpuLoad": 0.18166666666666667,
+    "cpuLoad": 0.22166666666666668,
     "platform": "linux",
-    "uptime": 68925.04
+    "uptime": 69824.58
+  },
+  {
+    "timestamp": 1754312678879,
+    "memoryTotal": 33568817152,
+    "memoryUsed": 15713460224,
+    "memoryFree": 17855356928,
+    "memoryUsagePercent": 46.80969291485388,
+    "memoryEfficiency": 53.19030708514612,
+    "cpuCount": 12,
+    "cpuLoad": 0.22083333333333333,
+    "platform": "linux",
+    "uptime": 69854.59
   }
 ]
