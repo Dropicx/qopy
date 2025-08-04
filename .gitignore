@@ -114,3 +114,12 @@ claude-flow
 claude-flow.bat
 claude-flow.ps1
 hive-mind-prompt-*.txt
+
+# Monetization and business strategy docs (confidential)
+docs/MONETIZATION_STRATEGY.md
+docs/PRICING_STRATEGY.md
+docs/REVENUE_PROJECTIONS.md
+docs/PAYMENT_INTEGRATION.md
+docs/ANONYMOUS_PAYMENTS_*.md
+docs/*_CONFIDENTIAL.md
+docs/*_INTERNAL.md

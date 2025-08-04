@@ -64,7 +64,7 @@ const upload = multer({
         }
     }),
     limits: {
-        fileSize: CHUNK_SIZE // 5MB per chunk
+        fileSize: CHUNK_SIZE + (1024 * 1024) // 5MB chunk + 1MB buffer for encryption overhead
     }
 });
 
@@ -2766,6 +2766,39 @@ app.get('/clip/:clipId([A-Z0-9]{4}|[A-Z0-9]{10})$', (req, res) => {
 // Serve main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Multer error handling middleware (must be before global error handler)
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('❌ Multer error:', err.code, err.message);
+    
+    switch (err.code) {
+      case 'LIMIT_FILE_SIZE':
+        return res.status(413).json({
+          error: 'File too large',
+          message: `Chunk size exceeds limit of ${Math.floor((CHUNK_SIZE + (1024 * 1024)) / (1024 * 1024))}MB`
+        });
+      case 'LIMIT_FILE_COUNT':
+        return res.status(413).json({
+          error: 'Too many files',
+          message: 'Only one file per chunk allowed'
+        });
+      case 'LIMIT_UNEXPECTED_FILE':
+        return res.status(400).json({
+          error: 'Unexpected file',
+          message: 'File field not expected'
+        });
+      default:
+        return res.status(400).json({
+          error: 'Upload error',
+          message: err.message || 'File upload failed'
+        });
+    }
+  }
+  
+  // Pass non-multer errors to the global error handler
+  next(err);
 });
 
 // Error handling middleware
