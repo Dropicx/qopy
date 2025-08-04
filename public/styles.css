@@ -94,12 +94,41 @@ body {
   /* Light theme as default */
   color: var(--text-primary);
   background: var(--bg-primary);
+  position: relative;
+  min-height: 100vh;
+  transition: all 0.3s ease;
+}
+
+/* Background wave image with transparency */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('/images/wave-background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.15; /* Adjust transparency as needed */
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Existing gradient overlay on top of the wave background */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background-image: 
     radial-gradient(circle at 25% 25%, rgba(54, 15, 90, 0.06) 0%, transparent 50%),
     radial-gradient(circle at 75% 75%, rgba(74, 20, 120, 0.06) 0%, transparent 50%);
-  background-attachment: fixed;
-  transition: all 0.3s ease;
-  min-height: 100vh;
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* Container */
