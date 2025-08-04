@@ -24,6 +24,9 @@ class RedisManager {
         this.connected = false;
         this.retryAttempts = 0;
         this.maxRetries = 3;
+        // Track event listeners to prevent memory leaks
+        this.eventListeners = new Map();
+        this.isShuttingDown = false;
     }
 
     async connect() {
@@ -52,26 +55,42 @@ class RedisManager {
                     }
                 });
 
-                this.client.on('error', (err) => {
+                // Track and attach event listeners with cleanup capability
+                const errorHandler = (err) => {
                     console.error('❌ Redis Client Error:', err);
                     this.connected = false;
-                });
+                    // Trigger cleanup on critical errors
+                    const criticalErrors = ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET'];
+                    if (criticalErrors.includes(err.code)) {
+                        this.cleanup();
+                    }
+                };
+                this.client.on('error', errorHandler);
+                this.eventListeners.set('error', errorHandler);
 
-                this.client.on('connect', () => {
+                const connectHandler = () => {
                     console.log('✅ Redis connected');
                     this.connected = true;
                     this.retryAttempts = 0;
-                });
+                };
+                this.client.on('connect', connectHandler);
+                this.eventListeners.set('connect', connectHandler);
 
-                this.client.on('ready', () => {
+                const readyHandler = () => {
                     console.log('✅ Redis ready');
                     this.connected = true;
-                });
+                };
+                this.client.on('ready', readyHandler);
+                this.eventListeners.set('ready', readyHandler);
 
-                this.client.on('end', () => {
+                const endHandler = () => {
                     console.log('⚠️ Redis connection ended');
                     this.connected = false;
-                });
+                    // Clean up listeners when connection ends
+                    this.cleanup();
+                };
+                this.client.on('end', endHandler);
+                this.eventListeners.set('end', endHandler);
 
                 await this.client.connect();
                 
@@ -173,11 +192,49 @@ class RedisManager {
         }
     }
 
+    /**
+     * Clean up event listeners to prevent memory leaks
+     */
+    cleanup() {
+        if (this.isShuttingDown) return; // Prevent multiple cleanup calls
+        this.isShuttingDown = true;
+        
+        // Stop heartbeat monitoring
+        this.stopHeartbeat();
+        
+        console.log('🧹 Cleaning up Redis event listeners...');
+        
+        if (this.client && this.eventListeners.size > 0) {
+            // Remove all tracked event listeners
+            for (const [event, handler] of this.eventListeners) {
+                try {
+                    this.client.removeListener(event, handler);
+                    console.log(`✅ Removed ${event} listener`);
+                } catch (error) {
+                    console.error(`❌ Error removing ${event} listener:`, error.message);
+                }
+            }
+            
+            // Clear the listener tracking map
+            this.eventListeners.clear();
+            console.log('✅ All Redis event listeners cleaned up');
+        }
+        
+        this.connected = false;
+    }
+
     async disconnect() {
         if (this.client) {
             try {
+                // Clean up listeners before disconnecting
+                this.cleanup();
+                
                 await this.client.disconnect();
                 console.log('✅ Redis disconnected');
+                
+                // Reset state
+                this.client = null;
+                this.isShuttingDown = false;
             } catch (error) {
                 console.error('❌ Redis disconnect error:', error.message);
             }
@@ -211,6 +268,40 @@ class RedisManager {
         }
     }
 
+    /**
+     * Start health monitoring for Redis connection
+     */
+    startHeartbeat() {
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+        }
+        
+        this.healthCheckInterval = setInterval(async () => {
+            try {
+                if (!this.isShuttingDown && this.client && this.connected) {
+                    await this.client.ping();
+                    this.lastHeartbeat = Date.now();
+                }
+            } catch (error) {
+                console.error('❌ Redis heartbeat failed:', error.message);
+                this.connected = false;
+                if (!this.isShuttingDown && this.retryAttempts < this.maxRetries) {
+                    setTimeout(() => this.connect(), 2000);
+                }
+            }
+        }, 30000);
+    }
+
+    /**
+     * Stop health monitoring
+     */
+    stopHeartbeat() {
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+            this.healthCheckInterval = null;
+        }
+    }
+
     async getUploadProgress(uploadId) {
         if (!this.isConnected()) return null;
         
@@ -227,5 +318,34 @@ class RedisManager {
 
 // Singleton instance
 const redisManager = new RedisManager();
+
+// Graceful shutdown handling to prevent memory leaks
+const gracefulShutdown = async (signal) => {
+    console.log(`🛑 Received ${signal}, shutting down Redis connection gracefully...`);
+    try {
+        await redisManager.disconnect();
+        console.log('✅ Redis shutdown complete');
+    } catch (error) {
+        console.error('❌ Error during Redis shutdown:', error.message);
+    }
+};
+
+// Register shutdown handlers for various termination signals
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGQUIT', () => gracefulShutdown('SIGQUIT'));
+
+// Handle uncaught exceptions and unhandled rejections
+process.on('uncaughtException', async (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    await gracefulShutdown('uncaughtException');
+    process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    await gracefulShutdown('unhandledRejection');
+    process.exit(1);
+});
 
 module.exports = redisManager; 

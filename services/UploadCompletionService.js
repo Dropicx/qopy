@@ -50,7 +50,8 @@ class UploadCompletionService {
         }
 
         // Assemble file and get metadata
-        const filePath = await FileAssemblyService.assembleFile(uploadId, validatedSession, this.assembleFile);
+        // Use the legacy method that calls the provided assembleFile function
+        const filePath = await FileAssemblyService.assembleFileLegacy(uploadId, validatedSession, this.assembleFile);
         const actualFilesize = await FileAssemblyService.getFileSize(filePath);
         
         // Generate clip ID and prepare encryption

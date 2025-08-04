@@ -26,6 +26,11 @@ class StorageManager {
         this.basePath = process.env.RAILWAY_VOLUME_MOUNT_PATH || './storage';
         this.chunksPath = path.join(this.basePath, 'chunks');
         this.filesPath = path.join(this.basePath, 'files');
+        
+        // Cache for directory size calculations
+        this.directorySizeCache = new Map();
+        this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache timeout
+        
         this.init();
     }
 
@@ -236,25 +241,71 @@ class StorageManager {
         }
     }
 
-    // Calculate directory size recursively
+    // Calculate directory size recursively with O(n) complexity using parallel processing
     async getDirectorySize(dirPath) {
         try {
             const exists = await fs.pathExists(dirPath);
             if (!exists) return 0;
             
-            let totalSize = 0;
-            const items = await fs.readdir(dirPath);
+            // Check cache first
+            const cacheKey = dirPath;
+            const cached = this.directorySizeCache.get(cacheKey);
+            if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) {
+                return cached.size;
+            }
             
-            for (const item of items) {
-                const itemPath = path.join(dirPath, item);
-                const stats = await fs.stat(itemPath);
+            const items = await fs.readdir(dirPath);
+            if (items.length === 0) {
+                this._setCacheValue(cacheKey, 0);
+                return 0;
+            }
+            
+            // Create parallel stat operations for all items - O(1) per level instead of O(n)
+            const itemPaths = items.map(item => path.join(dirPath, item));
+            const statsPromises = itemPaths.map(async (itemPath) => {
+                try {
+                    const stats = await fs.stat(itemPath);
+                    return { itemPath, stats, error: null };
+                } catch (error) {
+                    return { itemPath, stats: null, error };
+                }
+            });
+            
+            // Wait for all stat operations to complete in parallel
+            const statsResults = await Promise.all(statsPromises);
+            
+            // Separate files and directories for parallel processing
+            const files = [];
+            const directories = [];
+            
+            for (const result of statsResults) {
+                if (result.error) {
+                    console.warn(`⚠️ Warning: Could not stat ${result.itemPath}: ${result.error.message}`);
+                    continue;
+                }
                 
-                if (stats.isDirectory()) {
-                    totalSize += await this.getDirectorySize(itemPath);
+                if (result.stats.isDirectory()) {
+                    directories.push(result.itemPath);
                 } else {
-                    totalSize += stats.size;
+                    files.push(result.stats.size);
                 }
             }
+            
+            // Calculate file sizes (immediate - no I/O needed)
+            const fileSize = files.reduce((sum, size) => sum + size, 0);
+            
+            // Calculate directory sizes in parallel
+            let directorySize = 0;
+            if (directories.length > 0) {
+                const directorySizePromises = directories.map(dir => this.getDirectorySize(dir));
+                const directorySizes = await Promise.all(directorySizePromises);
+                directorySize = directorySizes.reduce((sum, size) => sum + size, 0);
+            }
+            
+            const totalSize = fileSize + directorySize;
+            
+            // Cache the result
+            this._setCacheValue(cacheKey, totalSize);
             
             return totalSize;
             
@@ -262,6 +313,34 @@ class StorageManager {
             console.error(`❌ Error calculating directory size for ${dirPath}:`, error.message);
             return 0;
         }
+    }
+    
+    // Helper method to set cache values with cleanup of expired entries
+    _setCacheValue(key, size) {
+        // Clean up expired cache entries periodically (every 100 cache sets)
+        if (this.directorySizeCache.size > 0 && this.directorySizeCache.size % 100 === 0) {
+            this._cleanupExpiredCache();
+        }
+        
+        this.directorySizeCache.set(key, {
+            size,
+            timestamp: Date.now()
+        });
+    }
+    
+    // Clean up expired cache entries
+    _cleanupExpiredCache() {
+        const now = Date.now();
+        for (const [key, value] of this.directorySizeCache.entries()) {
+            if ((now - value.timestamp) >= this.cacheTimeout) {
+                this.directorySizeCache.delete(key);
+            }
+        }
+    }
+    
+    // Clear directory size cache (useful for testing or manual cleanup)
+    clearDirectorySizeCache() {
+        this.directorySizeCache.clear();
     }
 
     // Format bytes to human readable

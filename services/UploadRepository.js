@@ -111,7 +111,7 @@ class UploadRepository {
         await this.pool.query('DELETE FROM file_chunks WHERE upload_id = $1', [uploadId]);
         await this.pool.query('DELETE FROM upload_sessions WHERE upload_id = $1', [uploadId]);
         
-        if (this.redis) {
+        if (this.redis && this.redis.isConnected && this.redis.isConnected()) {
             await this.redis.del(`upload:${uploadId}`);
         }
     }
