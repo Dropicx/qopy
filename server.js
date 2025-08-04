@@ -35,6 +35,9 @@ const sharp = require('sharp');
 const FileService = require('./services/FileService');
 const createAccessValidationMiddleware = require('./middleware/accessValidation');
 
+// Note: File storage is handled directly in server.js using fs-extra
+// The previous config/storage.js file has been removed as it was unused
+
 // File storage configuration (define before multer config)
 const STORAGE_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || './uploads';
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB

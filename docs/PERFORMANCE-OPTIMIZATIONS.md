@@ -90,7 +90,7 @@ This document describes the comprehensive performance optimizations implemented 
 - Significantly faster calculation for large directory structures
 - Controlled memory usage with automatic cleanup
 
-**Files Modified**: `config/storage.js`
+**Files Modified**: `config/storage.js` (now removed - was unused)
 
 ### 6. Redis Memory Leak Prevention
 
