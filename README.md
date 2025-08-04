@@ -2,7 +2,7 @@
 
 Qopy is a privacy-first, secure temporary text and file sharing web application with enterprise-grade client-side encryption, zero-knowledge architecture, and automatic expiration. Built with modern web technologies and optimized for both development and production environments.
 
-## 🔐 Security Features
+## Security Features
 
 ### Enterprise-Grade Client-Side Encryption
 - **AES-256-GCM encryption** for all content with PBKDF2 key derivation (100,000 iterations)
@@ -31,7 +31,7 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 - **GDPR compliant** architecture
 - **CORS protection** - Blocks browser extensions and unauthorized origins
 
-## 🚀 Core Features
+## Core Features
 
 ### Quick Share Mode
 - **4-character codes** for ultra-fast sharing
@@ -70,7 +70,7 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 - **Multi-part file uploads** - large files split into secure chunks
 - **Redis caching** - optional performance enhancement for upload sessions
 
-## 🛠️ Technical Features
+## Technical Features
 
 ### API Endpoints
 - **POST /api/share** - Create new encrypted content
@@ -105,7 +105,7 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 - **Graceful shutdown** - Proper resource cleanup
 - **Environment configuration** - Flexible environment variable support
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Node.js 20+ (Volta configuration included)
@@ -141,7 +141,7 @@ railway variables set ADMIN_TOKEN=your-secure-admin-token
 # The server automatically handles database migrations and cleanup
 ```
 
-## 📋 API Documentation
+## API Documentation
 
 ### Create Share
 ```http
@@ -172,16 +172,16 @@ GET /api/clip/{clipId}
 GET /health
 ```
 
-## ⚠️ Important Security Note
+## Important Security Note
 
 **Client-side encryption is only available through the web interface.** When using the API directly (e.g., with curl), content is sent as plaintext to the server and then encrypted server-side. This means:
 
-- ✅ **Web interface**: True client-side encryption (content encrypted in browser)
-- ❌ **Direct API calls**: Server-side encryption only (content sent as plaintext)
+- **Web interface**: True client-side encryption (content encrypted in browser)
+- **Direct API calls**: Server-side encryption only (content sent as plaintext)
 
 For maximum security, always use the web interface at `https://qopy.app` for client-side encryption.
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 - `DATABASE_URL`: PostgreSQL connection string (required)
@@ -216,7 +216,7 @@ CREATE TABLE statistics (
 );
 ```
 
-## 🛡️ Security Architecture
+## Security Architecture
 
 ### Enhanced Security Flow
 1. **User enters content** in browser
@@ -236,17 +236,17 @@ CREATE TABLE statistics (
 5. **Simplified sharing** for non-sensitive content
 
 ### Zero-Knowledge Guarantees
-- ✅ Server never sees plaintext content
-- ✅ Server never sees passwords (not even hashed)
-- ✅ Server never sees URL secrets
-- ✅ Server cannot decrypt content
-- ✅ No content analysis or logging
-- ✅ Automatic data expiration
-- ✅ No password authentication needed
-- ✅ Deterministic IV derivation (for password-protected clips)
-- ✅ Hybrid security: URL secret + password provides defense in depth
+- Server never sees plaintext content
+- Server never sees passwords (not even hashed)
+- Server never sees URL secrets
+- Server cannot decrypt content
+- No content analysis or logging
+- Automatic data expiration
+- No password authentication needed
+- Deterministic IV derivation (for password-protected clips)
+- Hybrid security: URL secret + password provides defense in depth
 
-## 📊 Monitoring & Analytics
+## Monitoring & Analytics
 
 ### Health Checks
 ```bash
@@ -273,7 +273,7 @@ curl https://your-app.railway.app/ping
 - **Connection pooling** - optimized database performance
 - **Graceful shutdown** - proper resource cleanup
 
-## 🌐 Internationalization
+## Internationalization
 
 ### Multi-Language Support
 - **English** - Primary language with full feature set
@@ -287,7 +287,7 @@ curl https://your-app.railway.app/ping
 - **Robots.txt** - Search engine optimization
 - **Canonical URLs** - Proper URL canonicalization
 
-## 📄 License
+## License
 
 This project is dual-licensed:
 
@@ -299,7 +299,7 @@ This project is dual-licensed:
    - For proprietary/commercial use
    - Contact: qopy@lit.services
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -307,7 +307,7 @@ This project is dual-licensed:
 4. Add tests if applicable
 5. Submit a pull request
 
-## 🏢 Company Information
+## Company Information
 
 **LIT Services**
 - **Website**: https://lit.services
@@ -315,6 +315,6 @@ This project is dual-licensed:
 
 ---
 
-**Qopy** - Secure, private, temporary text sharing. Built with ❤️ by [LIT Services](https://lit.services).
+**Qopy** - Secure, private, temporary text sharing. Developed by [LIT Services](https://lit.services).
 
-*Version: minimal-1.0.0 | Last Updated: July 2025*
+*Version: minimal-1.0.0 | Last Updated: January 2025*

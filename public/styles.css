@@ -892,7 +892,7 @@ footer {
   font-size: 0.85rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   margin-top: auto;
-  margin-bottom: 80px; /* Space for sticky privacy notice */
+  margin-bottom: 0;
   background: var(--blur-bg);
   backdrop-filter: blur(20px);
   position: relative;
@@ -1684,7 +1684,7 @@ footer p {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+  background: var(--gradient-primary);
   color: #fff;
   padding: 0.7rem 1.3rem;
   border-radius: 10px;
@@ -1699,7 +1699,7 @@ footer p {
 }
 
 .coffee-faq-ad .coffee-button:hover {
-  background: linear-gradient(135deg, #FF5252, #FF7043);
+  background: var(--accent-hover);
   color: #fff;
   transform: translateY(-1px);
 }

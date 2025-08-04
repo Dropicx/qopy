@@ -1,72 +1,72 @@
-# 🚀 Qopy Database Migration Guide
+# Qopy Database Migration Guide
 
-Nach dem Merge von `dev` in `main` wurden umfangreiche File-Sharing Features hinzugefügt. Diese Anleitung hilft Ihnen bei der korrekten Datenbank-Migration.
+After merging `dev` into `main`, comprehensive file-sharing features have been added. This guide provides instructions for proper database migration.
 
-## ✨ Was ist neu?
+## New Features Overview
 
-### 📁 File-Sharing Features
-- **Multi-Part Upload System** - Effizientes Hochladen großer Dateien in Chunks
-- **Verschlüsselte Dateispeicherung** - Client-seitige Verschlüsselung vor dem Upload
-- **Download-Token System** - Sichere Authentifizierung für Datei-Downloads
-- **Erweiterte Clip-Verwaltung** - Unterstützung für Text und Dateien
+### File-Sharing Capabilities
+- **Multi-Part Upload System** - Efficient uploading of large files in chunks
+- **Encrypted File Storage** - Client-side encryption before upload
+- **Download Token System** - Secure authentication for file downloads
+- **Enhanced Clip Management** - Support for both text and file content
 
-### 🗄️ Neue Datenbank-Tabellen
-- `upload_sessions` - Verwaltung von Multi-Part Uploads
-- `file_chunks` - Temporäre Speicherung von Upload-Chunks
-- `upload_statistics` - Monitoring und Statistiken
-- Erweiterte `clips` Tabelle mit File-Metadaten
+### New Database Tables
+- `upload_sessions` - Management of multi-part uploads
+- `file_chunks` - Temporary storage of upload chunks
+- `upload_statistics` - Monitoring and statistics
+- Extended `clips` table with file metadata
 
-## 🔄 Automatische Migration
+## Automatic Migration
 
-**Die Migration läuft automatisch beim Server-Start!** Sie müssen nichts manuell ausführen.
+**Migration runs automatically on server startup.** No manual execution required.
 
 ```bash
-# Starten Sie einfach den Server
+# Simply start the server
 npm start
 ```
 
-Die Migration erstellt automatisch:
-- ✅ Alle notwendigen Tabellen
-- ✅ Indizes für bessere Performance
-- ✅ Foreign Key Constraints
-- ✅ Datenbank-Funktionen und Trigger
-- ✅ Validierung der Schema-Integrität
+The migration automatically creates:
+- All necessary tables
+- Indexes for improved performance
+- Foreign key constraints
+- Database functions and triggers
+- Schema integrity validation
 
-## 🧪 Migration testen
+## Testing Migration
 
-Vor dem ersten Start können Sie die Migration testen:
+Before initial startup, you can test the migration:
 
 ```bash
-# Migration testen (optional)
+# Test migration (optional)
 npm run test-migration
 
-# Erwartete Ausgabe:
-# 🧪 Starting Database Migration Test...
-# ✅ Database connection established
-# 📋 Test 1: Checking required tables...
-#   ✅ Table 'clips' exists
-#   ✅ Table 'statistics' exists
-#   ✅ Table 'upload_sessions' exists
-#   ✅ Table 'file_chunks' exists
-#   ✅ Table 'upload_statistics' exists
-# 🎉 All database migration tests completed successfully!
+# Expected output:
+# Starting Database Migration Test...
+# Database connection established
+# Test 1: Checking required tables...
+#   Table 'clips' exists
+#   Table 'statistics' exists
+#   Table 'upload_sessions' exists
+#   Table 'file_chunks' exists
+#   Table 'upload_statistics' exists
+# All database migration tests completed successfully!
 ```
 
-## 🛠️ Manuelle Migration (falls erforderlich)
+## Manual Migration (if required)
 
-Falls die automatische Migration nicht funktioniert:
+If automatic migration fails:
 
 ```bash
-# Manuelle Migration ausführen
+# Execute manual migration
 npm run migrate
 
-# Oder direkt mit psql
+# Or directly with psql
 psql $DATABASE_URL -f scripts/database-migration.sql
 ```
 
-## 📊 Datenbank-Schema Übersicht
+## Database Schema Overview
 
-### 📋 clips (Erweitert)
+### clips (Extended)
 ```sql
 CREATE TABLE clips (
     id SERIAL PRIMARY KEY,
@@ -80,7 +80,7 @@ CREATE TABLE clips (
     accessed_at BIGINT,
     is_expired BOOLEAN DEFAULT false,
     
-    -- Neue File-Support Spalten
+    -- New file support columns
     content_type VARCHAR(20) DEFAULT 'text',
     file_metadata JSONB,
     file_path VARCHAR(500),
@@ -92,7 +92,7 @@ CREATE TABLE clips (
 );
 ```
 
-### 📤 upload_sessions (Neu)
+### upload_sessions (New)
 ```sql
 CREATE TABLE upload_sessions (
     id SERIAL PRIMARY KEY,
@@ -118,7 +118,7 @@ CREATE TABLE upload_sessions (
 );
 ```
 
-### 🧩 file_chunks (Neu)
+### file_chunks (New)
 ```sql
 CREATE TABLE file_chunks (
     id SERIAL PRIMARY KEY,
@@ -133,7 +133,7 @@ CREATE TABLE file_chunks (
 );
 ```
 
-### 📈 upload_statistics (Neu)
+### upload_statistics (New)
 ```sql
 CREATE TABLE upload_statistics (
     id SERIAL PRIMARY KEY,
@@ -149,114 +149,114 @@ CREATE TABLE upload_statistics (
 );
 ```
 
-## 🔧 Umgebungsvariablen
+## Environment Variables
 
-Stellen Sie sicher, dass diese Umgebungsvariablen gesetzt sind:
+Ensure these environment variables are configured:
 
 ```bash
-# Erforderlich
+# Required
 DATABASE_URL="postgresql://user:password@host:port/database"
 
 # Optional
-NODE_ENV="production"  # oder "development"
+NODE_ENV="production"  # or "development"
 ADMIN_TOKEN="your-secure-admin-token"
-RAILWAY_VOLUME_MOUNT_PATH="/app/data"  # für Railway-Deployment
-REDIS_URL="redis://..."  # optional für Caching
+RAILWAY_VOLUME_MOUNT_PATH="/app/data"  # for Railway deployment
+REDIS_URL="redis://..."  # optional for caching
 ```
 
-## 🚨 Troubleshooting
+## Troubleshooting
 
-### Problem: Migration schlägt fehl
+### Issue: Migration fails
 ```bash
-❌ Database migration failed: relation "clips" does not exist
+Database migration failed: relation "clips" does not exist
 ```
 
-**Lösung:**
-1. Überprüfen Sie die DATABASE_URL
-2. Stellen Sie sicher, dass PostgreSQL läuft
-3. Führen Sie manuelle Migration aus: `npm run migrate`
+**Solution:**
+1. Verify DATABASE_URL configuration
+2. Ensure PostgreSQL is running
+3. Execute manual migration: `npm run migrate`
 
-### Problem: Fehlende Berechtigungen
+### Issue: Missing permissions
 ```bash
-❌ permission denied for schema public
+permission denied for schema public
 ```
 
-**Lösung:**
+**Solution:**
 ```sql
--- Als Superuser ausführen
+-- Execute as superuser
 GRANT ALL PRIVILEGES ON SCHEMA public TO your_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO your_user;
 ```
 
-### Problem: Veraltete Datenbank-Version
+### Issue: Outdated database version
 ```bash
-❌ function "json_build_object" does not exist
+function "json_build_object" does not exist
 ```
 
-**Lösung:**
-- PostgreSQL 9.4+ erforderlich
-- Aktualisieren Sie Ihre PostgreSQL-Installation
+**Solution:**
+- PostgreSQL 9.4+ required
+- Update your PostgreSQL installation
 
-## 🔍 Migrations-Log
+## Migration Log
 
-Die Migration protokolliert alle Schritte ausführlich:
+The migration logs all steps in detail:
 
 ```
-🚀 Starting Qopy server with automatic database migration...
-✅ Database connection established
-🔄 Running automatic database migration...
-📊 Creating statistics table...
-📋 Creating clips table...
-🗂️ Extending clips table for file support...
-📤 Creating upload_sessions table...
-🧩 Creating file_chunks table...
-📈 Creating upload_statistics table...
-🔗 Creating database indexes...
-⚙️ Creating database functions...
-🔄 Creating database triggers...
-🧹 Running data migrations...
-📊 Initializing default data...
-✅ Validating database schema...
-✅ Database migration completed successfully!
-📊 Tables: clips, statistics, upload_sessions, file_chunks, upload_statistics
-🗂️ Clips columns: 18 columns validated
-🚀 Qopy server running on port 8080
+Starting Qopy server with automatic database migration...
+Database connection established
+Running automatic database migration...
+Creating statistics table...
+Creating clips table...
+Extending clips table for file support...
+Creating upload_sessions table...
+Creating file_chunks table...
+Creating upload_statistics table...
+Creating database indexes...
+Creating database functions...
+Creating database triggers...
+Running data migrations...
+Initializing default data...
+Validating database schema...
+Database migration completed successfully!
+Tables: clips, statistics, upload_sessions, file_chunks, upload_statistics
+Clips columns: 18 columns validated
+Qopy server running on port 8080
 ```
 
-## 🎯 Migration-Checkliste
+## Migration Checklist
 
-- [ ] ✅ DATABASE_URL korrekt gesetzt
-- [ ] ✅ PostgreSQL 9.4+ läuft
-- [ ] ✅ Ausreichende Datenbankberechtigungen
-- [ ] ✅ Migration-Test erfolgreich: `npm run test-migration`
-- [ ] ✅ Server startet ohne Fehler: `npm start`
-- [ ] ✅ Admin-Dashboard erreichbar: `/admin`
-- [ ] ✅ Text-Sharing funktioniert
-- [ ] ✅ File-Sharing funktioniert
+- [ ] DATABASE_URL correctly configured
+- [ ] PostgreSQL 9.4+ running
+- [ ] Sufficient database permissions
+- [ ] Migration test successful: `npm run test-migration`
+- [ ] Server starts without errors: `npm start`
+- [ ] Admin dashboard accessible: `/admin`
+- [ ] Text sharing functional
+- [ ] File sharing functional
 
-## 📞 Support
+## Support
 
-Bei Problemen:
-1. Führen Sie `npm run test-migration` aus
-2. Überprüfen Sie die Server-Logs
-3. Konsultieren Sie diese Anleitung
-4. Erstellen Sie ein Issue mit den Fehlermeldungen
+For issues:
+1. Execute `npm run test-migration`
+2. Check server logs
+3. Consult this guide
+4. Create an issue with error messages
 
-## 🔄 Rollback (falls erforderlich)
+## Rollback (if required)
 
-Falls Sie zur vorherigen Version zurückkehren müssen:
+If you need to revert to the previous version:
 
 ```sql
--- Backup erstellen (WICHTIG!)
+-- Create backup (IMPORTANT!)
 pg_dump $DATABASE_URL > backup_before_rollback.sql
 
--- Neue Tabellen entfernen
+-- Remove new tables
 DROP TABLE IF EXISTS file_chunks CASCADE;
 DROP TABLE IF EXISTS upload_sessions CASCADE;
 DROP TABLE IF EXISTS upload_statistics CASCADE;
 
--- Neue Spalten aus clips entfernen
+-- Remove new columns from clips
 ALTER TABLE clips DROP COLUMN IF EXISTS content_type;
 ALTER TABLE clips DROP COLUMN IF EXISTS file_metadata;
 ALTER TABLE clips DROP COLUMN IF EXISTS file_path;
@@ -269,4 +269,4 @@ ALTER TABLE clips DROP COLUMN IF EXISTS content;
 
 ---
 
-**🎉 Nach erfolgreicher Migration haben Sie Zugang zu allen neuen File-Sharing Features von Qopy!** 
+**After successful migration, you have access to all new file-sharing features of Qopy.**
