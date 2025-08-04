@@ -16,6 +16,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+// Import helper modules and constants
+import { UIHelpers } from './js/helpers/UIHelpers.js';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, INFO_MESSAGES, TOAST_TYPES, getErrorMessage, getSuccessMessage, getInfoMessage } from './js/constants/ErrorMessages.js';
+
 // Qopy Application JavaScript
 class ClipboardApp {
     constructor() {
