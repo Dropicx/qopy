@@ -983,6 +983,7 @@ async function cleanupExpiredUploads() {
         await pool.query('DELETE FROM upload_sessions WHERE upload_id = $1', [uploadId]);
         
         // Clear cache
+        const redis = getRedis();
         if (redis) {
           await redis.del(`upload:${uploadId}`);
         }
@@ -1047,6 +1048,7 @@ async function cleanupExpiredUploads() {
 async function createUploadSession(sessionData) {
     console.log(`📝 Creating upload session: ${sessionData.uploadId}, total_chunks: ${sessionData.total_chunks}`);
     
+    const redis = getRedis();
     if (redis) {
         await redis.setEx(`upload:${sessionData.uploadId}`, 3600, JSON.stringify(sessionData));
         console.log(`✅ Cached session in Redis: ${sessionData.uploadId}`);
@@ -1059,6 +1061,7 @@ async function getUploadSession(uploadId) {
     console.log(`🔍 Getting upload session: ${uploadId}`);
     
     try {
+        const redis = getRedis();
         if (redis) {
             console.log(`🔍 Checking Redis for session: ${uploadId}`);
             const cached = await redis.get(`upload:${uploadId}`);
@@ -1107,6 +1110,7 @@ async function getUploadSession(uploadId) {
             });
             
             // Cache it for next time
+            const redis = getRedis();
             if (redis) {
                 try {
                     await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(session));
@@ -1133,6 +1137,7 @@ async function updateUploadSession(uploadId, updates) {
         'UPDATE upload_sessions SET uploaded_chunks = $1, last_activity = $2, status = $3 WHERE upload_id = $4',
         [updates.uploaded_chunks, Date.now(), updates.status || 'uploading', uploadId]
     );
+    const redis = getRedis();
     if (redis) {
         // Hole Session direkt aus der Datenbank, nicht aus Redis!
         const result = await pool.query('SELECT * FROM upload_sessions WHERE upload_id = $1', [uploadId]);
@@ -1397,12 +1402,14 @@ function generateUploadId() {
 
 // Cache helper functions
 async function setCache(key, value, ttl = 3600) {
+    const redis = getRedis();
     if (redis) {
         await redis.setEx(key, ttl, JSON.stringify(value));
     }
 }
 
 async function getCache(key) {
+    const redis = getRedis();
     if (redis) {
         const cached = await redis.get(key);
         return cached ? JSON.parse(cached) : null;
@@ -1676,6 +1683,7 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
         `, [Date.now(), uploadId]);
 
         // Update cache - get fresh data from database to ensure consistency
+        const redis = getRedis();
         if (redis) {
             const updatedSessionResult = await pool.query(
                 'SELECT * FROM upload_sessions WHERE upload_id = $1',
