@@ -75,12 +75,28 @@ Modified files:
 
 ---
 
+## Additional Fixes (Follow-up)
+
+### Chunk Display Text Fix
+**Issue**: The chunk display showed "Uploading chunk 0/Y" and didn't update properly
+**Fix**: Changed to display static "Uploading chunks" text as requested
+**File**: `/public/file-upload.js` line 1649
+
+### File Upload Success Modal Date Fix
+**Issue**: The file upload success modal still showed "Invalid Date"
+**Fix**: Applied the same robust date handling from the main showShareResult function to the showUploadSuccess function
+**File**: `/public/file-upload.js` lines 1757-1817
+
+---
+
 ## Deployment Notes
 
-Both fixes have been:
+All fixes have been:
+- ✅ Invalid Date display fixed in both text and file upload success modals
+- ✅ Upload percentage display issues resolved
+- ✅ Chunk display text simplified to "Uploading chunks"
 - ✅ Implemented with backward compatibility
-- ✅ Thoroughly tested (99 total test cases)
-- ✅ Validated in production environment
-- ✅ Confirmed to improve user experience
+- ✅ Thoroughly tested
+- ✅ Ready for production deployment
 
 No breaking changes or migration required. Deploy at any time.
