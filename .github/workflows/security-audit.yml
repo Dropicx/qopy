@@ -1,0 +1,286 @@
+name: Security Audit & Dependency Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security audit daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  dependency-security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci --production=false
+          npm audit --audit-level=moderate
+
+      - name: Run npm audit
+        run: |
+          npm audit --json > audit-results.json || true
+          npm audit --audit-level=high --production
+
+      - name: Check for high/critical vulnerabilities
+        run: |
+          HIGH_VULNS=$(npm audit --json | jq '.metadata.vulnerabilities.high // 0')
+          CRITICAL_VULNS=$(npm audit --json | jq '.metadata.vulnerabilities.critical // 0')
+          echo "High vulnerabilities: $HIGH_VULNS"
+          echo "Critical vulnerabilities: $CRITICAL_VULNS"
+          if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
+            echo "⚠️ Found high or critical vulnerabilities!"
+            npm audit --audit-level=high
+            exit 1
+          fi
+
+      - name: Check outdated packages
+        run: |
+          npm outdated --json > outdated-packages.json || true
+          echo "📦 Outdated packages report generated"
+
+      - name: License compliance check
+        run: |
+          npx license-checker --summary --production --json > license-report.json
+          echo "📜 License compliance report generated"
+
+      - name: Security best practices check
+        run: |
+          # Check for security headers
+          if ! grep -q "helmet" package.json; then
+            echo "⚠️ Security headers middleware (helmet) not found"
+          fi
+          
+          # Check for rate limiting
+          if ! grep -q "express-rate-limit" package.json; then
+            echo "⚠️ Rate limiting middleware not found"
+          fi
+          
+          # Check for input validation
+          if ! grep -q "express-validator" package.json; then
+            echo "⚠️ Input validation middleware not found"
+          fi
+
+      - name: Generate security report
+        run: |
+          cat > security-report.md << 'EOF'
+          # Security Audit Report
+          
+          ## Dependency Vulnerabilities
+          \`\`\`json
+          $(cat audit-results.json)
+          \`\`\`
+          
+          ## Outdated Packages
+          \`\`\`json
+          $(cat outdated-packages.json)
+          \`\`\`
+          
+          ## License Summary
+          \`\`\`json
+          $(cat license-report.json)
+          \`\`\`
+          
+          Generated on: $(date)
+          EOF
+
+      - name: Upload security artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            audit-results.json
+            outdated-packages.json
+            license-report.json
+            security-report.md
+          retention-days: 30
+
+      - name: Comment PR with security summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let auditData = {};
+            let outdatedData = {};
+            
+            try {
+              auditData = JSON.parse(fs.readFileSync('audit-results.json', 'utf8'));
+              outdatedData = JSON.parse(fs.readFileSync('outdated-packages.json', 'utf8'));
+            } catch (e) {
+              console.log('Error reading audit files:', e.message);
+            }
+            
+            const vulnerabilities = auditData.metadata?.vulnerabilities || {};
+            const outdatedCount = Object.keys(outdatedData).length;
+            
+            const comment = `## 🛡️ Security Audit Summary
+            
+            ### Vulnerabilities
+            - 🔴 Critical: ${vulnerabilities.critical || 0}
+            - 🟠 High: ${vulnerabilities.high || 0}
+            - 🟡 Moderate: ${vulnerabilities.moderate || 0}
+            - 🔵 Low: ${vulnerabilities.low || 0}
+            
+            ### Package Status
+            - 📦 Outdated packages: ${outdatedCount}
+            - 📊 Total dependencies: ${auditData.metadata?.dependencies?.total || 'N/A'}
+            
+            ### Recommendations
+            ${vulnerabilities.high > 0 || vulnerabilities.critical > 0 ? 
+              '⚠️ **Action required**: Update packages with high/critical vulnerabilities' : 
+              '✅ No critical vulnerabilities found'}
+            
+            View detailed reports in the workflow artifacts.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  supply-chain-security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check package-lock.json integrity
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "❌ package-lock.json not found - supply chain risk!"
+            exit 1
+          fi
+          
+          # Verify package-lock integrity
+          npm ci --dry-run
+
+      - name: Analyze dependency tree
+        run: |
+          npm ls --all --json > dependency-tree.json || true
+          
+          # Check for suspicious packages
+          echo "🔍 Analyzing dependency tree for supply chain risks..."
+          
+          # Look for packages with typosquatting potential
+          npm ls --json | jq -r '.dependencies | keys[]' | grep -E '^[a-z]{1,3}$|[0-9]' || true
+
+      - name: Check for dev dependencies in production
+        run: |
+          # Ensure no dev dependencies leak into production
+          npm ci --omit=dev
+          npm ls --omit=dev --json > prod-dependencies.json
+          
+          echo "📊 Production dependency count:"
+          npm ls --omit=dev --parseable | wc -l
+
+      - name: Validate package sources
+        run: |
+          echo "🔍 Validating package registry sources..."
+          
+          # Check for packages from suspicious registries
+          if npm config get registry | grep -v "registry.npmjs.org"; then
+            echo "⚠️ Non-standard npm registry detected"
+            npm config get registry
+          fi
+
+  sca-analysis:
+    runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Snyk security scan
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -n "$SNYK_TOKEN" ]; then
+            npx snyk test --json > snyk-results.json || true
+            npx snyk monitor || true
+          else
+            echo "ℹ️ SNYK_TOKEN not configured, skipping Snyk scan"
+          fi
+
+      - name: Upload Snyk results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-results
+          path: snyk-results.json
+          retention-days: 30
+
+  security-policy-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check security policy files
+        run: |
+          echo "🔍 Checking for security policy files..."
+          
+          # Check for security policy
+          if [ -f SECURITY.md ]; then
+            echo "✅ SECURITY.md found"
+          else
+            echo "⚠️ SECURITY.md not found - consider adding security policy"
+          fi
+          
+          # Check for license files
+          if [ -f LICENSE* ] || [ -f LICENSING.md ]; then
+            echo "✅ License file found"
+          else
+            echo "⚠️ License file not found"
+          fi
+          
+          # Check for dependency policy
+          if [ -f .nvmrc ] || grep -q "engines" package.json; then
+            echo "✅ Node.js version constraints found"
+          else
+            echo "⚠️ No Node.js version constraints - consider adding engines field"
+          fi
+
+      - name: Validate security configuration
+        run: |
+          echo "🔧 Validating security configuration..."
+          
+          # Check for common security misconfigurations
+          if grep -r "password\|secret\|key" --include="*.js" --include="*.json" --exclude-dir=node_modules . | grep -v "placeholder\|example\|template"; then
+            echo "⚠️ Potential hardcoded secrets found (review manually)"
+          fi
+          
+          # Check for production-ready configurations
+          if grep -q "process.env.NODE_ENV" server.js; then
+            echo "✅ Environment-based configuration found"
+          else
+            echo "⚠️ Consider adding NODE_ENV checks for production"
+          fi

@@ -1271,7 +1271,9 @@ class FileUploadManager {
                 }
 
                 totalBytesUploaded += chunk.length;
-                const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+                // Calculate progress with proper bounds checking
+                const progressRaw = ((chunkIndex + 1) / totalChunks) * 100;
+                const progress = Math.min(100, Math.max(0, Math.round(progressRaw)));
                 const chunkTime = performance.now() - chunkStart;
                 
                 console.log(`✅ [CHUNK ${chunkIndex + 1}/${totalChunks}] Upload successful:`, {
@@ -1631,7 +1633,9 @@ class FileUploadManager {
     }
 
     updateProgress(uploadedChunks, currentChunk, totalChunks) {
-        const percentage = totalChunks > 0 ? (uploadedChunks / totalChunks) * 100 : 0;
+        // Calculate percentage with proper bounds checking and consistent rounding
+        const percentageRaw = totalChunks > 0 ? (uploadedChunks / totalChunks) * 100 : 0;
+        const percentage = Math.min(100, Math.max(0, Math.round(percentageRaw * 10) / 10)); // Round to 1 decimal
         
         const progressBar = document.getElementById('upload-progress-bar');
         const progressText = document.getElementById('upload-progress-text');
@@ -1642,11 +1646,11 @@ class FileUploadManager {
         }
 
         if (progressText) {
-            progressText.textContent = `Uploading chunk ${currentChunk}/${totalChunks}`;
+            progressText.textContent = `Uploading chunks`;
         }
 
         if (progressPercentage) {
-            progressPercentage.textContent = `${percentage.toFixed(1)}%`;
+            progressPercentage.textContent = `${percentage}%`;
         }
     }
 
@@ -1750,13 +1754,66 @@ class FileUploadManager {
             this.showToast('QR code generation failed, but URL is available', 'info');
         }
         
-        // Set expiry time
-        if (result.expiresAt) {
-            const expiryDate = new Date(result.expiresAt);
-            const expiryElement = document.getElementById('expiry-time');
-            if (expiryElement) {
-                expiryElement.textContent = expiryDate.toLocaleString();
+        // Set expiry time with robust error handling
+        try {
+            const expiresAt = result.expiresAt;
+            console.log('🔍 Debug expiresAt:', { value: expiresAt, type: typeof expiresAt });
+            
+            if (expiresAt === null || expiresAt === undefined) {
+                document.getElementById('expiry-time').textContent = 'No expiration set';
+                return;
             }
+            
+            // Handle empty strings or zero values
+            if (expiresAt === '' || expiresAt === 0 || expiresAt === '0') {
+                document.getElementById('expiry-time').textContent = 'No expiration';
+                return;
+            }
+            
+            // Convert to number for timestamp processing
+            let timestamp;
+            if (typeof expiresAt === 'string') {
+                // Validate string format (should be numeric)
+                if (!/^\d+$/.test(expiresAt.trim())) {
+                    console.warn('Invalid timestamp format:', expiresAt);
+                    document.getElementById('expiry-time').textContent = 'Invalid date format';
+                    return;
+                }
+                timestamp = parseInt(expiresAt.trim(), 10);
+            } else if (typeof expiresAt === 'number') {
+                timestamp = expiresAt;
+            } else {
+                console.warn('Unexpected expiry date type:', typeof expiresAt, expiresAt);
+                document.getElementById('expiry-time').textContent = 'Invalid date type';
+                return;
+            }
+            
+            // Auto-detect seconds vs milliseconds
+            let finalTimestamp = timestamp;
+            
+            // If timestamp looks like seconds (smaller number), convert to milliseconds
+            if (timestamp < 10000000000) { // Less than year 2286 in seconds
+                finalTimestamp = timestamp * 1000;
+                console.log('Converted seconds to milliseconds:', timestamp, '->', finalTimestamp);
+            }
+            
+            // Create and validate Date object
+            const expiryDate = new Date(finalTimestamp);
+            
+            if (!isNaN(expiryDate.getTime())) {
+                const formattedDate = expiryDate.toLocaleString();
+                console.log('Successfully formatted date:', formattedDate);
+                const expiryElement = document.getElementById('expiry-time');
+                if (expiryElement) {
+                    expiryElement.textContent = formattedDate;
+                }
+            } else {
+                console.warn('Failed to create valid date from timestamp:', finalTimestamp);
+                document.getElementById('expiry-time').textContent = 'Invalid date';
+            }
+        } catch (error) {
+            console.error('🚨 Expiry date error:', error, { expiresAt: result.expiresAt });
+            document.getElementById('expiry-time').textContent = 'Error formatting date';
         }
         
         // Show the main success modal
@@ -1771,20 +1828,25 @@ class FileUploadManager {
         this.currentUploadSession = null;
     }
 
-    // Update upload progress
+    // Update upload progress with consistent bounds checking
     updateUploadProgress(progress) {
+        // Ensure progress is within bounds and properly rounded
+        const safeProgress = Math.min(100, Math.max(0, Math.round(progress)));
+        
         const progressBar = document.getElementById('upload-progress-bar');
-        const progressText = document.getElementById('upload-progress-text');
+        const progressPercentage = document.getElementById('upload-progress-percentage');
         
         if (progressBar) {
-            progressBar.style.width = progress + '%';
+            progressBar.style.width = safeProgress + '%';
         }
         
-        if (progressText) {
-            progressText.textContent = `${progress}%`;
+        // Don't update progressText here - it should keep showing "Uploading chunk X/Y"
+        // Only update the percentage display element
+        if (progressPercentage) {
+            progressPercentage.textContent = `${safeProgress}%`;
         }
         
-        console.log(`📊 Upload progress: ${progress}%`);
+        console.log(`📊 Upload progress: ${safeProgress}%`);
     }
 
     // Remove minimal padding from file data (shared method for both upload and download)

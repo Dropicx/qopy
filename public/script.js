@@ -1552,23 +1552,96 @@ class ClipboardApp {
         // Generate QR code client-side
         this.generateQRCode(data.url);
         
-        // Format expiration time properly (handle both string and number timestamps)
+        // Format expiration time with robust error handling
         try {
             const expiresAt = data.expiresAt;
-            if (expiresAt) {
-                const expiresAtNumber = typeof expiresAt === 'string' ? parseInt(expiresAt, 10) : expiresAt;
-                const expiryDate = new Date(expiresAtNumber);
+            console.log('Processing expiry date:', { expiresAt, type: typeof expiresAt });
+            
+            if (expiresAt === null || expiresAt === undefined) {
+                document.getElementById('expiry-time').textContent = 'Not available';
+                return;
+            }
+            
+            // Handle empty strings or zero values
+            if (expiresAt === '' || expiresAt === 0 || expiresAt === '0') {
+                document.getElementById('expiry-time').textContent = 'No expiration';
+                return;
+            }
+            
+            // Convert to number for timestamp processing
+            let timestamp;
+            if (typeof expiresAt === 'string') {
+                // Validate string format (should be numeric)
+                if (!/^\d+$/.test(expiresAt.trim())) {
+                    console.warn('Invalid timestamp format:', expiresAt);
+                    document.getElementById('expiry-time').textContent = 'Invalid date format';
+                    return;
+                }
+                timestamp = parseInt(expiresAt.trim(), 10);
+            } else if (typeof expiresAt === 'number') {
+                timestamp = expiresAt;
+            } else {
+                console.warn('Unexpected expiry date type:', typeof expiresAt, expiresAt);
+                document.getElementById('expiry-time').textContent = 'Invalid date type';
+                return;
+            }
+            
+            // Validate timestamp range
+            if (timestamp < 0) {
+                console.warn('Negative timestamp:', timestamp);
+                document.getElementById('expiry-time').textContent = 'Invalid timestamp';
+                return;
+            }
+            
+            // Auto-detect seconds vs milliseconds
+            // Timestamps in seconds are typically < 2^31 (2038 problem)
+            // Millisecond timestamps are much larger
+            const currentTime = Date.now();
+            const currentTimeSeconds = Math.floor(currentTime / 1000);
+            
+            let finalTimestamp = timestamp;
+            
+            // If timestamp looks like seconds (smaller number), convert to milliseconds
+            if (timestamp < 10000000000) { // Less than year 2286 in seconds
+                finalTimestamp = timestamp * 1000;
+                console.log('Converted seconds to milliseconds:', timestamp, '->', finalTimestamp);
+            }
+            
+            // Validate the final timestamp is reasonable
+            const minValidTime = new Date('2020-01-01').getTime(); // Minimum reasonable time
+            const maxValidTime = new Date('2100-01-01').getTime(); // Maximum reasonable time
+            
+            if (finalTimestamp < minValidTime || finalTimestamp > maxValidTime) {
+                console.warn('Timestamp out of reasonable range:', finalTimestamp);
+                document.getElementById('expiry-time').textContent = 'Date out of range';
+                return;
+            }
+            
+            // Create and validate Date object
+            const expiryDate = new Date(finalTimestamp);
+            
+            if (!isNaN(expiryDate.getTime())) {
+                const formattedDate = expiryDate.toLocaleString();
+                console.log('Successfully formatted date:', formattedDate);
+                document.getElementById('expiry-time').textContent = formattedDate;
                 
-                if (!isNaN(expiryDate.getTime())) {
-                    document.getElementById('expiry-time').textContent = expiryDate.toLocaleString();
+                // Add expiry status indicator
+                const now = new Date();
+                if (expiryDate < now) {
+                    const expiryElement = document.getElementById('expiry-time');
+                    expiryElement.style.color = '#dc2626'; // Red for expired
+                    expiryElement.textContent = formattedDate + ' (Expired)';
                 } else {
-                    document.getElementById('expiry-time').textContent = 'Invalid date';
+                    const expiryElement = document.getElementById('expiry-time');
+                    expiryElement.style.color = '#059669'; // Green for valid
                 }
             } else {
-                document.getElementById('expiry-time').textContent = 'Not available';
+                console.error('Created invalid Date object from timestamp:', finalTimestamp);
+                document.getElementById('expiry-time').textContent = 'Date parsing failed';
             }
+            
         } catch (error) {
-            console.error('Error formatting expiry date:', error);
+            console.error('Error formatting expiry date:', error, { expiresAt: data.expiresAt });
             document.getElementById('expiry-time').textContent = 'Error formatting date';
         }
         

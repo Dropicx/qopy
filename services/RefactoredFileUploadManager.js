@@ -314,8 +314,10 @@ class RefactoredFileUploadManager {
                 results.push(result);
                 uploadedBytes += chunk.size;
 
-                // Update progress
-                const progress = (uploadedBytes / totalBytes) * 100;
+                // Update progress with proper bounds checking and consistent rounding
+                const progressRaw = totalBytes > 0 ? (uploadedBytes / totalBytes) * 100 : 0;
+                const progress = Math.min(100, Math.max(0, Math.round(progressRaw * 10) / 10)); // Round to 1 decimal
+                
                 this.eventBus.emit('upload:progress', { 
                     progress, 
                     chunkIndex: i,
