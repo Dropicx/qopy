@@ -1781,17 +1781,14 @@ class FileUploadManager {
         const safeProgress = Math.min(100, Math.max(0, Math.round(progress)));
         
         const progressBar = document.getElementById('upload-progress-bar');
-        const progressText = document.getElementById('upload-progress-text');
         const progressPercentage = document.getElementById('upload-progress-percentage');
         
         if (progressBar) {
             progressBar.style.width = safeProgress + '%';
         }
         
-        if (progressText) {
-            progressText.textContent = `${safeProgress}%`;
-        }
-        
+        // Don't update progressText here - it should keep showing "Uploading chunk X/Y"
+        // Only update the percentage display element
         if (progressPercentage) {
             progressPercentage.textContent = `${safeProgress}%`;
         }
