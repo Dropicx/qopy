@@ -330,10 +330,8 @@ const gracefulShutdown = async (signal) => {
     }
 };
 
-// Register shutdown handlers for various termination signals
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGQUIT', () => gracefulShutdown('SIGQUIT'));
+// Signal handlers removed - now handled centrally in server.js to prevent race conditions
+// The graceful shutdown will be called from the main server's signal handlers
 
 // Handle uncaught exceptions and unhandled rejections
 process.on('uncaughtException', async (error) => {

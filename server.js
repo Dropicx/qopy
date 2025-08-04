@@ -2827,11 +2827,11 @@ const cleanupInterval = setInterval(async () => {
 
 // Graceful shutdown handlers
 process.on('SIGTERM', () => {
-    gracefulShutdown();
+    gracefulShutdown('SIGTERM');
 });
 
 process.on('SIGINT', () => {
-    gracefulShutdown();
+    gracefulShutdown('SIGINT');
 });
 
 // Statistics update functions
@@ -2886,30 +2886,43 @@ async function updateStatistics(type, increment = 1) {
 }
 
 // Graceful shutdown
-function gracefulShutdown() {
-    console.log('🛑 Graceful shutdown initiated');
+async function gracefulShutdown(signal = 'SIGTERM') {
+    console.log(`🛑 Graceful shutdown initiated [${signal}]`);
     
     // Clear cleanup interval
     if (cleanupInterval) {
         clearInterval(cleanupInterval);
     }
     
-    // Close database connection pool
-    pool.end()
-        .then(() => {
-            console.log('✅ Server shutdown complete');
-            process.exit(0);
-        })
-        .catch((err) => {
-            console.error('❌ Error closing database pool:', err.message);
-            process.exit(1);
-        });
-    
-    // Force exit after timeout
-    setTimeout(() => {
-        console.log('⚠️ Database pool close timeout, forcing exit...');
+    // Set a more generous timeout for Railway platform (30 seconds)
+    const shutdownTimeout = setTimeout(() => {
+        console.log('⚠️ Graceful shutdown timeout exceeded, forcing exit...');
         process.exit(1);
-    }, 10000);
+    }, 30000); // Increased from 10s to 30s for Railway
+    
+    try {
+        // Close Redis connection first
+        if (redisManager) {
+            console.log('📕 Disconnecting Redis...');
+            await redisManager.disconnect();
+            console.log('✅ Redis disconnected gracefully');
+        }
+        
+        // Close database connection pool
+        console.log('🗄️ Closing database pool...');
+        await pool.end();
+        console.log('✅ Database pool closed');
+        
+        // Clear the timeout
+        clearTimeout(shutdownTimeout);
+        
+        console.log('✅ Server shutdown complete');
+        process.exit(0);
+    } catch (error) {
+        console.error('❌ Error during graceful shutdown:', error.message);
+        clearTimeout(shutdownTimeout);
+        process.exit(1);
+    }
 }
 
 // Initialize and start server
