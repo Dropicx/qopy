@@ -39,30 +39,30 @@
   font-display: swap;
 }
 
-/* CSS Custom Properties - Dark theme as default */
+/* CSS Custom Properties - Light theme as default */
 :root {
-  /* Dark theme - Spotify-inspired (always active) */
-  --bg-primary: #191414;
-  --bg-secondary: #2a2a2a;
-  --bg-tertiary: #404040;
-  --text-primary: #ffffff;
-  --text-secondary: #b3b3b3;
-  --text-muted: #808080;
-  --border-color: #3e3e3e;
-  --accent-color: #1ed760;
-  --accent-hover: #1db954;
-  --accent-light: rgba(30, 215, 96, 0.15);
-  --success-color: #1ed760;
+  /* Light theme - Professional and modern */
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e8e8ea;
+  --text-primary: #202124;
+  --text-secondary: #5f6368;
+  --text-muted: #9aa0a6;
+  --border-color: #dadce0;
+  --accent-color: #360f5a;
+  --accent-hover: #4a1478;
+  --accent-light: rgba(54, 15, 90, 0.15);
+  --success-color: #360f5a;
   --error-color: #ff4757;
   --warning-color: #ffa726;
-  --shadow-light: rgba(0, 0, 0, 0.2);
-  --shadow-medium: rgba(0, 0, 0, 0.3);
-  --shadow-heavy: rgba(0, 0, 0, 0.5);
-  --shadow-glow: rgba(30, 215, 96, 0.4);
-  --gradient-primary: linear-gradient(135deg, #1ed760 0%, #1db954 100%);
-  --gradient-secondary: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
-  --gradient-header: linear-gradient(135deg, #1ed760 0%, #1db954 50%, #169c46 100%);
-  --blur-bg: rgba(25, 20, 20, 0.8);
+  --shadow-light: rgba(60, 64, 67, 0.15);
+  --shadow-medium: rgba(60, 64, 67, 0.2);
+  --shadow-heavy: rgba(60, 64, 67, 0.3);
+  --shadow-glow: rgba(54, 15, 90, 0.4);
+  --gradient-primary: linear-gradient(135deg, #360f5a 0%, #4a1478 100%);
+  --gradient-secondary: linear-gradient(135deg, #ffffff 0%, #f5f5f7 100%);
+  --gradient-header: linear-gradient(135deg, #360f5a 0%, #4a1478 50%, #5b1993 100%);
+  --blur-bg: rgba(255, 255, 255, 0.85);
 }
 
 /* Reset and base styles */
@@ -91,12 +91,12 @@ a:visited {
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   line-height: 1.6;
-  /* Dark theme as default */
-  color: #ffffff;
-  background: #191414;
+  /* Light theme as default */
+  color: var(--text-primary);
+  background: var(--bg-primary);
   background-image: 
-    radial-gradient(circle at 25% 25%, rgba(30, 215, 96, 0.06) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(29, 185, 84, 0.06) 0%, transparent 50%);
+    radial-gradient(circle at 25% 25%, rgba(54, 15, 90, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(74, 20, 120, 0.06) 0%, transparent 50%);
   background-attachment: fixed;
   transition: all 0.3s ease;
   min-height: 100vh;
@@ -118,13 +118,13 @@ header {
   margin-bottom: 3rem;
   position: relative;
   padding: 1.2rem 0.8rem;
-  background: linear-gradient(135deg, rgba(30, 215, 96, 0.08) 0%, rgba(29, 185, 84, 0.04) 100%);
-  border: 1px solid rgba(30, 215, 96, 0.15);
+  background: linear-gradient(135deg, rgba(54, 15, 90, 0.08) 0%, rgba(74, 20, 120, 0.04) 100%);
+  border: 1px solid rgba(54, 15, 90, 0.15);
   border-radius: 16px;
   backdrop-filter: blur(20px);
   box-shadow: 
-    0 4px 20px rgba(0, 0, 0, 0.1),
-    0 1px 3px rgba(0, 0, 0, 0.05);
+    0 4px 20px var(--shadow-light),
+    0 1px 3px var(--shadow-light);
 }
 
 .header-content {
@@ -145,10 +145,10 @@ header {
   font-family: 'Inter', monospace;
   font-size: 2.8rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   text-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    0 0 20px rgba(30, 215, 96, 0.3);
+    0 2px 8px var(--shadow-light),
+    0 0 20px rgba(54, 15, 90, 0.3);
   letter-spacing: 1.5px;
   min-height: 70px;
   transition: all 0.3s ease;
@@ -165,10 +165,10 @@ header {
   display: inline-block;
   width: 3px;
   height: 3.2rem;
-  background: #ffffff;
+  background: var(--text-primary);
   margin-left: 4px;
   animation: blink 1s infinite;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 10px rgba(32, 33, 36, 0.6);
   transition: opacity 0.3s ease;
   border-radius: 1px;
 }
@@ -198,8 +198,8 @@ header {
 header:hover .typing-logo {
   transform: scale(1.01);
   text-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    0 0 25px rgba(30, 215, 96, 0.4);
+    0 2px 8px var(--shadow-light),
+    0 0 25px rgba(54, 15, 90, 0.4);
 }
 
 header:hover .header-subtitle {
@@ -269,7 +269,7 @@ header:hover .header-subtitle {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(30, 215, 96, 0.1), transparent);
+  background: linear-gradient(90deg, transparent, rgba(54, 15, 90, 0.1), transparent);
   transition: left 0.5s;
 }
 
@@ -997,7 +997,7 @@ footer p {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(30, 215, 96, 0.1), transparent);
+  background: linear-gradient(90deg, transparent, rgba(54, 15, 90, 0.1), transparent);
   transition: left 0.5s;
 }
 
