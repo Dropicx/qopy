@@ -197,7 +197,10 @@ class RedisManager {
      */
     cleanup() {
         if (this.isShuttingDown) return; // Prevent multiple cleanup calls
-        this.isShuttingDown = true;\n        \n        // Stop heartbeat monitoring\n        this.stopHeartbeat();
+        this.isShuttingDown = true;
+        
+        // Stop heartbeat monitoring
+        this.stopHeartbeat();
         
         console.log('🧹 Cleaning up Redis event listeners...');
         
@@ -265,7 +268,41 @@ class RedisManager {
         }
     }
 
-    /**\n     * Start health monitoring for Redis connection\n     */\n    startHeartbeat() {\n        if (this.healthCheckInterval) {\n            clearInterval(this.healthCheckInterval);\n        }\n        \n        this.healthCheckInterval = setInterval(async () => {\n            try {\n                if (!this.isShuttingDown && this.client && this.connected) {\n                    await this.client.ping();\n                    this.lastHeartbeat = Date.now();\n                }\n            } catch (error) {\n                console.error('\u274c Redis heartbeat failed:', error.message);\n                this.connected = false;\n                if (!this.isShuttingDown && this.retryAttempts < this.maxRetries) {\n                    setTimeout(() => this.connect(), 2000);\n                }\n            }\n        }, 30000);\n    }\n\n    /**\n     * Stop health monitoring\n     */\n    stopHeartbeat() {\n        if (this.healthCheckInterval) {\n            clearInterval(this.healthCheckInterval);\n            this.healthCheckInterval = null;\n        }\n    }\n\n    async getUploadProgress(uploadId) {
+    /**
+     * Start health monitoring for Redis connection
+     */
+    startHeartbeat() {
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+        }
+        
+        this.healthCheckInterval = setInterval(async () => {
+            try {
+                if (!this.isShuttingDown && this.client && this.connected) {
+                    await this.client.ping();
+                    this.lastHeartbeat = Date.now();
+                }
+            } catch (error) {
+                console.error('❌ Redis heartbeat failed:', error.message);
+                this.connected = false;
+                if (!this.isShuttingDown && this.retryAttempts < this.maxRetries) {
+                    setTimeout(() => this.connect(), 2000);
+                }
+            }
+        }, 30000);
+    }
+
+    /**
+     * Stop health monitoring
+     */
+    stopHeartbeat() {
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+            this.healthCheckInterval = null;
+        }
+    }
+
+    async getUploadProgress(uploadId) {
         if (!this.isConnected()) return null;
         
         try {
