@@ -60,7 +60,8 @@ class RedisManager {
                     console.error('❌ Redis Client Error:', err);
                     this.connected = false;
                     // Trigger cleanup on critical errors
-                    const criticalErrors = ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET'];\n                    if (criticalErrors.includes(err.code)) {
+                    const criticalErrors = ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET'];
+                    if (criticalErrors.includes(err.code)) {
                         this.cleanup();
                     }
                 };
