@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qopy - Anonymous Payment</title>
+    <link rel="icon" href="/logos/Favicon.png" type="image/png">
+    
+    <!-- Stripe.js -->
+    <script src="https://js.stripe.com/v3/"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .payment-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .payment-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .payment-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .payment-header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .anonymous-id-section {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 24px;
+            text-align: center;
+        }
+
+        .anonymous-id-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .anonymous-id {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e293b;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+        }
+
+        .anonymous-id-note {
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+
+        .plan-selection {
+            padding: 24px;
+        }
+
+        .plan-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .plans-grid {
+            display: grid;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .plan-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .plan-card:hover {
+            border-color: #4f46e5;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.12);
+        }
+
+        .plan-card.selected {
+            border-color: #4f46e5;
+            background: #f8fafc;
+        }
+
+        .plan-card.selected::after {
+            content: '✓';
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 24px;
+            height: 24px;
+            background: #4f46e5;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .plan-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .plan-price {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4f46e5;
+            margin-bottom: 8px;
+        }
+
+        .plan-description {
+            font-size: 14px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+
+        .plan-features {
+            list-style: none;
+        }
+
+        .plan-features li {
+            font-size: 12px;
+            color: #475569;
+            margin-bottom: 4px;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .plan-features li::before {
+            content: '•';
+            color: #4f46e5;
+            position: absolute;
+            left: 0;
+        }
+
+        .payment-button {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .payment-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.3);
+        }
+
+        .payment-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .privacy-notice {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 24px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .privacy-notice-title {
+            font-weight: 600;
+            color: #92400e;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .privacy-notice-text {
+            color: #78350f;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.visible {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 14px;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        @media (max-width: 640px) {
+            .payment-container {
+                margin: 10px;
+            }
+            
+            .payment-header {
+                padding: 24px;
+            }
+            
+            .payment-header h1 {
+                font-size: 24px;
+            }
+            
+            .anonymous-id {
+                font-size: 20px;
+                letter-spacing: 1px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <div class="payment-header">
+            <h1>Anonymous Payment</h1>
+            <p>Secure subscription without personal information</p>
+        </div>
+
+        <div class="anonymous-id-section">
+            <div class="anonymous-id-title">Your Anonymous ID</div>
+            <div class="anonymous-id" id="anonymousId">Loading...</div>
+            <div class="anonymous-id-note">
+                Save this ID - it's your only way to manage your subscription.
+                <br>No email or personal information required.
+            </div>
+        </div>
+
+        <div class="plan-selection">
+            <h2 class="plan-title">Choose Your Plan</h2>
+            
+            <div class="plans-grid" id="plansGrid">
+                <!-- Plans will be loaded dynamically -->
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <button class="payment-button" id="paymentButton" disabled>
+                Select a Plan
+            </button>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>Processing payment...</div>
+            </div>
+        </div>
+
+        <div class="privacy-notice">
+            <div class="privacy-notice-title">
+                🔒 Privacy First
+            </div>
+            <div class="privacy-notice-text">
+                We never collect personal information. Your anonymous ID is generated randomly and cannot be traced back to you. 
+                Payment processing is handled securely by Stripe, but no personal data is stored on our servers.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class AnonymousPayment {
+            constructor() {
+                this.stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_...'); // Will be set by server
+                this.anonymousId = null;
+                this.selectedPlan = null;
+                this.plans = [];
+                
+                this.init();
+            }
+
+            async init() {
+                try {
+                    // Generate anonymous ID
+                    await this.generateAnonymousId();
+                    
+                    // Load available plans
+                    await this.loadPlans();
+                    
+                    // Set up event listeners
+                    this.setupEventListeners();
+                    
+                } catch (error) {
+                    this.showError('Failed to initialize payment system: ' + error.message);
+                }
+            }
+
+            async generateAnonymousId() {
+                try {
+                    const response = await fetch('/api/payment/generate-id', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to generate anonymous ID');
+                    }
+                    
+                    const data = await response.json();
+                    this.anonymousId = data.anonymousId;
+                    
+                    document.getElementById('anonymousId').textContent = this.anonymousId;
+                    
+                } catch (error) {
+                    throw new Error('ID generation failed: ' + error.message);
+                }
+            }
+
+            async loadPlans() {
+                try {
+                    const response = await fetch('/api/payment/plans');
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to load plans');
+                    }
+                    
+                    const data = await response.json();
+                    this.plans = data.plans;
+                    
+                    this.renderPlans();
+                    
+                } catch (error) {
+                    throw new Error('Plans loading failed: ' + error.message);
+                }
+            }
+
+            renderPlans() {
+                const plansGrid = document.getElementById('plansGrid');
+                plansGrid.innerHTML = '';
+                
+                this.plans.forEach(plan => {
+                    const planCard = document.createElement('div');
+                    planCard.className = 'plan-card';
+                    planCard.dataset.planId = plan.id;
+                    
+                    const features = Array.isArray(plan.features) 
+                        ? plan.features 
+                        : JSON.parse(plan.features || '[]');
+                    
+                    planCard.innerHTML = `
+                        <div class="plan-name">${plan.name}</div>
+                        <div class="plan-price">${plan.priceFormatted}/month</div>
+                        <div class="plan-description">${plan.description || ''}</div>
+                        <ul class="plan-features">
+                            ${features.map(feature => `<li>${feature}</li>`).join('')}
+                        </ul>
+                    `;
+                    
+                    planCard.addEventListener('click', () => this.selectPlan(plan));
+                    plansGrid.appendChild(planCard);
+                });
+            }
+
+            selectPlan(plan) {
+                this.selectedPlan = plan;
+                
+                // Update UI
+                document.querySelectorAll('.plan-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                
+                document.querySelector(`[data-plan-id="${plan.id}"]`).classList.add('selected');
+                
+                const paymentButton = document.getElementById('paymentButton');
+                paymentButton.disabled = false;
+                paymentButton.textContent = `Subscribe to ${plan.name} - ${plan.priceFormatted}/month`;
+            }
+
+            setupEventListeners() {
+                document.getElementById('paymentButton').addEventListener('click', () => {
+                    this.processPayment();
+                });
+            }
+
+            async processPayment() {
+                if (!this.selectedPlan) {
+                    this.showError('Please select a plan');
+                    return;
+                }
+
+                try {
+                    this.showLoading(true);
+                    this.hideError();
+
+                    // Create payment session
+                    const response = await fetch('/api/payment/create-session', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            anonymousId: this.anonymousId,
+                            planType: this.selectedPlan.id,
+                            successUrl: window.location.origin + '/payment-success.html',
+                            cancelUrl: window.location.origin + '/payment.html'
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Failed to create payment session');
+                    }
+
+                    const { sessionUrl } = await response.json();
+                    
+                    // Redirect to Stripe Checkout
+                    window.location.href = sessionUrl;
+                    
+                } catch (error) {
+                    this.showLoading(false);
+                    this.showError('Payment processing failed: ' + error.message);
+                }
+            }
+
+            showLoading(show) {
+                document.getElementById('loading').classList.toggle('visible', show);
+                document.getElementById('paymentButton').disabled = show;
+            }
+
+            showError(message) {
+                const errorElement = document.getElementById('errorMessage');
+                errorElement.textContent = message;
+                errorElement.classList.add('visible');
+            }
+
+            hideError() {
+                document.getElementById('errorMessage').classList.remove('visible');
+            }
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new AnonymousPayment();
+        });
+
+        // Handle URL parameters (e.g., from cancelled payment)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('cancelled') === 'true') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(() => {
+                    document.getElementById('errorMessage').textContent = 'Payment was cancelled. You can try again below.';
+                    document.getElementById('errorMessage').classList.add('visible');
+                }, 1000);
+            });
+        }
+    </script>
+</body>
+</html>
