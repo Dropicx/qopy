@@ -7,6 +7,11 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "npm install",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
     "test-migration": "node test-migration.js",
     "migrate": "psql $DATABASE_URL -f scripts/database-migration.sql"
   },
@@ -40,7 +45,10 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.2",
-    "dotenv": "^16.0.0"
+    "dotenv": "^16.0.0",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "@types/jest": "^29.5.8"
   },
   "engines": {
     "node": ">=18.0.0",

@@ -1,0 +1,1883 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Qopy Test Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .passed { color: green; }
+        .failed { color: red; }
+        .suite { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; }
+        .summary { background: #f5f5f5; padding: 15px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Qopy Service Test Results</h1>
+    <div class="summary">
+        <h2>Summary</h2>
+        <p>Passed: <span class="passed">1</span></p>
+        <p>Failed: <span class="failed">7</span></p>
+        <p>Success Rate: 12.5%</p>
+        <p>Generated: 2025-08-04T09:23:16.233Z</p>
+    </div>
+    
+        <div class="suite">
+            <h3 class="failed">Unit Tests - FileService - FAILED</h3>
+            <pre>  console.warn
+    Skipping filesystem integration test: fs.writeFile is not a function
+
+      279 |       } catch (error) {
+      280 |         // Skip test if filesystem operations fail
+    > 281 |         console.warn('Skipping filesystem integration test:', error.message);
+          |                 ^
+      282 |       }
+      283 |     });
+      284 |   });
+
+      at Object.warn (tests/unit/services/FileService.test.js:281:17)
+
+</pre>
+            <pre style="color: red;">FAIL tests/unit/services/FileService.test.js
+  FileService
+    fileExists
+      ✓ should return true when file exists (3 ms)
+      ✓ should return false when file does not exist
+      ✓ should handle various file path formats (1 ms)
+      ✓ should handle empty or null paths gracefully (1 ms)
+    setDownloadHeaders
+      ✕ should set correct headers for a typical file
+      ✕ should use default mime type when not provided (1 ms)
+      ✕ should handle various mime types correctly (1 ms)
+      ✕ should handle special characters in filenames (1 ms)
+      ✕ should handle edge cases for file sizes (1 ms)
+    Error Handling
+      ✓ should handle filesystem errors gracefully (1 ms)
+      ✓ should not throw when response object is missing methods (1 ms)
+    Performance Tests
+      ✓ should check file exists within reasonable time (1 ms)
+      ✓ should handle multiple concurrent file existence checks
+    Integration with Real Filesystem
+      ✓ should work with actual file system operations (13 ms)
+
+  ● FileService › setDownloadHeaders › should set correct headers for a typical file
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at Object.setDownloadHeaders (tests/unit/services/FileService.test.js:105:19)
+
+  ● FileService › setDownloadHeaders › should use default mime type when not provided
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at Object.setDownloadHeaders (tests/unit/services/FileService.test.js:119:19)
+
+  ● FileService › setDownloadHeaders › should handle various mime types correctly
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at setDownloadHeaders (tests/unit/services/FileService.test.js:145:21)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/FileService.test.js:137:17)
+
+  ● FileService › setDownloadHeaders › should handle special characters in filenames
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at setDownloadHeaders (tests/unit/services/FileService.test.js:169:21)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/FileService.test.js:161:24)
+
+  ● FileService › setDownloadHeaders › should handle edge cases for file sizes
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at setDownloadHeaders (tests/unit/services/FileService.test.js:190:21)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/FileService.test.js:182:17)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 9 passed, 14 total
+Snapshots:   0 total
+Time:        0.184 s, estimated 1 s
+Ran all test suites matching /tests\/unit\/services\/FileService.test.js/i.
+</pre>
+        </div>
+    
+        <div class="suite">
+            <h3 class="failed">Unit Tests - QuickShareService - FAILED</h3>
+            <pre></pre>
+            <pre style="color: red;">FAIL tests/unit/services/QuickShareService.test.js
+  QuickShareService
+    applyQuickShareSettings
+      ✓ should apply Quick Share overrides to basic settings (3 ms)
+      ✓ should handle empty settings object
+      ✕ should handle null or undefined settings (12 ms)
+      ✓ should preserve non-Quick Share specific settings
+      ✓ should handle typical Quick Share scenarios (1 ms)
+      ✓ should handle edge cases and boundary values (1 ms)
+    Quick Share Configuration Logic
+      ✓ should apply appropriate settings for different content types
+      ✓ should handle security-related Quick Share settings
+      ✓ should handle accessibility and sharing options
+    Performance and Scalability
+      ✓ should handle large settings objects efficiently (1 ms)
+      ✓ should handle concurrent Quick Share setting applications
+    Error Handling and Edge Cases
+      ✓ should handle circular references gracefully (1 ms)
+      ✓ should handle deeply nested objects
+      ✓ should handle non-object input types
+    Backward Compatibility
+      ✓ should maintain compatibility with legacy settings format (1 ms)
+      ✓ should handle mixed legacy and modern settings
+
+  ● QuickShareService › applyQuickShareSettings › should handle null or undefined settings
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot read properties of null (reading 'quickShare')"
+
+          29 |      */
+          30 |     static applyQuickShareSettings(settings) {
+        > 31 |         if (!settings.quickShare) {
+             |                       ^
+          32 |             return settings;
+          33 |         }
+          34 |
+
+      at QuickShareService.quickShare [as applyQuickShareSettings] (services/QuickShareService.js:31:23)
+      at applyQuickShareSettings (tests/unit/services/QuickShareService.test.js:52:27)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/QuickShareService.test.js:53:14)
+      at Object.toThrow (tests/unit/services/QuickShareService.test.js:53:14)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 15 passed, 16 total
+Snapshots:   0 total
+Time:        0.172 s, estimated 1 s
+Ran all test suites matching /tests\/unit\/services\/QuickShareService.test.js/i.
+</pre>
+        </div>
+    
+        <div class="suite">
+            <h3 class="failed">Unit Tests - UploadValidator - FAILED</h3>
+            <pre></pre>
+            <pre style="color: red;">FAIL tests/unit/services/UploadValidator.test.js
+  UploadValidator
+    parseUploadRequest
+      New Text Upload System
+        ✓ should parse new text upload system with accessCodeHash (3 ms)
+        ✓ should parse new text upload system with quickShareSecret
+        ✓ should detect new system when requiresAccessCode is defined as false (1 ms)
+        ✓ should handle new system with minimal data (1 ms)
+      Legacy File Upload System
+        ✓ should parse legacy file upload system
+        ✓ should handle legacy system without password (1 ms)
+        ✓ should convert legacy system to new system format (1 ms)
+      Edge Cases and Error Handling
+        ✓ should handle empty request body
+        ✕ should handle null request body (19 ms)
+        ✕ should handle undefined request body (1 ms)
+        ✓ should handle malformed request body
+        ✕ should handle request body with circular references (2 ms)
+      System Detection Logic
+        ✓ accessCodeHash should trigger new system (1 ms)
+        ✓ requiresAccessCode defined should trigger new system
+        ✕ isTextUpload should trigger new system (2 ms)
+        ✓ quickShareSecret should trigger new system (2 ms)
+        ✓ absence of new system indicators should use legacy system
+      Mixed System Scenarios
+        ✓ should prioritize new system when both systems have indicators (1 ms)
+        ✓ should handle partial new system data gracefully (1 ms)
+      Performance Tests
+        ✓ should parse request within reasonable time
+        ✓ should handle large request bodies efficiently
+      Data Integrity
+        ✓ should preserve all fields from new system
+        ✓ should preserve all fields from legacy system (1 ms)
+
+  ● UploadValidator › parseUploadRequest › Edge Cases and Error Handling › should handle null request body
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot read properties of null (reading 'accessCodeHash')"
+
+          16 |         try {
+          17 |             // Try new text upload system first - check for isTextUpload or quickShareSecret too
+        > 18 |             if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined || 
+             |                             ^
+          19 |                 requestBody.isTextUpload || requestBody.quickShareSecret) {
+          20 |                 console.log('🔍 Using NEW text upload system');
+          21 |                 ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode,
+
+      at UploadValidator.accessCodeHash [as parseUploadRequest] (services/UploadValidator.js:18:29)
+      at parseUploadRequest (tests/unit/services/UploadValidator.test.js:182:27)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:183:16)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:183:16)
+
+  ● UploadValidator › parseUploadRequest › Edge Cases and Error Handling › should handle undefined request body
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot read properties of undefined (reading 'accessCodeHash')"
+
+          16 |         try {
+          17 |             // Try new text upload system first - check for isTextUpload or quickShareSecret too
+        > 18 |             if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined || 
+             |                             ^
+          19 |                 requestBody.isTextUpload || requestBody.quickShareSecret) {
+          20 |                 console.log('🔍 Using NEW text upload system');
+          21 |                 ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode,
+
+      at UploadValidator.accessCodeHash [as parseUploadRequest] (services/UploadValidator.js:18:29)
+      at parseUploadRequest (tests/unit/services/UploadValidator.test.js:188:27)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:189:16)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:189:16)
+
+  ● UploadValidator › parseUploadRequest › Edge Cases and Error Handling › should handle request body with circular references
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Converting circular structure to JSON
+        --> starting at object with constructor 'Object'
+        --- property 'self' closes the circle"
+
+           9 |      */
+          10 |     static parseUploadRequest(requestBody) {
+        > 11 |         console.log('🔍 Request body:', JSON.stringify(requestBody, null, 2));
+             |                                              ^
+          12 |         
+          13 |         let quickShareSecret, clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
+          14 |         let password, urlSecret; // File upload system
+
+      at UploadValidator.stringify [as parseUploadRequest] (services/UploadValidator.js:11:46)
+      at parseUploadRequest (tests/unit/services/UploadValidator.test.js:213:27)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:214:16)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:214:16)
+
+  ● UploadValidator › parseUploadRequest › System Detection Logic › isTextUpload should trigger new system
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: "🔍 Using NEW text upload system"
+    Received
+           1: "🔍 Request body:", "{
+      \"isTextUpload\": false
+    }"
+           2: "🔍 Using OLD file upload system"
+           3: "🔑 Upload complete request body:", {"contentType": "file", "fullRequestBody": {"isTextUpload": false}, "hasAccessCodeHash": false, "isTextUpload": false, "quickShareSecret": undefined, "requiresAccessCode": false}
+
+    Number of calls: 3
+
+      236 |         const result = UploadValidator.parseUploadRequest(requestBody);
+      237 |         
+    > 238 |         expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+          |                                 ^
+      239 |       });
+      240 |
+      241 |       test('quickShareSecret should trigger new system', () => {
+
+      at Object.toHaveBeenCalledWith (tests/unit/services/UploadValidator.test.js:238:33)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 19 passed, 23 total
+Snapshots:   0 total
+Time:        0.228 s, estimated 1 s
+Ran all test suites matching /tests\/unit\/services\/UploadValidator.test.js/i.
+</pre>
+        </div>
+    
+        <div class="suite">
+            <h3 class="failed">Unit Tests - EncryptionService - FAILED</h3>
+            <pre></pre>
+            <pre style="color: red;">FAIL tests/unit/services/EncryptionService.test.js
+  EncryptionService
+    processAccessCode
+      Quick Share Scenarios
+        ✓ should handle Quick Share with access code (4 ms)
+        ✓ should handle Quick Share without access code (1 ms)
+        ✓ should handle Quick Share with empty secret
+      Regular Upload Scenarios
+        ✓ should handle regular upload with password
+        ✓ should handle regular upload without password (1 ms)
+      Access Code Hash Analysis
+        ✓ should log access code hash length when present
+        ✓ should handle various hash lengths (1 ms)
+      requiresAccessCode Type Analysis
+        ✓ should log correct type for boolean true (1 ms)
+        ✓ should log correct type for boolean false
+        ✓ should handle non-boolean types for requiresAccessCode (2 ms)
+      Error Handling
+        ✕ should handle missing session properties (14 ms)
+        ✕ should handle missing request data properties (2 ms)
+        ✕ should catch and log errors during analysis (2 ms)
+        ✕ should handle circular references in session or requestData (1 ms)
+      Performance Tests
+        ✕ should process access code within reasonable time
+        ✕ should handle concurrent access code processing
+
+  ● EncryptionService › processAccessCode › Error Handling › should handle missing session properties
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot read properties of null (reading 'quick_share')"
+
+          32 |         
+          33 |         try {
+        > 34 |             if (session.quick_share && quickShareSecret) {
+             |                         ^
+          35 |                 // Quick Share: Store secret in password_hash field (legacy compatibility)
+          36 |                 console.log('🔑 Setting Quick Share secret for upload:', session.upload_id, 'secret:', quickShareSecret);
+          37 |                 passwordHash = quickShareSecret;
+
+      at EncryptionService.quick_share [as processAccessCode] (services/EncryptionService.js:34:25)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:316:46)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at toThrow (tests/unit/services/EncryptionService.test.js:318:18)
+                at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/EncryptionService.test.js:309:28)
+      at toThrow (tests/unit/services/EncryptionService.test.js:318:18)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/EncryptionService.test.js:309:28)
+
+  ● EncryptionService › processAccessCode › Error Handling › should handle missing request data properties
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot destructure property 'quickShareSecret' of 'requestData' as it is null."
+
+          10 |      */
+          11 |     static processAccessCode(session, requestData) {
+        > 12 |         const { quickShareSecret, clientAccessCodeHash, requiresAccessCode } = requestData;
+             |                 ^
+          13 |         
+          14 |         let passwordHash = null;
+          15 |         let accessCodeHash = null;
+
+      at EncryptionService.quickShareSecret [as processAccessCode] (services/EncryptionService.js:12:17)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:339:46)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at toThrow (tests/unit/services/EncryptionService.test.js:341:18)
+                at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/EncryptionService.test.js:337:31)
+      at toThrow (tests/unit/services/EncryptionService.test.js:341:18)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/EncryptionService.test.js:337:31)
+
+  ● EncryptionService › processAccessCode › Error Handling › should catch and log errors during analysis
+
+    expect(received).not.toThrow()
+
+    Error name:    "Error"
+    Error message: "Logging error"
+
+          354 |         const originalLog = mockConsole.log;
+          355 |         mockConsole.log.mockImplementation(() => {
+        > 356 |           throw new Error('Logging error');
+              |                 ^
+          357 |         });
+          358 |
+          359 |         const requestData = {
+
+      at Object.<anonymous> (tests/unit/services/EncryptionService.test.js:356:17)
+      at EncryptionService.log [as processAccessCode] (services/EncryptionService.js:36:25)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:367:44)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/EncryptionService.test.js:369:16)
+      at Object.toThrow (tests/unit/services/EncryptionService.test.js:369:16)
+
+  ● EncryptionService › processAccessCode › Error Handling › should handle circular references in session or requestData
+
+    expect(received).not.toThrow()
+
+    Error name:    "Error"
+    Error message: "Logging error"
+
+          354 |         const originalLog = mockConsole.log;
+          355 |         mockConsole.log.mockImplementation(() => {
+        > 356 |           throw new Error('Logging error');
+              |                 ^
+          357 |         });
+          358 |
+          359 |         const requestData = {
+
+      at Object.<anonymous> (tests/unit/services/EncryptionService.test.js:356:17)
+      at EncryptionService.log [as processAccessCode] (services/EncryptionService.js:52:25)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:395:44)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/EncryptionService.test.js:397:16)
+      at Object.toThrow (tests/unit/services/EncryptionService.test.js:397:16)
+
+  ● EncryptionService › processAccessCode › Performance Tests › should process access code within reasonable time
+
+    Logging error
+
+      354 |         const originalLog = mockConsole.log;
+      355 |         mockConsole.log.mockImplementation(() => {
+    > 356 |           throw new Error('Logging error');
+          |                 ^
+      357 |         });
+      358 |
+      359 |         const requestData = {
+
+      at Object.<anonymous> (tests/unit/services/EncryptionService.test.js:356:17)
+      at EncryptionService.log [as processAccessCode] (services/EncryptionService.js:42:25)
+      at Object.processAccessCode (tests/unit/services/EncryptionService.test.js:415:42)
+
+  ● EncryptionService › processAccessCode › Performance Tests › should handle concurrent access code processing
+
+    Logging error
+
+      354 |         const originalLog = mockConsole.log;
+      355 |         mockConsole.log.mockImplementation(() => {
+    > 356 |           throw new Error('Logging error');
+          |                 ^
+      357 |         });
+      358 |
+      359 |         const requestData = {
+
+      at Object.<anonymous> (tests/unit/services/EncryptionService.test.js:356:17)
+      at EncryptionService.log [as processAccessCode] (services/EncryptionService.js:36:25)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:437:45)
+          at Array.map (<anonymous>)
+      at Object.map (tests/unit/services/EncryptionService.test.js:436:35)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 10 passed, 16 total
+Snapshots:   0 total
+Time:        0.192 s, estimated 1 s
+Ran all test suites matching /tests\/unit\/services\/EncryptionService.test.js/i.
+</pre>
+        </div>
+    
+        <div class="suite">
+            <h3 class="passed">Unit Tests - StorageService - PASSED</h3>
+            <pre></pre>
+            
+        </div>
+    
+        <div class="suite">
+            <h3 class="failed">Unit Tests - FileAssemblyService - FAILED</h3>
+            <pre></pre>
+            <pre style="color: red;">FAIL tests/unit/services/FileAssemblyService.test.js
+  FileAssemblyService
+    assembleFile
+      ✕ should assemble file successfully (1 ms)
+      ✕ should handle assembly errors gracefully (8 ms)
+      ✕ should handle various upload ID formats (1 ms)
+      ✕ should handle various session objects
+      ✕ should handle null or undefined parameters
+    getFileSize
+      ✓ should get file size successfully (1 ms)
+      ✓ should handle file stat errors (1 ms)
+      ✓ should handle various file sizes (2 ms)
+      ✓ should handle different file types (1 ms)
+      ✓ should handle invalid file paths (2 ms)
+    Performance Tests
+      ✕ should assemble files within reasonable time
+      ✓ should get file size within reasonable time
+      ✕ should handle concurrent assembly operations (1 ms)
+      ✓ should handle concurrent file size operations
+    Error Recovery
+      ✕ should handle temporary assembly failures (1 ms)
+      ✓ should handle filesystem permission errors
+    Edge Cases
+      ✕ should handle extremely long file paths
+      ✕ should handle special characters in upload IDs (1 ms)
+      ✕ should handle circular references in session objects
+
+  ● FileAssemblyService › assembleFile › should assemble file successfully
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:67:48)
+
+  ● FileAssemblyService › assembleFile › should handle assembly errors gracefully
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "Failed to assemble file chunks"
+    Received message:   "assembleFile function not provided"
+
+          17 |         
+          18 |         if (!assembleFileFn) {
+        > 19 |             throw new Error('assembleFile function not provided');
+             |                   ^
+          20 |         }
+          21 |         
+          22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:83:29)
+      at Object.toThrow (node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (tests/unit/services/FileAssemblyService.test.js:84:17)
+
+  ● FileAssemblyService › assembleFile › should handle various upload ID formats
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:106:50)
+
+  ● FileAssemblyService › assembleFile › should handle various session objects
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:129:50)
+
+  ● FileAssemblyService › assembleFile › should handle null or undefined parameters
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:150:50)
+
+  ● FileAssemblyService › Performance Tests › should assemble files within reasonable time
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:261:48)
+
+  ● FileAssemblyService › Performance Tests › should handle concurrent assembly operations
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at assembleFile (tests/unit/services/FileAssemblyService.test.js:296:29)
+          at Array.map (<anonymous>)
+      at Object.map (tests/unit/services/FileAssemblyService.test.js:295:45)
+
+  ● FileAssemblyService › Error Recovery › should handle temporary assembly failures
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "Temporary failure"
+    Received message:   "assembleFile function not provided"
+
+          17 |         
+          18 |         if (!assembleFileFn) {
+        > 19 |             throw new Error('assembleFile function not provided');
+             |                   ^
+          20 |         }
+          21 |         
+          22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:346:29)
+      at Object.toThrow (node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (tests/unit/services/FileAssemblyService.test.js:347:17)
+
+  ● FileAssemblyService › Edge Cases › should handle extremely long file paths
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:375:48)
+
+  ● FileAssemblyService › Edge Cases › should handle special characters in upload IDs
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:396:50)
+
+  ● FileAssemblyService › Edge Cases › should handle circular references in session objects
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:410:48)
+
+Test Suites: 1 failed, 1 total
+Tests:       11 failed, 8 passed, 19 total
+Snapshots:   0 total
+Time:        0.194 s, estimated 1 s
+Ran all test suites matching /tests\/unit\/services\/FileAssemblyService.test.js/i.
+</pre>
+        </div>
+    
+        <div class="suite">
+            <h3 class="failed">Integration Tests - FAILED</h3>
+            <pre></pre>
+            <pre style="color: red;">FAIL tests/integration/api/services-integration.test.js
+  ● Services Integration Tests › Upload Completion Workflow Integration › should complete upload workflow with all services
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Upload Completion Workflow Integration › should handle text upload workflow
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Upload Completion Workflow Integration › should handle Quick Share workflow
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › File Access Workflow Integration › should complete file access workflow
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › File Access Workflow Integration › should handle file not found scenario
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Error Propagation Integration › should propagate errors through service chain
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Error Propagation Integration › should handle service dependency failures
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Performance Integration Tests › should complete full workflow within time limits
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Performance Integration Tests › should handle concurrent service requests
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Database Integration › should integrate with test database
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Database Integration › should clean up test data between tests
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+
+  ● Test suite failed to run
+
+    error: password authentication failed for user "test"
+
+      78 |
+      79 |   async clearAllTables() {
+    > 80 |     await this.pool.query('DELETE FROM clips');
+         |     ^
+      81 |     await this.pool.query('DELETE FROM file_uploads');
+      82 |   }
+      83 |
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.clearAllTables (tests/helpers/database.js:80:5)
+      at TestDatabase.teardown (tests/helpers/database.js:36:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:55:5)
+
+Test Suites: 1 failed, 1 total
+Tests:       11 failed, 11 total
+Snapshots:   0 total
+Time:        0.289 s, estimated 1 s
+Ran all test suites matching /tests\/integration/i.
+</pre>
+        </div>
+    
+        <div class="suite">
+            <h3 class="failed">Coverage Report - FAILED</h3>
+            <pre>  console.warn
+    Skipping filesystem integration test: fs.writeFile is not a function
+
+      279 |       } catch (error) {
+      280 |         // Skip test if filesystem operations fail
+    > 281 |         console.warn('Skipping filesystem integration test:', error.message);
+          |                 ^
+      282 |       }
+      283 |     });
+      284 |   });
+
+      at Object.warn (tests/unit/services/FileService.test.js:281:17)
+
+------------------------|---------|----------|---------|---------|-------------------
+File                    | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+------------------------|---------|----------|---------|---------|-------------------
+All files               |    38.5 |    31.03 |   29.62 |      40 |                   
+ EncryptionService.js   |   91.17 |    94.44 |      50 |   91.17 | 92-102            
+ FileAssemblyService.js |   66.66 |       50 |   66.66 |   66.66 | 22-25,45          
+ FileService.js         |   23.52 |    28.57 |      25 |   23.52 | 29-88             
+ QuickShareService.js   |   14.28 |     6.25 |      20 |   14.28 | 36-113            
+ StorageService.js      |      15 |        0 |   16.66 |      15 | 40-187            
+ UploadValidator.js     |   34.78 |    21.42 |   33.33 |   41.02 | 64-123            
+------------------------|---------|----------|---------|---------|-------------------
+</pre>
+            <pre style="color: red;">FAIL tests/integration/api/services-integration.test.js
+  ● Services Integration Tests › Upload Completion Workflow Integration › should complete upload workflow with all services
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Upload Completion Workflow Integration › should handle text upload workflow
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Upload Completion Workflow Integration › should handle Quick Share workflow
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › File Access Workflow Integration › should complete file access workflow
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › File Access Workflow Integration › should handle file not found scenario
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Error Propagation Integration › should propagate errors through service chain
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Error Propagation Integration › should handle service dependency failures
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Performance Integration Tests › should complete full workflow within time limits
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Performance Integration Tests › should handle concurrent service requests
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Database Integration › should integrate with test database
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+  ● Services Integration Tests › Database Integration › should clean up test data between tests
+
+    error: password authentication failed for user "test"
+
+      74 |     `;
+      75 |
+    > 76 |     await this.pool.query(createTablesSQL);
+         |     ^
+      77 |   }
+      78 |
+      79 |   async clearAllTables() {
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.createTables (tests/helpers/database.js:76:5)
+      at TestDatabase.setup (tests/helpers/database.js:32:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:43:5)
+
+
+  ● Test suite failed to run
+
+    error: password authentication failed for user "test"
+
+      78 |
+      79 |   async clearAllTables() {
+    > 80 |     await this.pool.query('DELETE FROM clips');
+         |     ^
+      81 |     await this.pool.query('DELETE FROM file_uploads');
+      82 |   }
+      83 |
+
+      at node_modules/pg-pool/index.js:45:11
+      at TestDatabase.clearAllTables (tests/helpers/database.js:80:5)
+      at TestDatabase.teardown (tests/helpers/database.js:36:5)
+      at Object.<anonymous> (tests/integration/api/services-integration.test.js:55:5)
+
+FAIL tests/unit/services/UploadValidator.test.js
+  UploadValidator
+    parseUploadRequest
+      New Text Upload System
+        ✓ should parse new text upload system with accessCodeHash (1 ms)
+        ✓ should parse new text upload system with quickShareSecret (1 ms)
+        ✓ should detect new system when requiresAccessCode is defined as false
+        ✓ should handle new system with minimal data
+      Legacy File Upload System
+        ✓ should parse legacy file upload system (1 ms)
+        ✓ should handle legacy system without password
+        ✓ should convert legacy system to new system format
+      Edge Cases and Error Handling
+        ✓ should handle empty request body (1 ms)
+        ✕ should handle null request body (6 ms)
+        ✕ should handle undefined request body (1 ms)
+        ✓ should handle malformed request body
+        ✕ should handle request body with circular references (1 ms)
+      System Detection Logic
+        ✓ accessCodeHash should trigger new system
+        ✓ requiresAccessCode defined should trigger new system (1 ms)
+        ✕ isTextUpload should trigger new system (1 ms)
+        ✓ quickShareSecret should trigger new system
+        ✓ absence of new system indicators should use legacy system
+      Mixed System Scenarios
+        ✓ should prioritize new system when both systems have indicators
+        ✓ should handle partial new system data gracefully
+      Performance Tests
+        ✓ should parse request within reasonable time
+        ✓ should handle large request bodies efficiently
+      Data Integrity
+        ✓ should preserve all fields from new system
+        ✓ should preserve all fields from legacy system (1 ms)
+
+  ● UploadValidator › parseUploadRequest › Edge Cases and Error Handling › should handle null request body
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot read properties of null (reading 'accessCodeHash')"
+
+          16 |         try {
+          17 |             // Try new text upload system first - check for isTextUpload or quickShareSecret too
+        > 18 |             if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined || 
+             |                             ^
+          19 |                 requestBody.isTextUpload || requestBody.quickShareSecret) {
+          20 |                 console.log('🔍 Using NEW text upload system');
+          21 |                 ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode,
+
+      at UploadValidator.accessCodeHash [as parseUploadRequest] (services/UploadValidator.js:18:29)
+      at parseUploadRequest (tests/unit/services/UploadValidator.test.js:182:27)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:183:16)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:183:16)
+
+  ● UploadValidator › parseUploadRequest › Edge Cases and Error Handling › should handle undefined request body
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot read properties of undefined (reading 'accessCodeHash')"
+
+          16 |         try {
+          17 |             // Try new text upload system first - check for isTextUpload or quickShareSecret too
+        > 18 |             if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined || 
+             |                             ^
+          19 |                 requestBody.isTextUpload || requestBody.quickShareSecret) {
+          20 |                 console.log('🔍 Using NEW text upload system');
+          21 |                 ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode,
+
+      at UploadValidator.accessCodeHash [as parseUploadRequest] (services/UploadValidator.js:18:29)
+      at parseUploadRequest (tests/unit/services/UploadValidator.test.js:188:27)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:189:16)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:189:16)
+
+  ● UploadValidator › parseUploadRequest › Edge Cases and Error Handling › should handle request body with circular references
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Converting circular structure to JSON
+        --> starting at object with constructor 'Object'
+        --- property 'self' closes the circle"
+
+           9 |      */
+          10 |     static parseUploadRequest(requestBody) {
+        > 11 |         console.log('🔍 Request body:', JSON.stringify(requestBody, null, 2));
+             |                                              ^
+          12 |         
+          13 |         let quickShareSecret, clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
+          14 |         let password, urlSecret; // File upload system
+
+      at UploadValidator.stringify [as parseUploadRequest] (services/UploadValidator.js:11:46)
+      at parseUploadRequest (tests/unit/services/UploadValidator.test.js:213:27)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:214:16)
+      at Object.toThrow (tests/unit/services/UploadValidator.test.js:214:16)
+
+  ● UploadValidator › parseUploadRequest › System Detection Logic › isTextUpload should trigger new system
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: "🔍 Using NEW text upload system"
+    Received
+           1: "🔍 Request body:", "{
+      \"isTextUpload\": false
+    }"
+           2: "🔍 Using OLD file upload system"
+           3: "🔑 Upload complete request body:", {"contentType": "file", "fullRequestBody": {"isTextUpload": false}, "hasAccessCodeHash": false, "isTextUpload": false, "quickShareSecret": undefined, "requiresAccessCode": false}
+
+    Number of calls: 3
+
+      236 |         const result = UploadValidator.parseUploadRequest(requestBody);
+      237 |         
+    > 238 |         expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+          |                                 ^
+      239 |       });
+      240 |
+      241 |       test('quickShareSecret should trigger new system', () => {
+
+      at Object.toHaveBeenCalledWith (tests/unit/services/UploadValidator.test.js:238:33)
+
+FAIL tests/unit/services/EncryptionService.test.js
+  EncryptionService
+    processAccessCode
+      Quick Share Scenarios
+        ✓ should handle Quick Share with access code (1 ms)
+        ✓ should handle Quick Share without access code (1 ms)
+        ✓ should handle Quick Share with empty secret
+      Regular Upload Scenarios
+        ✓ should handle regular upload with password
+        ✓ should handle regular upload without password (1 ms)
+      Access Code Hash Analysis
+        ✓ should log access code hash length when present
+        ✓ should handle various hash lengths (2 ms)
+      requiresAccessCode Type Analysis
+        ✓ should log correct type for boolean true
+        ✓ should log correct type for boolean false
+        ✓ should handle non-boolean types for requiresAccessCode (2 ms)
+      Error Handling
+        ✕ should handle missing session properties (9 ms)
+        ✕ should handle missing request data properties (1 ms)
+        ✕ should catch and log errors during analysis (1 ms)
+        ✕ should handle circular references in session or requestData (1 ms)
+      Performance Tests
+        ✕ should process access code within reasonable time
+        ✕ should handle concurrent access code processing
+
+  ● EncryptionService › processAccessCode › Error Handling › should handle missing session properties
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot read properties of null (reading 'quick_share')"
+
+          32 |         
+          33 |         try {
+        > 34 |             if (session.quick_share && quickShareSecret) {
+             |                         ^
+          35 |                 // Quick Share: Store secret in password_hash field (legacy compatibility)
+          36 |                 console.log('🔑 Setting Quick Share secret for upload:', session.upload_id, 'secret:', quickShareSecret);
+          37 |                 passwordHash = quickShareSecret;
+
+      at EncryptionService.quick_share [as processAccessCode] (services/EncryptionService.js:34:25)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:316:46)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at toThrow (tests/unit/services/EncryptionService.test.js:318:18)
+                at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/EncryptionService.test.js:309:28)
+      at toThrow (tests/unit/services/EncryptionService.test.js:318:18)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/EncryptionService.test.js:309:28)
+
+  ● EncryptionService › processAccessCode › Error Handling › should handle missing request data properties
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot destructure property 'quickShareSecret' of '((cov_2hta5v77g9(...).s[0]++) , requestData)' as it is null."
+
+          10 |      */
+          11 |     static processAccessCode(session, requestData) {
+        > 12 |         const { quickShareSecret, clientAccessCodeHash, requiresAccessCode } = requestData;
+             |                 ^
+          13 |         
+          14 |         let passwordHash = null;
+          15 |         let accessCodeHash = null;
+
+      at EncryptionService.quickShareSecret [as processAccessCode] (services/EncryptionService.js:12:17)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:339:46)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at toThrow (tests/unit/services/EncryptionService.test.js:341:18)
+                at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/EncryptionService.test.js:337:31)
+      at toThrow (tests/unit/services/EncryptionService.test.js:341:18)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/EncryptionService.test.js:337:31)
+
+  ● EncryptionService › processAccessCode › Error Handling › should catch and log errors during analysis
+
+    expect(received).not.toThrow()
+
+    Error name:    "Error"
+    Error message: "Logging error"
+
+          354 |         const originalLog = mockConsole.log;
+          355 |         mockConsole.log.mockImplementation(() => {
+        > 356 |           throw new Error('Logging error');
+              |                 ^
+          357 |         });
+          358 |
+          359 |         const requestData = {
+
+      at Object.<anonymous> (tests/unit/services/EncryptionService.test.js:356:17)
+      at EncryptionService.log [as processAccessCode] (services/EncryptionService.js:36:25)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:367:44)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/EncryptionService.test.js:369:16)
+      at Object.toThrow (tests/unit/services/EncryptionService.test.js:369:16)
+
+  ● EncryptionService › processAccessCode › Error Handling › should handle circular references in session or requestData
+
+    expect(received).not.toThrow()
+
+    Error name:    "Error"
+    Error message: "Logging error"
+
+          354 |         const originalLog = mockConsole.log;
+          355 |         mockConsole.log.mockImplementation(() => {
+        > 356 |           throw new Error('Logging error');
+              |                 ^
+          357 |         });
+          358 |
+          359 |         const requestData = {
+
+      at Object.<anonymous> (tests/unit/services/EncryptionService.test.js:356:17)
+      at EncryptionService.log [as processAccessCode] (services/EncryptionService.js:52:25)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:395:44)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/EncryptionService.test.js:397:16)
+      at Object.toThrow (tests/unit/services/EncryptionService.test.js:397:16)
+
+  ● EncryptionService › processAccessCode › Performance Tests › should process access code within reasonable time
+
+    Logging error
+
+      354 |         const originalLog = mockConsole.log;
+      355 |         mockConsole.log.mockImplementation(() => {
+    > 356 |           throw new Error('Logging error');
+          |                 ^
+      357 |         });
+      358 |
+      359 |         const requestData = {
+
+      at Object.<anonymous> (tests/unit/services/EncryptionService.test.js:356:17)
+      at EncryptionService.log [as processAccessCode] (services/EncryptionService.js:42:25)
+      at Object.processAccessCode (tests/unit/services/EncryptionService.test.js:415:42)
+
+  ● EncryptionService › processAccessCode › Performance Tests › should handle concurrent access code processing
+
+    Logging error
+
+      354 |         const originalLog = mockConsole.log;
+      355 |         mockConsole.log.mockImplementation(() => {
+    > 356 |           throw new Error('Logging error');
+          |                 ^
+      357 |         });
+      358 |
+      359 |         const requestData = {
+
+      at Object.<anonymous> (tests/unit/services/EncryptionService.test.js:356:17)
+      at EncryptionService.log [as processAccessCode] (services/EncryptionService.js:36:25)
+      at processAccessCode (tests/unit/services/EncryptionService.test.js:437:45)
+          at Array.map (<anonymous>)
+      at Object.map (tests/unit/services/EncryptionService.test.js:436:35)
+
+FAIL tests/unit/services/FileAssemblyService.test.js
+  FileAssemblyService
+    assembleFile
+      ✕ should assemble file successfully (1 ms)
+      ✕ should handle assembly errors gracefully (1 ms)
+      ✕ should handle various upload ID formats
+      ✕ should handle various session objects
+      ✕ should handle null or undefined parameters
+    getFileSize
+      ✓ should get file size successfully (1 ms)
+      ✓ should handle file stat errors
+      ✓ should handle various file sizes (2 ms)
+      ✓ should handle different file types
+      ✓ should handle invalid file paths (1 ms)
+    Performance Tests
+      ✕ should assemble files within reasonable time
+      ✓ should get file size within reasonable time
+      ✕ should handle concurrent assembly operations
+      ✓ should handle concurrent file size operations
+    Error Recovery
+      ✕ should handle temporary assembly failures (1 ms)
+      ✓ should handle filesystem permission errors
+    Edge Cases
+      ✕ should handle extremely long file paths
+      ✕ should handle special characters in upload IDs
+      ✕ should handle circular references in session objects
+
+  ● FileAssemblyService › assembleFile › should assemble file successfully
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:67:48)
+
+  ● FileAssemblyService › assembleFile › should handle assembly errors gracefully
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "Failed to assemble file chunks"
+    Received message:   "assembleFile function not provided"
+
+          17 |         
+          18 |         if (!assembleFileFn) {
+        > 19 |             throw new Error('assembleFile function not provided');
+             |                   ^
+          20 |         }
+          21 |         
+          22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:83:29)
+      at Object.toThrow (node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (tests/unit/services/FileAssemblyService.test.js:84:17)
+
+  ● FileAssemblyService › assembleFile › should handle various upload ID formats
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:106:50)
+
+  ● FileAssemblyService › assembleFile › should handle various session objects
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:129:50)
+
+  ● FileAssemblyService › assembleFile › should handle null or undefined parameters
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:150:50)
+
+  ● FileAssemblyService › Performance Tests › should assemble files within reasonable time
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:261:48)
+
+  ● FileAssemblyService › Performance Tests › should handle concurrent assembly operations
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at assembleFile (tests/unit/services/FileAssemblyService.test.js:296:29)
+          at Array.map (<anonymous>)
+      at Object.map (tests/unit/services/FileAssemblyService.test.js:295:45)
+
+  ● FileAssemblyService › Error Recovery › should handle temporary assembly failures
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "Temporary failure"
+    Received message:   "assembleFile function not provided"
+
+          17 |         
+          18 |         if (!assembleFileFn) {
+        > 19 |             throw new Error('assembleFile function not provided');
+             |                   ^
+          20 |         }
+          21 |         
+          22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:346:29)
+      at Object.toThrow (node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (tests/unit/services/FileAssemblyService.test.js:347:17)
+
+  ● FileAssemblyService › Edge Cases › should handle extremely long file paths
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:375:48)
+
+  ● FileAssemblyService › Edge Cases › should handle special characters in upload IDs
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:396:50)
+
+  ● FileAssemblyService › Edge Cases › should handle circular references in session objects
+
+    assembleFile function not provided
+
+      17 |         
+      18 |         if (!assembleFileFn) {
+    > 19 |             throw new Error('assembleFile function not provided');
+         |                   ^
+      20 |         }
+      21 |         
+      22 |         const filePath = await assembleFileFn(uploadId, session);
+
+      at FileAssemblyService.assembleFile (services/FileAssemblyService.js:19:19)
+      at Object.assembleFile (tests/unit/services/FileAssemblyService.test.js:410:48)
+
+FAIL tests/unit/services/FileService.test.js
+  FileService
+    fileExists
+      ✓ should return true when file exists (1 ms)
+      ✓ should return false when file does not exist
+      ✓ should handle various file path formats
+      ✓ should handle empty or null paths gracefully
+    setDownloadHeaders
+      ✕ should set correct headers for a typical file (1 ms)
+      ✕ should use default mime type when not provided
+      ✕ should handle various mime types correctly (1 ms)
+      ✕ should handle special characters in filenames
+      ✕ should handle edge cases for file sizes
+    Error Handling
+      ✓ should handle filesystem errors gracefully
+      ✓ should not throw when response object is missing methods (1 ms)
+    Performance Tests
+      ✓ should check file exists within reasonable time
+      ✓ should handle multiple concurrent file existence checks (1 ms)
+    Integration with Real Filesystem
+      ✓ should work with actual file system operations (6 ms)
+
+  ● FileService › setDownloadHeaders › should set correct headers for a typical file
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at Object.setDownloadHeaders (tests/unit/services/FileService.test.js:105:19)
+
+  ● FileService › setDownloadHeaders › should use default mime type when not provided
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at Object.setDownloadHeaders (tests/unit/services/FileService.test.js:119:19)
+
+  ● FileService › setDownloadHeaders › should handle various mime types correctly
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at setDownloadHeaders (tests/unit/services/FileService.test.js:145:21)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/FileService.test.js:137:17)
+
+  ● FileService › setDownloadHeaders › should handle special characters in filenames
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at setDownloadHeaders (tests/unit/services/FileService.test.js:169:21)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/FileService.test.js:161:24)
+
+  ● FileService › setDownloadHeaders › should handle edge cases for file sizes
+
+    TypeError: res.setHeader is not a function
+
+      26 |      */
+      27 |     setDownloadHeaders(res, clip) {
+    > 28 |         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
+         |             ^
+      29 |         res.setHeader('Content-Length', clip.filesize);
+      30 |         res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+      31 |         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+      at FileService.setHeader [as setDownloadHeaders] (services/FileService.js:28:13)
+      at setDownloadHeaders (tests/unit/services/FileService.test.js:190:21)
+          at Array.forEach (<anonymous>)
+      at Object.forEach (tests/unit/services/FileService.test.js:182:17)
+
+FAIL tests/unit/services/QuickShareService.test.js
+  QuickShareService
+    applyQuickShareSettings
+      ✓ should apply Quick Share overrides to basic settings (4 ms)
+      ✓ should handle empty settings object (1 ms)
+      ✕ should handle null or undefined settings (13 ms)
+      ✓ should preserve non-Quick Share specific settings (1 ms)
+      ✓ should handle typical Quick Share scenarios
+      ✓ should handle edge cases and boundary values (1 ms)
+    Quick Share Configuration Logic
+      ✓ should apply appropriate settings for different content types
+      ✓ should handle security-related Quick Share settings (1 ms)
+      ✓ should handle accessibility and sharing options
+    Performance and Scalability
+      ✓ should handle large settings objects efficiently (1 ms)
+      ✓ should handle concurrent Quick Share setting applications
+    Error Handling and Edge Cases
+      ✓ should handle circular references gracefully
+      ✓ should handle deeply nested objects (1 ms)
+      ✓ should handle non-object input types
+    Backward Compatibility
+      ✓ should maintain compatibility with legacy settings format
+      ✓ should handle mixed legacy and modern settings
+
+  ● QuickShareService › applyQuickShareSettings › should handle null or undefined settings
+
+    expect(received).not.toThrow()
+
+    Error name:    "TypeError"
+    Error message: "Cannot read properties of null (reading 'quickShare')"
+
+          29 |      */
+          30 |     static applyQuickShareSettings(settings) {
+        > 31 |         if (!settings.quickShare) {
+             |                       ^
+          32 |             return settings;
+          33 |         }
+          34 |
+
+      at QuickShareService.quickShare [as applyQuickShareSettings] (services/QuickShareService.js:31:23)
+      at applyQuickShareSettings (tests/unit/services/QuickShareService.test.js:52:27)
+      at Object.<anonymous> (node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:320:21)
+      at Object.toThrow (tests/unit/services/QuickShareService.test.js:53:14)
+      at Object.toThrow (tests/unit/services/QuickShareService.test.js:53:14)
+
+PASS tests/unit/services/StorageService.test.js
+  StorageService
+    Constructor
+      ✓ should initialize with provided dependencies (1 ms)
+      ✓ should handle missing dependencies gracefully
+    Database Operations
+      ✓ should handle database queries with proper error handling (1 ms)
+      ✓ should handle database connection errors
+      ✓ should handle transaction operations
+    File Storage Operations
+      ✓ should ensure storage directory exists
+      ✓ should check if files exist in storage (1 ms)
+      ✓ should get file statistics
+      ✓ should handle file removal operations
+      ✓ should handle filesystem errors gracefully (6 ms)
+    Upload ID Generation
+      ✓ should generate unique upload IDs (1 ms)
+      ✓ should handle ID generation errors (1 ms)
+    Storage Path Operations
+      ✓ should use configured storage path
+      ✓ should handle various storage path formats (1 ms)
+      ✓ should handle empty or null storage paths
+    Error Handling and Edge Cases
+      ✓ should handle pool connection errors
+      ✓ should handle malformed database responses
+      ✓ should handle concurrent operations
+    Performance Tests
+      ✓ should initialize within reasonable time (1 ms)
+      ✓ should handle large storage paths efficiently
+    Memory Management
+      ✓ should not leak memory during initialization
+    Configuration Validation
+      ✓ should validate constructor parameters (1 ms)
+      ✓ should handle invalid constructor parameters
+
+PASS tests/unit/services/template.test.js
+  Service Test Template
+    ✓ Template test - should be replaced with actual service tests (5 ms)
+    Error Handling Template
+      ✓ should handle database errors gracefully (1 ms)
+      ✓ should validate input parameters
+    Edge Cases Template
+      ✓ should handle empty inputs
+      ✓ should handle large inputs (1 ms)
+      ✓ should handle concurrent operations
+    Performance Template
+      ✓ should complete operations within time limits
+      ✓ should handle memory efficiently
+
+Jest: "global" coverage threshold for statements (40%) not met: 38.5%
+Jest: "global" coverage threshold for branches (40%) not met: 31.03%
+Jest: "global" coverage threshold for functions (40%) not met: 29.62%
+Test Suites: 6 failed, 2 passed, 8 total
+Tests:       38 failed, 92 passed, 130 total
+Snapshots:   0 total
+Time:        0.602 s, estimated 1 s
+Ran all test suites.
+</pre>
+        </div>
+    
+</body>
+</html>
