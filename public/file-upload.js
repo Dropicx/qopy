@@ -1782,6 +1782,7 @@ class FileUploadManager {
         
         const progressBar = document.getElementById('upload-progress-bar');
         const progressText = document.getElementById('upload-progress-text');
+        const progressPercentage = document.getElementById('upload-progress-percentage');
         
         if (progressBar) {
             progressBar.style.width = safeProgress + '%';
@@ -1789,6 +1790,10 @@ class FileUploadManager {
         
         if (progressText) {
             progressText.textContent = `${safeProgress}%`;
+        }
+        
+        if (progressPercentage) {
+            progressPercentage.textContent = `${safeProgress}%`;
         }
         
         console.log(`📊 Upload progress: ${safeProgress}%`);
