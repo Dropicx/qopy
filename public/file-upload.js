@@ -1271,7 +1271,9 @@ class FileUploadManager {
                 }
 
                 totalBytesUploaded += chunk.length;
-                const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+                // Calculate progress with proper bounds checking
+                const progressRaw = ((chunkIndex + 1) / totalChunks) * 100;
+                const progress = Math.min(100, Math.max(0, Math.round(progressRaw)));
                 const chunkTime = performance.now() - chunkStart;
                 
                 console.log(`✅ [CHUNK ${chunkIndex + 1}/${totalChunks}] Upload successful:`, {
@@ -1631,7 +1633,9 @@ class FileUploadManager {
     }
 
     updateProgress(uploadedChunks, currentChunk, totalChunks) {
-        const percentage = totalChunks > 0 ? (uploadedChunks / totalChunks) * 100 : 0;
+        // Calculate percentage with proper bounds checking and consistent rounding
+        const percentageRaw = totalChunks > 0 ? (uploadedChunks / totalChunks) * 100 : 0;
+        const percentage = Math.min(100, Math.max(0, Math.round(percentageRaw * 10) / 10)); // Round to 1 decimal
         
         const progressBar = document.getElementById('upload-progress-bar');
         const progressText = document.getElementById('upload-progress-text');
@@ -1646,7 +1650,7 @@ class FileUploadManager {
         }
 
         if (progressPercentage) {
-            progressPercentage.textContent = `${percentage.toFixed(1)}%`;
+            progressPercentage.textContent = `${percentage}%`;
         }
     }
 
@@ -1771,20 +1775,23 @@ class FileUploadManager {
         this.currentUploadSession = null;
     }
 
-    // Update upload progress
+    // Update upload progress with consistent bounds checking
     updateUploadProgress(progress) {
+        // Ensure progress is within bounds and properly rounded
+        const safeProgress = Math.min(100, Math.max(0, Math.round(progress)));
+        
         const progressBar = document.getElementById('upload-progress-bar');
         const progressText = document.getElementById('upload-progress-text');
         
         if (progressBar) {
-            progressBar.style.width = progress + '%';
+            progressBar.style.width = safeProgress + '%';
         }
         
         if (progressText) {
-            progressText.textContent = `${progress}%`;
+            progressText.textContent = `${safeProgress}%`;
         }
         
-        console.log(`📊 Upload progress: ${progress}%`);
+        console.log(`📊 Upload progress: ${safeProgress}%`);
     }
 
     // Remove minimal padding from file data (shared method for both upload and download)

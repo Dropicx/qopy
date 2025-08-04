@@ -1,0 +1,97 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    
+    # Security updates
+    open-pull-requests-limit: 10
+    
+    # Group minor and patch updates
+    groups:
+      production-dependencies:
+        patterns:
+          - "express*"
+          - "helmet"
+          - "cors"
+          - "compression"
+          - "express-rate-limit"
+          - "express-validator"
+          - "pg"
+          - "redis"
+          - "uuid"
+          - "sharp"
+          - "multer"
+          - "mime-types"
+        update-types:
+          - "patch"
+          - "minor"
+      
+      development-dependencies:
+        patterns:
+          - "@types/*"
+          - "jest"
+          - "supertest"
+          - "nodemon"
+          - "dotenv"
+        update-types:
+          - "patch"
+          - "minor"
+    
+    # Reviewers and assignees
+    reviewers:
+      - "catchmelit"
+    
+    # Labels for dependency PRs
+    labels:
+      - "dependencies"
+      - "automated"
+    
+    # Commit message preferences
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "UTC"
+    
+    open-pull-requests-limit: 5
+    
+    labels:
+      - "github-actions"
+      - "automated"
+    
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Enable version updates for Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "UTC"
+    
+    open-pull-requests-limit: 3
+    
+    labels:
+      - "docker"
+      - "automated"
+    
+    commit-message:
+      prefix: "docker"
+      include: "scope"

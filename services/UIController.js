@@ -228,17 +228,19 @@ class UIController {
     }
 
     /**
-     * Update upload progress
+     * Update upload progress with consistent bounds checking and rounding
      */
     updateProgress(progress, message = '') {
-        this.state.progress = progress;
+        // Ensure progress is within bounds and consistently rounded
+        const safeProgress = Math.min(100, Math.max(0, Math.round(progress * 10) / 10)); // Round to 1 decimal
+        this.state.progress = safeProgress;
         
         if (this.elements.progressBar) {
-            this.elements.progressBar.style.width = `${progress}%`;
+            this.elements.progressBar.style.width = `${safeProgress}%`;
         }
         
         if (this.elements.progressText) {
-            this.elements.progressText.textContent = `${Math.round(progress)}%`;
+            this.elements.progressText.textContent = `${Math.round(safeProgress)}%`;
         }
         
         if (message && this.elements.statusMessage) {

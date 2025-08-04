@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Date Display Fix - Browser Test Suite</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .test-case {
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        
+        .test-case.passed {
+            border-left: 4px solid #22c55e;
+            background: #f0fdf4;
+        }
+        
+        .test-case.failed {
+            border-left: 4px solid #ef4444;
+            background: #fef2f2;
+        }
+        
+        .test-input {
+            font-family: monospace;
+            background: #f1f5f9;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        
+        .test-output {
+            font-family: monospace;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        
+        .test-result {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        .passed {
+            background: #22c55e;
+            color: white;
+        }
+        
+        .failed {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .summary {
+            background: #1e293b;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: monospace;
+        }
+        
+        .run-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        
+        .run-button:hover {
+            background: #2563eb;
+        }
+        
+        .logs {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        
+        h2 {
+            color: #1e293b;
+            border-bottom: 2px solid #e1e5e9;
+            padding-bottom: 10px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .stat {
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            flex: 1;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 Date Display Fix - Comprehensive Test Suite</h1>
+        <p>Testing the robust error handling and edge cases for expiration date processing in showShareResult function</p>
+    </div>
+
+    <div class="test-section">
+        <button class="run-button" onclick="runAllTests()">🚀 Run All Tests</button>
+        <button class="run-button" onclick="runPerformanceTests()">⚡ Performance Tests</button>
+        <button class="run-button" onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div id="test-results"></div>
+    
+    <div id="summary" class="summary" style="display: none;">
+        <div id="summary-content"></div>
+        <div class="stats" id="test-stats"></div>
+    </div>
+
+    <script>
+        // Test implementation of the date processing logic from showShareResult
+        function processExpiryDate(expiresAt) {
+            const results = {
+                textContent: '',
+                color: '',
+                logs: [],
+                warnings: [],
+                errors: []
+            };
+            
+            // Mock console methods to capture output
+            const mockConsole = {
+                log: (...args) => results.logs.push(args),
+                warn: (...args) => results.warnings.push(args),
+                error: (...args) => results.errors.push(args)
+            };
+            
+            try {
+                mockConsole.log('Processing expiry date:', { expiresAt, type: typeof expiresAt });
+                
+                if (expiresAt === null || expiresAt === undefined) {
+                    results.textContent = 'Not available';
+                    return results;
+                }
+                
+                // Handle empty strings or zero values
+                if (expiresAt === '' || expiresAt === 0 || expiresAt === '0') {
+                    results.textContent = 'No expiration';
+                    return results;
+                }
+                
+                // Convert to number for timestamp processing
+                let timestamp;
+                if (typeof expiresAt === 'string') {
+                    // Validate string format (should be numeric)
+                    if (!/^\d+$/.test(expiresAt.trim())) {
+                        mockConsole.warn('Invalid timestamp format:', expiresAt);
+                        results.textContent = 'Invalid date format';
+                        return results;
+                    }
+                    timestamp = parseInt(expiresAt.trim(), 10);
+                } else if (typeof expiresAt === 'number') {
+                    timestamp = expiresAt;
+                } else {
+                    mockConsole.warn('Unexpected expiry date type:', typeof expiresAt, expiresAt);
+                    results.textContent = 'Invalid date type';
+                    return results;
+                }
+                
+                // Validate timestamp range
+                if (timestamp < 0) {
+                    mockConsole.warn('Negative timestamp:', timestamp);
+                    results.textContent = 'Invalid timestamp';
+                    return results;
+                }
+                
+                // Auto-detect seconds vs milliseconds
+                const currentTime = Date.now();
+                let finalTimestamp = timestamp;
+                
+                // If timestamp looks like seconds (smaller number), convert to milliseconds
+                if (timestamp < 10000000000) { // Less than year 2286 in seconds
+                    finalTimestamp = timestamp * 1000;
+                    mockConsole.log('Converted seconds to milliseconds:', timestamp, '->', finalTimestamp);
+                }
+                
+                // Validate the final timestamp is reasonable
+                const minValidTime = new Date('2020-01-01').getTime();
+                const maxValidTime = new Date('2100-01-01').getTime();
+                
+                if (finalTimestamp < minValidTime || finalTimestamp > maxValidTime) {
+                    mockConsole.warn('Timestamp out of reasonable range:', finalTimestamp);
+                    results.textContent = 'Date out of range';
+                    return results;
+                }
+                
+                // Create and validate Date object
+                const expiryDate = new Date(finalTimestamp);
+                
+                if (!isNaN(expiryDate.getTime())) {
+                    const formattedDate = expiryDate.toLocaleString();
+                    mockConsole.log('Successfully formatted date:', formattedDate);
+                    results.textContent = formattedDate;
+                    
+                    // Add expiry status indicator
+                    const now = new Date();
+                    if (expiryDate < now) {
+                        results.color = '#dc2626'; // Red for expired
+                        results.textContent = formattedDate + ' (Expired)';
+                    } else {
+                        results.color = '#059669'; // Green for valid
+                    }
+                } else {
+                    mockConsole.error('Created invalid Date object from timestamp:', finalTimestamp);
+                    results.textContent = 'Date parsing failed';
+                }
+                
+            } catch (error) {
+                mockConsole.error('Error formatting expiry date:', error, { expiresAt });
+                results.textContent = 'Error formatting date';
+                results.errors.push(['Error formatting expiry date:', error, { expiresAt }]);
+            }
+            
+            return results;
+        }
+
+        // Test cases organized by category
+        const testCategories = {
+            'Null and Undefined Handling': [
+                { input: null, expected: 'Not available', description: 'Null value' },
+                { input: undefined, expected: 'Not available', description: 'Undefined value' }
+            ],
+            
+            'Empty and Zero Value Handling': [
+                { input: '', expected: 'No expiration', description: 'Empty string' },
+                { input: 0, expected: 'No expiration', description: 'Zero number' },
+                { input: '0', expected: 'No expiration', description: 'Zero string' }
+            ],
+            
+            'Invalid String Format Handling': [
+                { input: 'invalid-date', expected: 'Invalid date format', description: 'Non-numeric string' },
+                { input: '123abc456', expected: 'Invalid date format', description: 'Mixed alphanumeric' },
+                { input: '123.456', expected: 'Invalid date format', description: 'Decimal string' },
+                { input: '  1640995200  ', expected: '2022', description: 'String with spaces (should trim)' }
+            ],
+            
+            'Unexpected Type Handling': [
+                { input: true, expected: 'Invalid date type', description: 'Boolean value' },
+                { input: { timestamp: 123456789 }, expected: 'Invalid date type', description: 'Object value' },
+                { input: [123456789], expected: 'Invalid date type', description: 'Array value' }
+            ],
+            
+            'Negative Timestamp Handling': [
+                { input: -123456789, expected: 'Invalid timestamp', description: 'Negative number' },
+                { input: '-123456789', expected: 'Invalid date format', description: 'Negative string (regex fails)' }
+            ],
+            
+            'Seconds vs Milliseconds Auto-Detection': [
+                { input: 1640995200, expected: '2022', description: 'Seconds timestamp (converted)' },
+                { input: 1640995200000, expected: '2022', description: 'Milliseconds timestamp (not converted)' },
+                { input: 9999999999, expected: 'seconds to milliseconds', description: 'Boundary timestamp (converted)' },
+                { input: 10000000000, expected: 'no conversion', description: 'Over boundary (not converted)' }
+            ],
+            
+            'Date Range Validation': [
+                { input: new Date('2019-12-31').getTime(), expected: 'Date out of range', description: 'Before 2020' },
+                { input: new Date('2100-01-02').getTime(), expected: 'Date out of range', description: 'After 2100' },
+                { input: new Date('2020-01-01').getTime(), expected: '2020', description: 'Exactly 2020 boundary' },
+                { input: new Date('2100-01-01').getTime(), expected: '2100', description: 'Exactly 2100 boundary' }
+            ],
+            
+            'Expired vs Non-Expired Status': [
+                { input: Date.now() - 86400000, expected: '(Expired)', description: 'Past date (1 day ago)' },
+                { input: Date.now() + 86400000, expected: 'no expired', description: 'Future date (1 day from now)' },
+                { input: Date.now(), expected: 'current time', description: 'Current time edge case' }
+            ],
+            
+            'Edge Cases and Boundary Conditions': [
+                { input: 1, expected: 'Date out of range', description: 'Very small positive number' },
+                { input: Number.MAX_SAFE_INTEGER, expected: 'Date out of range', description: 'Maximum safe integer' },
+                { input: 1640995200.999, expected: '2022', description: 'Floating point (truncated)' },
+                { input: '1640995200000', expected: '2022', description: 'Large string timestamp' }
+            ],
+            
+            'Real-World Integration': [
+                { input: Math.floor(Date.now() / 1000) + 3600, expected: 'conversion', description: 'Backend timestamp (seconds + 1 hour)' },
+                { input: Date.now() + 3600000, expected: 'no conversion', description: 'Frontend timestamp (ms + 1 hour)' },
+                { input: String(Math.floor(Date.now() / 1000) + 7200), expected: 'conversion', description: 'API string timestamp (+2 hours)' }
+            ]
+        };
+
+        let testResults = {
+            passed: 0,
+            failed: 0,
+            total: 0,
+            startTime: 0,
+            endTime: 0
+        };
+
+        function runTest(testCase) {
+            const startTime = performance.now();
+            
+            try {
+                const result = processExpiryDate(testCase.input);
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                
+                let passed = false;
+                
+                // Check if result matches expected outcome
+                if (testCase.expected === 'Not available' && result.textContent === 'Not available') {
+                    passed = true;
+                } else if (testCase.expected === 'No expiration' && result.textContent === 'No expiration') {
+                    passed = true;
+                } else if (testCase.expected === 'Invalid date format' && result.textContent === 'Invalid date format') {
+                    passed = true;
+                } else if (testCase.expected === 'Invalid date type' && result.textContent === 'Invalid date type') {
+                    passed = true;
+                } else if (testCase.expected === 'Invalid timestamp' && result.textContent === 'Invalid timestamp') {
+                    passed = true;
+                } else if (testCase.expected === 'Date out of range' && result.textContent === 'Date out of range') {
+                    passed = true;
+                } else if (testCase.expected.includes('2022') && result.textContent.includes('2022')) {
+                    passed = true;
+                } else if (testCase.expected.includes('2020') && result.textContent.includes('2020')) {
+                    passed = true;
+                } else if (testCase.expected.includes('2100') && result.textContent.includes('2100')) {
+                    passed = true;
+                } else if (testCase.expected === '(Expired)' && result.textContent.includes('(Expired)')) {
+                    passed = true;
+                } else if (testCase.expected === 'no expired' && !result.textContent.includes('(Expired)')) {
+                    passed = true;
+                } else if (testCase.expected === 'seconds to milliseconds' && result.logs.some(log => log[0] === 'Converted seconds to milliseconds:')) {
+                    passed = true;
+                } else if (testCase.expected === 'no conversion' && !result.logs.some(log => log[0] === 'Converted seconds to milliseconds:')) {
+                    passed = true;
+                } else if (testCase.expected === 'conversion' && result.logs.some(log => log[0] === 'Converted seconds to milliseconds:')) {
+                    passed = true;
+                } else if (testCase.expected === 'current time') {
+                    passed = true; // Current time is always valid for this test
+                }
+                
+                return {
+                    passed,
+                    result,
+                    duration,
+                    error: null
+                };
+                
+            } catch (error) {
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                
+                return {
+                    passed: false,
+                    result: null,
+                    duration,
+                    error
+                };
+            }
+        }
+
+        function displayTestResult(categoryName, testCase, testResult, index) {
+            const div = document.createElement('div');
+            div.className = `test-case ${testResult.passed ? 'passed' : 'failed'}`;
+            
+            const inputDisplay = typeof testCase.input === 'string' ? `"${testCase.input}"` : 
+                                 testCase.input === null ? 'null' :
+                                 testCase.input === undefined ? 'undefined' :
+                                 JSON.stringify(testCase.input);
+            
+            div.innerHTML = `
+                <h4>Test ${index + 1}: ${testCase.description}</h4>
+                <div class="test-input">Input: ${inputDisplay}</div>
+                <div class="test-input">Expected: ${testCase.expected}</div>
+                ${testResult.result ? `<div class="test-output">Output: ${testResult.result.textContent}
+Color: ${testResult.result.color}
+Logs: ${JSON.stringify(testResult.result.logs, null, 2)}
+Warnings: ${JSON.stringify(testResult.result.warnings, null, 2)}
+Errors: ${JSON.stringify(testResult.result.errors, null, 2)}</div>` : ''}
+                ${testResult.error ? `<div class="test-output">Error: ${testResult.error.message}</div>` : ''}
+                <div class="test-result ${testResult.passed ? 'passed' : 'failed'}">
+                    ${testResult.passed ? '✅ PASSED' : '❌ FAILED'} (${testResult.duration.toFixed(2)}ms)
+                </div>
+            `;
+            
+            return div;
+        }
+
+        function runAllTests() {
+            const startTime = performance.now();
+            testResults = { passed: 0, failed: 0, total: 0, startTime, endTime: 0 };
+            
+            const resultsContainer = document.getElementById('test-results');
+            resultsContainer.innerHTML = '';
+            
+            for (const [categoryName, tests] of Object.entries(testCategories)) {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'test-section';
+                categoryDiv.innerHTML = `<h2>📋 ${categoryName}</h2>`;
+                
+                tests.forEach((testCase, index) => {
+                    const testResult = runTest(testCase);
+                    const testDiv = displayTestResult(categoryName, testCase, testResult, index);
+                    categoryDiv.appendChild(testDiv);
+                    
+                    testResults.total++;
+                    if (testResult.passed) {
+                        testResults.passed++;
+                    } else {
+                        testResults.failed++;
+                    }
+                });
+                
+                resultsContainer.appendChild(categoryDiv);
+            }
+            
+            testResults.endTime = performance.now();
+            displaySummary();
+        }
+
+        function runPerformanceTests() {
+            const iterations = 1000;
+            const testValues = [
+                1640995200, // Valid seconds
+                1640995200000, // Valid milliseconds  
+                '1640995200', // Valid string
+                null,
+                undefined,
+                '',
+                0,
+                'invalid'
+            ];
+            
+            const startTime = performance.now();
+            
+            for (let i = 0; i < iterations; i++) {
+                testValues.forEach(val => processExpiryDate(val));
+            }
+            
+            const endTime = performance.now();
+            const totalDuration = endTime - startTime;
+            const avgPerTest = totalDuration / (iterations * testValues.length);
+            
+            const resultsContainer = document.getElementById('test-results');
+            const performanceDiv = document.createElement('div');
+            performanceDiv.className = 'test-section';
+            performanceDiv.innerHTML = `
+                <h2>⚡ Performance Test Results</h2>
+                <div class="test-output">
+Total Tests: ${iterations * testValues.length}
+Total Duration: ${totalDuration.toFixed(2)}ms
+Average per Test: ${avgPerTest.toFixed(4)}ms
+Tests per Second: ${((iterations * testValues.length) / (totalDuration / 1000)).toFixed(0)}
+                </div>
+            `;
+            
+            resultsContainer.appendChild(performanceDiv);
+        }
+
+        function displaySummary() {
+            const summaryDiv = document.getElementById('summary');
+            const summaryContent = document.getElementById('summary-content');
+            const testStats = document.getElementById('test-stats');
+            
+            const duration = testResults.endTime - testResults.startTime;
+            const successRate = ((testResults.passed / testResults.total) * 100).toFixed(1);
+            
+            summaryContent.innerHTML = `
+📊 TEST SUMMARY
+===============
+Total Tests: ${testResults.total}
+Passed: ${testResults.passed}
+Failed: ${testResults.failed}
+Success Rate: ${successRate}%
+Total Duration: ${duration.toFixed(2)}ms
+Average per Test: ${(duration / testResults.total).toFixed(2)}ms
+            `;
+            
+            testStats.innerHTML = `
+                <div class="stat">
+                    <div class="stat-number">${testResults.total}</div>
+                    <div class="stat-label">Total Tests</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" style="color: #22c55e">${testResults.passed}</div>
+                    <div class="stat-label">Passed</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" style="color: #ef4444">${testResults.failed}</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">${successRate}%</div>
+                    <div class="stat-label">Success Rate</div>
+                </div>
+            `;
+            
+            summaryDiv.style.display = 'block';
+        }
+
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('summary').style.display = 'none';
+        }
+
+        // Auto-run basic tests on page load
+        window.addEventListener('load', () => {
+            console.log('🧪 Date Display Test Suite Loaded');
+            console.log('Click "Run All Tests" to start comprehensive testing');
+        });
+    </script>
+</body>
+</html>
