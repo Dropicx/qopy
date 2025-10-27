@@ -33,37 +33,29 @@ class RedisManager {
         try {
             // Railway.app Redis configuration
             const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
-            
+
             if (redisUrl) {
                 console.log('🔗 Connecting to Redis...');
                 this.client = redis.createClient({
                     url: redisUrl,
-                    retry_strategy: (options) => {
-                        if (options.error && options.error.code === 'ECONNREFUSED') {
-                            console.error('❌ Redis server refused connection');
+                    socket: {
+                        connectTimeout: 5000, // 5 second connection timeout
+                        reconnectStrategy: (retries) => {
+                            if (retries > this.maxRetries) {
+                                console.warn('⚠️ Redis max retries reached - continuing without cache');
+                                return false; // Stop reconnecting
+                            }
+                            return Math.min(retries * 100, 3000);
                         }
-                        if (options.total_retry_time > 1000 * 60 * 60) {
-                            console.error('❌ Redis retry time exhausted');
-                            return new Error('Retry time exhausted');
-                        }
-                        if (options.attempt > this.maxRetries) {
-                            console.error('❌ Redis max retry attempts reached');
-                            return undefined;
-                        }
-                        // Reconnect after
-                        return Math.min(options.attempt * 100, 3000);
                     }
                 });
 
                 // Track and attach event listeners with cleanup capability
                 const errorHandler = (err) => {
-                    console.error('❌ Redis Client Error:', err);
+                    console.warn('⚠️ Redis Client Error:', err.message || err);
                     this.connected = false;
-                    // Trigger cleanup on critical errors
-                    const criticalErrors = ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET'];
-                    if (criticalErrors.includes(err.code)) {
-                        this.cleanup();
-                    }
+                    // Don't cleanup or exit - just mark as disconnected
+                    // The app can continue without Redis cache
                 };
                 this.client.on('error', errorHandler);
                 this.eventListeners.set('error', errorHandler);
@@ -92,24 +84,24 @@ class RedisManager {
                 this.client.on('end', endHandler);
                 this.eventListeners.set('end', endHandler);
 
-                await this.client.connect();
-                
+                // Connect with timeout - don't let this block server startup
+                const connectPromise = this.client.connect();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Connection timeout')), 10000)
+                );
+
+                await Promise.race([connectPromise, timeoutPromise]);
+
             } else {
                 console.warn('⚠️ No Redis URL found - running without Redis cache');
                 this.connected = false;
             }
-            
+
         } catch (error) {
-            console.error('❌ Redis connection failed:', error.message);
+            console.warn(`⚠️ Redis connection failed: ${error.message} - continuing without cache`);
             this.connected = false;
-            this.retryAttempts++;
-            
-            if (this.retryAttempts < this.maxRetries) {
-                console.log(`🔄 Retrying Redis connection (${this.retryAttempts}/${this.maxRetries})...`);
-                setTimeout(() => this.connect(), 5000);
-            } else {
-                console.warn('⚠️ Redis max retries reached - continuing without cache');
-            }
+            // Don't retry - just run without Redis
+            // The app should work fine without caching
         }
     }
 
@@ -333,17 +325,8 @@ const gracefulShutdown = async (signal) => {
 // Signal handlers removed - now handled centrally in server.js to prevent race conditions
 // The graceful shutdown will be called from the main server's signal handlers
 
-// Handle uncaught exceptions and unhandled rejections
-process.on('uncaughtException', async (error) => {
-    console.error('❌ Uncaught Exception:', error);
-    await gracefulShutdown('uncaughtException');
-    process.exit(1);
-});
-
-process.on('unhandledRejection', async (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-    await gracefulShutdown('unhandledRejection');
-    process.exit(1);
-});
+// Note: Uncaught exception handlers removed to prevent killing the app
+// when Redis connection fails. The app can run without Redis cache.
+// Signal handlers for graceful shutdown are managed centrally in server.js
 
 module.exports = redisManager; 
