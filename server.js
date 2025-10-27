@@ -526,7 +526,7 @@ function logRateLimitEvent(req, res, next) {
 // General API rate limiting (per IP)
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per IP per 15 minutes
+  max: 50, // 50 requests per IP per 15 minutes (reduced from 100 for better security)
   message: {
     error: 'Too many requests',
     message: 'Rate limit exceeded. Please try again later.'
@@ -535,8 +535,8 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: getClientIP,
   skip: (req) => {
-    // Skip rate limiting for health checks and admin routes
-    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/');
+    // Skip rate limiting for health checks only
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping';
   }
 });
 
@@ -578,10 +578,60 @@ const burstLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: getClientIP,
   skip: (req) => {
-    // Skip burst limiting for health checks and admin routes
-    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/');
+    // Skip burst limiting for health checks only
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping';
   }
 });
+
+// Admin authentication rate limiting (strict - prevents brute force attacks)
+const adminAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 authentication attempts per IP per 15 minutes
+  message: {
+    error: 'Too many authentication attempts',
+    message: 'Admin authentication rate limit exceeded. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIP,
+  skipSuccessfulRequests: false // Count both successful and failed attempts
+});
+
+// Quick Share rate limiting (moderate - protects 4-digit codes from enumeration)
+const quickShareLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 Quick Share requests per IP per 15 minutes
+  message: {
+    error: 'Too many Quick Share requests',
+    message: 'Quick Share rate limit exceeded. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIP
+});
+
+// Deletion rate limiting (strict - prevents abuse of delete operations)
+const deletionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 deletion requests per IP per 15 minutes
+  message: {
+    error: 'Too many deletion requests',
+    message: 'Deletion rate limit exceeded. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIP
+});
+
+// Conditional Quick Share rate limiter middleware (applies only to 4-digit codes)
+const conditionalQuickShareLimiter = (req, res, next) => {
+  const clipId = req.params.clipId;
+  // Apply stricter rate limiting for 4-digit Quick Share codes to prevent enumeration attacks
+  if (clipId && clipId.length === 4) {
+    return quickShareLimiter(req, res, next);
+  }
+  next();
+};
 
 // Apply rate limiting (order matters - most specific first)
 app.use('/api/', logRateLimitEvent); // Logging first
@@ -1428,10 +1478,10 @@ async function getCache(key) {
     return null;
 }
 
-// Upload rate limiting
+// Upload rate limiting (moderate - balances usability with security)
 const uploadLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // 10 upload sessions per IP
+    windowMs: 60 * 60 * 1000, // 1 hour (changed from 15 minutes)
+    max: 50, // 50 upload sessions per IP per hour (increased from 10/15min)
     message: {
         error: 'Too many uploads',
         message: 'Upload rate limit exceeded. Please try again later.'
@@ -1791,8 +1841,8 @@ app.get('/api/upload/:uploadId/status', [
     }
 });
 
-// Cancel upload
-app.delete('/api/upload/:uploadId', [
+// Cancel upload (with strict deletion rate limiting)
+app.delete('/api/upload/:uploadId', deletionLimiter, [
     param('uploadId').isString().isLength({ min: 16, max: 16 }).withMessage('Invalid upload ID')
 ], async (req, res) => {
     try {
@@ -2294,8 +2344,8 @@ app.get('/api/file/:clipId', [
 // refactoredShare.createEndpoint(app);
 */
 
-// Get clip info
-app.get('/api/clip/:clipId/info', [
+// Get clip info (with conditional Quick Share rate limiting)
+app.get('/api/clip/:clipId/info', conditionalQuickShareLimiter, [
   param('clipId').custom((value) => {
     // Support both 4-character (Quick Share) and 10-character (normal) IDs
     if (value.length !== 4 && value.length !== 10) {
@@ -2524,7 +2574,8 @@ app.post('/api/clip/:clipId', [
 });
 
 // Get clip (Zero-Knowledge system - no authentication for URL-secret-only clips)
-app.get('/api/clip/:clipId', [
+// Conditional Quick Share rate limiting applied to prevent enumeration of 4-digit codes
+app.get('/api/clip/:clipId', conditionalQuickShareLimiter, [
   param('clipId').custom((value) => {
     // Support both 4-character (Quick Share) and 10-character (normal) IDs
     if (value.length !== 4 && value.length !== 10) {
@@ -2641,8 +2692,8 @@ async function requireAdminAuth(req, res, next) {
   next();
 }
 
-// Admin authentication endpoint
-app.post('/api/admin/auth', [
+// Admin authentication endpoint (with strict rate limiting)
+app.post('/api/admin/auth', adminAuthLimiter, [
   body('password').isLength({ min: 1, max: 128 }).withMessage('Password is required')
 ], async (req, res) => {
   try {

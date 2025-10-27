@@ -4,348 +4,358 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Qopy is a privacy-first, enterprise-grade secure temporary text and file sharing application with client-side encryption, zero-knowledge architecture, and automatic expiration. Built with Express.js, PostgreSQL, and optional Redis caching.
+Qopy is an enterprise-grade secure temporary text and file sharing application with client-side AES-256-GCM encryption, zero-knowledge architecture, and automatic expiration. The application uses Node.js/Express backend with PostgreSQL database, optional Redis caching, and vanilla JavaScript frontend.
 
-**Key Security Features**:
-- AES-256-GCM client-side encryption with PBKDF2 key derivation (100,000 iterations)
-- Zero-knowledge architecture - server never sees plaintext content
-- Hybrid security: URL secrets + optional passwords for defense in depth
-- Binary database storage (BYTEA) with direct binary transmission (no base64 overhead)
+**Key Security Features:**
+- Client-side encryption (server never sees plaintext)
+- Hybrid security: URL secrets (16-char fragments) + optional passwords
+- PBKDF2 key derivation (100,000 iterations)
+- SQL injection protection via parameterized queries
+- bcrypt admin authentication (cost factor 12)
+- CORS protection and rate limiting
 
-**Dual License**: AGPL-3.0 for open source use, Commercial license available at qopy@lit.services
+## Development Commands
 
-## Common Commands
+### Essential Commands
 
-### Development
 ```bash
-npm run dev              # Start with nodemon for hot reload
-npm start                # Production server
-npm run build            # Install dependencies
+# Install dependencies
+npm install
+
+# Start development server with auto-reload
+npm run dev
+
+# Start production server
+npm start
+
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm test:watch
+
+# Run tests with coverage report
+npm test:coverage
+
+# Run specific test suites
+npm run test:unit          # Unit tests only
+npm run test:integration   # Integration tests only
+
+# Database migration
+npm run migrate
 ```
 
-### Testing
-```bash
-npm test                 # Run all tests (Jest)
-npm run test:unit        # Run unit tests only (333 test cases)
-npm run test:integration # Run integration tests (15+ scenarios)
-npm run test:watch       # Watch mode for TDD
-npm run test:coverage    # Generate coverage report (>80% coverage target)
+### Environment Setup
 
+Required environment variables:
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/qopy"
+NODE_ENV="development"
+PORT=8080
+
+# Optional
+ADMIN_TOKEN="your-secure-token"
+REDIS_URL="redis://localhost:6379"
+RAILWAY_VOLUME_MOUNT_PATH="./uploads"
+```
+
+### Running Single Tests
+
+```bash
 # Run specific test file
-npm test tests/unit/services/FileService.test.js
+npm test -- tests/unit/specific-test.js
 
-# Run specific test pattern
-npm test -- --testNamePattern="should handle large files"
+# Run tests matching pattern
+npm test -- --testNamePattern="describe block name"
+
+# Run security tests
+npm test tests/security/sql-injection.test.js
 ```
 
-### Database
-```bash
-npm run migrate                    # Run database migrations manually
-npm run test-migration             # Test migration script
-psql $DATABASE_URL -f scripts/database-migration.sql  # Direct migration
+## Architecture Overview
+
+### Core Application Structure
+
+**Monolithic Architecture**: Single `server.js` (3000+ lines) contains all Express routes and main application logic. Services are extracted for reusability but core routing remains centralized.
+
+**Key Components:**
+- `server.js` - Main application entry, Express setup, all API routes, database initialization, cleanup jobs
+- `services/` - Business logic modules (FileService, EncryptionService, QuickShareService, etc.)
+- `middleware/` - Request processing middleware (accessValidation.js)
+- `config/` - Configuration modules (redis.js for Redis singleton)
+- `public/` - Static files served to clients (HTML, CSS, fonts, logos)
+- `utils/` - Utility functions
+- `tests/` - Comprehensive test suites
+
+### Database Layer
+
+**PostgreSQL** with connection pooling (20 production/10 dev connections):
+
+```javascript
+// Connection pool optimization in server.js
+const pool = new Pool({
+    connectionString: DATABASE_URL,
+    max: 20, // Production connections
+    min: 5,  // Minimum baseline
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    maxUses: 7500 // Prevent memory leaks
+});
 ```
 
-## Architecture
+**Primary Tables:**
+- `clips` - Encrypted content with metadata (clip_id, content BYTEA, expiration_time, password_hash, one_time flag)
+- `statistics` - Usage analytics and metrics
+- `files` - File metadata for uploads
 
-### Current State: Transitioning to Service-Oriented
-The codebase is actively migrating from a monolithic `server.js` (3,403 lines) to a service-oriented architecture following SOLID principles. This transition improves testability and maintainability.
+**CRITICAL**: All database queries use parameterized queries (`$1, $2, etc.`) to prevent SQL injection. Never use string concatenation or template literals in SQL.
 
-### Core Components
+### Caching Layer
 
-**Main Application**:
-- `server.js` - Express app with routes, middleware, and legacy monolithic logic
-- Includes automatic database migrations on startup
-- Graceful shutdown handling for PostgreSQL and Redis connections
+**Redis** (optional): Centralized singleton manager in `config/redis.js` handles:
+- Upload session management
+- Progress tracking for multi-part uploads
+- Graceful fallback when unavailable
+- Automatic cleanup and memory leak prevention
 
-**Services Directory** (`services/`):
-Services follow Single Responsibility Principle and are dependency-injectable:
-
-**Core Services**:
-- `FileService.js` - File retrieval, streaming, range requests, content-type detection
-- `EncryptionService.js` - Encryption validation, access code processing (75 test cases)
-- `QuickShareService.js` - Quick share mode with 4-char codes, 5-min expiration (45 test cases)
-- `StorageService.js` - Database operations, file storage abstraction (23 test cases)
-- `FileAssemblyService.js` - Multi-part file assembly, size validation (50 test cases)
-
-**Validation Services**:
-- `UploadValidator.js` - Request parsing, system detection, data integrity (80 test cases)
-- `AccessValidator.js` - Access validation middleware for clip retrieval
-- `ShareValidationMiddleware.js` - Share creation validation
-- `ContentProcessor.js` - Content processing and sanitization
-
-**Repository Pattern**:
-- `UploadRepository.js` - Upload session data persistence
-
-**Payment System** (Future Monetization):
-- `AnonymousPaymentService.js` - Anonymous payment processing
-- `PaymentController.js` - Payment workflow orchestration
-- `PaymentSecurityValidator.js` - Payment security validation
-- `SubscriptionRepository.js` - Subscription data management
-
-**Middleware** (`middleware/`):
-- `accessValidation.js` - Centralized access validation using AccessValidator service
-
-**Configuration** (`config/`):
-- `redis.js` - Centralized Redis connection manager (prevents memory leaks)
-
-### Database Schema
-
-PostgreSQL with two main tables:
-
-**clips table**:
-```sql
-id SERIAL PRIMARY KEY
-clip_id VARCHAR(10) UNIQUE NOT NULL  -- 4-char (quick) or 10-char (enhanced)
-content BYTEA NOT NULL                -- Binary encrypted content
-password_hash VARCHAR(60)             -- Bcrypt hash (if password-protected)
-expiration_time BIGINT NOT NULL       -- Unix timestamp
-created_at BIGINT NOT NULL
-accessed_at BIGINT
-access_count INTEGER DEFAULT 0
-one_time BOOLEAN DEFAULT FALSE
-is_expired BOOLEAN DEFAULT FALSE
+```javascript
+// Usage example
+const redis = require('./config/redis');
+if (redis.isConnected()) {
+    await redis.set(key, value, ttl);
+}
 ```
 
-**statistics table**:
-```sql
-total_clips BIGINT DEFAULT 0
-total_accesses BIGINT DEFAULT 0
-password_protected_clips BIGINT DEFAULT 0
-quick_share_clips BIGINT DEFAULT 0
-one_time_clips BIGINT DEFAULT 0
-normal_clips BIGINT DEFAULT 0
-last_updated BIGINT DEFAULT 0
+### File Upload System
+
+**Multi-part upload architecture**:
+1. **Initiate** (`/api/upload/initiate`) - Create upload session, store metadata
+2. **Chunk** (`/api/upload/chunk/:uploadId/:chunkNumber`) - Upload 5MB encrypted chunks
+3. **Complete** (`/api/upload/complete/:uploadId`) - Assemble chunks, verify integrity
+
+**Storage Paths:**
+- `RAILWAY_VOLUME_MOUNT_PATH/chunks/` - Temporary chunk storage
+- `RAILWAY_VOLUME_MOUNT_PATH/files/` - Assembled files
+- `RAILWAY_VOLUME_MOUNT_PATH/temp/` - Multer temporary processing
+
+**Key Services:**
+- `FileService.js` - File operations and streaming
+- `RefactoredFileUploadManager.js` - Upload orchestration
+- `FileAssemblyService.js` - Chunk assembly and verification
+- `UploadValidator.js` - Upload validation logic
+
+### Security Architecture
+
+**Defense in Depth:**
+
+1. **Client-Side Encryption** (public/index.html):
+   - AES-256-GCM encryption before transmission
+   - PBKDF2 key derivation (100k iterations)
+   - IV prepended to ciphertext
+   - URL secrets in fragment (never transmitted to server)
+
+2. **SQL Injection Prevention** (`server.js` + all services):
+   ```javascript
+   // ✅ ALWAYS use parameterized queries
+   await pool.query('SELECT * FROM clips WHERE clip_id = $1', [clipId]);
+
+   // ❌ NEVER do this
+   await pool.query(`SELECT * FROM clips WHERE clip_id = '${clipId}'`);
+   ```
+
+3. **Admin Authentication** (`server.js:47`, `server.js:2593-2680`):
+   - bcrypt hashing at server startup (cost 12)
+   - Global `adminTokenHash` variable
+   - `requireAdminAuth` middleware
+   - Constant-time comparison via bcrypt.compare()
+
+4. **Rate Limiting** (multiple layers):
+   - Global rate limiter
+   - Share endpoint limiter (5 req/min)
+   - File upload limiter (3 req/min)
+   - Admin limiter (20 req/15min)
+
+5. **Input Validation**:
+   - express-validator on all endpoints
+   - Whitelist validation for enums
+   - Content size limits (100KB text, 100MB files)
+
+### Automatic Maintenance
+
+**Cleanup Jobs** (configured in `server.js`):
+- Expired clips cleanup - every 5 minutes
+- Database statistics update - every 5 minutes
+- Old file cleanup - periodic removal of expired files
+
+**Database Migrations**: Automatically run on server startup via `initializeDatabase()` function.
+
+## Code Patterns and Conventions
+
+### Error Handling Pattern
+
+```javascript
+try {
+    const result = await pool.query('SELECT ...', [params]);
+    if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+} catch (error) {
+    console.error('❌ Error description:', error);
+    res.status(500).json({ error: 'Internal error', message: error.message });
+}
 ```
 
-**Connection Pool Optimization**:
-- Production: max 20, min 5 connections (reduced from 100 for 80% less memory)
-- Development: max 10, min 2 connections
-- `idleTimeoutMillis: 30000` - Close idle connections after 30s
-- `maxUses: 7500` - Recreate connection after 7500 queries (memory leak prevention)
+### Database Query Pattern
 
-### File Upload Architecture
+**Always use parameterized queries:**
+```javascript
+// For single value
+const result = await pool.query(
+    'SELECT * FROM clips WHERE clip_id = $1',
+    [clipId]
+);
 
-**Chunk Upload System** (for files up to 100MB):
-
-1. **Client-side**: File encrypted as whole → Split into 5MB chunks → Upload sequentially
-2. **Server-side**: Receive chunks via multer (6MB limit for overhead) → Store temporarily → Assemble → Validate
-
-**Critical Implementation Detail**:
-- Chunk size: 5MB (`CHUNK_SIZE = 5 * 1024 * 1024`)
-- Multer limit: 6MB (`CHUNK_SIZE + 1MB buffer`) to handle encryption overhead (IV + auth tag)
-- Storage path: `RAILWAY_VOLUME_MOUNT_PATH` or `./uploads` with subdirs: `chunks/`, `files/`, `temp/`
-
-**Upload Flow**:
-```
-POST /api/upload/initiate → uploadId generated
-POST /api/upload/chunk/:uploadId/:chunkNumber → chunk stored
-POST /api/upload/complete/:uploadId → assemble & validate
+// For multiple values
+const result = await pool.query(
+    'INSERT INTO clips (clip_id, content, expiration_time) VALUES ($1, $2, $3) RETURNING *',
+    [clipId, content, expirationTime]
+);
 ```
 
-### Client-Side Encryption Flow
+### Service Module Pattern
 
-**Enhanced Security Mode** (default):
-1. URL secret generated (16-char random) → never transmitted to server
-2. Combined secret = URL secret + password (if provided)
-3. AES-256-GCM encryption with PBKDF2-derived key (100k iterations)
-4. IV prepended to encrypted data (12 bytes)
-5. Share URL: `/clip/{clipId}#{urlSecret}` (fragment never sent to server)
+```javascript
+class ServiceName {
+    async methodName(param) {
+        try {
+            // Logic here
+            return result;
+        } catch (error) {
+            console.error('❌ Error:', error);
+            throw error; // Re-throw for caller to handle
+        }
+    }
+}
 
-**Quick Share Mode**:
-- 4-character clip IDs for fast sharing
-- 5-minute fixed expiration
-- Still encrypted but no URL secret
-- Simplified for non-sensitive content
-
-**Zero-Knowledge Guarantees**:
-- Server never sees plaintext content
-- Server never sees passwords (not even hashed)
-- Server never sees URL secrets
-- Deterministic IV derivation for password-protected clips
-
-## Testing Strategy
-
-### Test Organization
-```
-tests/
-├── unit/
-│   ├── services/         # Service unit tests (333 total test cases)
-│   └── middleware/       # Middleware tests
-├── integration/
-│   ├── api/             # API integration tests (15+ scenarios)
-│   └── chunk-upload-*.test.js  # 5 specialized chunk upload test files
-├── helpers/
-│   ├── setup.js         # Test environment configuration
-│   ├── database.js      # Database test utilities
-│   └── mocks.js         # Mock objects
-└── fixtures/
-    └── sample-data.js   # Test data fixtures
+module.exports = ServiceName;
+// or
+module.exports = new ServiceName(); // Singleton
 ```
 
-### Testing Best Practices
+### Validation Middleware Pattern
 
-**Unit Tests**:
-- Use Jest with mocks for external dependencies
-- Test services in isolation with dependency injection
-- Focus on business logic, not integration
-- Mock PostgreSQL pool and Redis client
+```javascript
+const validateInput = [
+    body('field').isString().trim().notEmpty(),
+    body('optional').optional().isInt(),
+    (req, res, next) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+        next();
+    }
+];
 
-**Integration Tests**:
-- Use real database connections (test schema)
-- Test service interactions and workflows
-- Validate end-to-end scenarios
-- Setup/teardown database state
+app.post('/endpoint', validateInput, async (req, res) => {
+    // Handler logic
+});
+```
 
-**Coverage Goals**:
-- Maintain >85% code coverage
-- 100% coverage for security-critical services (EncryptionService, AccessValidator)
-- All services should have corresponding test files
+## Testing Guidelines
 
-## Important Development Notes
+**Test Structure**: `tests/` directory organized by type:
+- `unit/` - Service and utility tests
+- `integration/` - API endpoint tests
+- `security/` - Security validation tests
+- `fixtures/` - Test data
+- `helpers/` - Test utilities and setup
+
+**Coverage Requirements** (jest.config.js):
+- Minimum 40% coverage for all metrics
+- Run `npm test:coverage` to generate HTML report in `coverage/`
+
+**Test Utilities**: `tests/helpers/setup.js` contains common test setup and mocks.
+
+## Important Notes
 
 ### Security Considerations
 
-**Never log or expose**:
-- Plaintext content
-- Passwords or access codes
-- URL secrets (fragment identifiers)
-- Decrypted file content
+1. **SQL Injection**: This is the #1 security priority. ALL database queries MUST use parameterized queries. See `SECURITY.md` and `tests/security/sql-injection.test.js`.
 
-**Always validate**:
-- Encryption parameters (IV length, algorithm)
-- File sizes and chunk counts before assembly
-- Access permissions before content retrieval
-- Expiration times before serving content
+2. **Admin Authentication**: The `adminTokenHash` global variable is set ONCE at server startup in `startServer()`. Never compare passwords in plaintext.
 
-**SQL Injection Prevention**:
-- **All queries use parameterized queries** with `$1, $2, etc.` placeholders
-- **Never concatenate user input** into SQL strings with `+` or template literals
-- **Express-validator** validates all user inputs before processing
-- **Whitelist validation** for enumerated types (statistics, expiration times)
-- **Input sanitizer** utility provides defense-in-depth monitoring (`utils/inputSanitizer.js`)
-- **Automated testing** verifies SQL injection protection (`tests/security/sql-injection.test.js`)
+3. **Client-Side Encryption**: True zero-knowledge only works through web interface. Direct API calls receive plaintext content (encrypted server-side).
 
-**Example of secure query**:
+4. **File Security**: Uploaded files are encrypted client-side. Server stores encrypted binary data. One-time files are deleted after download.
+
+### Performance Considerations
+
+1. **Connection Pooling**: Optimized for 20 concurrent connections in production. Don't increase without load testing.
+
+2. **Redis Caching**: Optional but recommended for production. Application gracefully degrades without Redis.
+
+3. **File Cleanup**: Automatic cleanup prevents storage exhaustion. Don't disable cleanup jobs.
+
+4. **Rate Limiting**: Prevents abuse. Adjust limits based on actual usage patterns.
+
+### Deployment Notes
+
+**Railway Platform**:
+- PostgreSQL plugin required
+- Volume mount for file storage (`RAILWAY_VOLUME_MOUNT_PATH`)
+- Redis plugin optional
+- Automatic deployments from main branch
+
+**Docker Support**: Multi-stage Dockerfile available for containerized deployments.
+
+**Health Checks**: Available at `/health`, `/api/health`, and `/ping` for monitoring.
+
+## Common Development Tasks
+
+### Adding a New API Endpoint
+
+1. Add route to `server.js` with appropriate rate limiter
+2. Add express-validator validation middleware
+3. Use parameterized queries for database access
+4. Add error handling with appropriate HTTP status codes
+5. Add integration test to `tests/integration/`
+6. Update API documentation in README.md
+
+### Adding a New Service
+
+1. Create service file in `services/` directory
+2. Follow class-based pattern with error handling
+3. Export as singleton or class
+4. Import in `server.js` or other services
+5. Add unit tests in `tests/unit/`
+
+### Database Schema Changes
+
+1. Write SQL migration in `scripts/database-migration.sql`
+2. Test migration locally
+3. Update `initializeDatabase()` in `server.js` if needed
+4. Run `npm run migrate` or restart server (auto-migrates)
+5. Update relevant documentation
+
+### Debugging
+
+**Enable verbose logging**:
 ```javascript
-// ✅ SECURE - Parameterized query
-await pool.query('SELECT * FROM clips WHERE clip_id = $1', [clipId]);
-
-// ❌ INSECURE - String concatenation (NEVER DO THIS)
-await pool.query(`SELECT * FROM clips WHERE clip_id = '${clipId}'`);
+// server.js already has extensive console.log statements
+// Look for emoji indicators:
+// ✅ Success operations
+// ❌ Error conditions
+// ⚠️ Warnings
+// 🔍 Debug information
+// 🧹 Cleanup operations
 ```
 
-### Performance Optimization
+**Database queries**: PostgreSQL logs can be enabled via environment variables.
 
-**Database**:
-- Use connection pooling (configured in server.js)
-- Run cleanup job every 5 minutes for expired clips
-- Index on `clip_id` for fast lookups
+**Redis debugging**: Check connection status with `redisManager.isConnected()`.
 
-**Redis** (optional):
-- Used for upload session caching
-- Centralized manager in `config/redis.js` prevents memory leaks
-- Graceful fallback to in-memory when unavailable
+## License
 
-**File Operations**:
-- Stream large files instead of loading into memory
-- Clean up temporary chunks after assembly
-- Use `fs-extra` for async filesystem operations
-
-### Railway Deployment
-
-**Required Environment Variables**:
-- `DATABASE_URL` - PostgreSQL connection string (auto-set by Railway)
-- `NODE_ENV=production`
-- `ADMIN_TOKEN` - For admin dashboard access
-- `RAILWAY_VOLUME_MOUNT_PATH` - Volume path for file storage
-
-**Volume Setup**:
-1. Add Volume plugin in Railway dashboard
-2. Mount at persistent path (e.g., `/var/lib/containers/railwayapp/bind-mounts/...`)
-3. Set `RAILWAY_VOLUME_MOUNT_PATH` environment variable
-4. Server automatically creates subdirectories: `chunks/`, `files/`, `temp/`
-
-**Automatic Startup Tasks**:
-- Database schema migration
-- Storage directory initialization
-- Connection pool configuration
-- Expired content cleanup job
-
-### Code Style
-
-**Services**:
-- Single Responsibility Principle - one concern per service
-- Dependency injection via constructor parameters
-- Async/await for all asynchronous operations
-- Comprehensive error handling with specific error types
-
-**Error Handling**:
-- Use try-catch blocks with specific error types
-- Log errors with context but never sensitive data
-- Return meaningful HTTP status codes (400, 404, 500)
-- Provide user-friendly error messages
-
-**Database Operations**:
-- Always use parameterized queries (`$1, $2`) to prevent SQL injection
-- Close database connections in finally blocks
-- Use transactions for multi-step operations
-- Handle connection pool errors gracefully
-
-## Admin Dashboard
-
-Access at `/admin.html` with admin token authentication.
-
-**Features**:
-- Real-time statistics
-- Database health monitoring
-- Recent clips overview
-- System performance metrics
-
-**Authentication**:
-- Token-based via `Authorization: Bearer {ADMIN_TOKEN}` header
-- No session management
-- Validate on each request
-
-## API Endpoints
-
-**Content Sharing**:
-- `POST /api/share` - Create encrypted content (text or file metadata)
-- `GET /api/clip/:clipId/info` - Get clip metadata (no decryption)
-- `GET /api/clip/:clipId` - Retrieve encrypted content
-
-**File Operations**:
-- `POST /api/upload/initiate` - Initialize chunked upload
-- `POST /api/upload/chunk/:uploadId/:chunkNumber` - Upload single chunk
-- `POST /api/upload/complete/:uploadId` - Complete and assemble file
-- `GET /api/file/:clipId` - Stream file content
-
-**Health Checks**:
-- `GET /health` - Application health
-- `GET /api/health` - API health with database check
-- `GET /ping` - Simple ping
-
-## Troubleshooting
-
-**Database Connection Issues**:
-- Check `DATABASE_URL` environment variable
-- Verify PostgreSQL is running and accessible
-- Check connection pool configuration in server.js
-- Review connection limits (20 max in production)
-
-**File Upload Failures**:
-- Verify storage directories exist and are writable
-- Check `RAILWAY_VOLUME_MOUNT_PATH` is set correctly
-- Ensure multer limit (6MB) exceeds chunk size (5MB)
-- Review disk space availability
-
-**Test Failures**:
-- Ensure PostgreSQL is running for integration tests
-- Check test database connection string
-- Clear test database between runs
-- Verify mock objects match service interfaces
-
-**Redis Connection**:
-- Redis is optional - app works without it
-- Check logs for "Using centralized Redis manager" vs "using in-memory cache"
-- Graceful degradation to in-memory sessions
-- Use `redisManager.connect()` for controlled initialization
+Dual-licensed: AGPL-3.0 for open source, Commercial license for proprietary use. Contact: qopy@lit.services
