@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   POSTGRES_VERSION: '15'
   REDIS_VERSION: '7'
 
