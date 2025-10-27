@@ -217,6 +217,23 @@ tests/
 - Access permissions before content retrieval
 - Expiration times before serving content
 
+**SQL Injection Prevention**:
+- **All queries use parameterized queries** with `$1, $2, etc.` placeholders
+- **Never concatenate user input** into SQL strings with `+` or template literals
+- **Express-validator** validates all user inputs before processing
+- **Whitelist validation** for enumerated types (statistics, expiration times)
+- **Input sanitizer** utility provides defense-in-depth monitoring (`utils/inputSanitizer.js`)
+- **Automated testing** verifies SQL injection protection (`tests/security/sql-injection.test.js`)
+
+**Example of secure query**:
+```javascript
+// ✅ SECURE - Parameterized query
+await pool.query('SELECT * FROM clips WHERE clip_id = $1', [clipId]);
+
+// ❌ INSECURE - String concatenation (NEVER DO THIS)
+await pool.query(`SELECT * FROM clips WHERE clip_id = '${clipId}'`);
+```
+
 ### Performance Optimization
 
 **Database**:
