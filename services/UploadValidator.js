@@ -8,22 +8,18 @@ class UploadValidator {
      * @returns {Object} - Parsed and validated upload data
      */
     static parseUploadRequest(requestBody) {
-        // Handle null/undefined request body
+        // Handle null/undefined request body - normalize to empty object
         if (!requestBody || typeof requestBody !== 'object') {
             console.error('❌ Invalid request body:', requestBody);
-            return {
-                quickShareSecret: undefined,
-                clientAccessCodeHash: undefined,
-                requiresAccessCode: false,
-                textContent: undefined,
-                isTextUpload: false,
-                contentType: 'file',
-                password: undefined,
-                urlSecret: undefined
-            };
+            requestBody = {};
         }
 
-        console.log('🔍 Request body:', JSON.stringify(requestBody, null, 2));
+        // Safe JSON.stringify with circular reference handling
+        try {
+            console.log('🔍 Request body:', JSON.stringify(requestBody, null, 2));
+        } catch (circularError) {
+            console.log('🔍 Request body: [Object with circular references]');
+        }
 
         let quickShareSecret, clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
         let password, urlSecret; // File upload system
@@ -31,10 +27,10 @@ class UploadValidator {
         try {
             // Try new text upload system first - check for isTextUpload or quickShareSecret too
             if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined ||
-                requestBody.isTextUpload || requestBody.quickShareSecret) {
+                requestBody.isTextUpload !== undefined || requestBody.quickShareSecret) {
                 console.log('🔍 Using NEW text upload system');
-                ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, 
-                   textContent, isTextUpload, contentType } = requestBody);
+                ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode,
+                   textContent, isTextUpload, contentType, password, urlSecret } = requestBody);
             } else {
                 console.log('🔍 Using OLD file upload system');
                 ({ password, urlSecret } = requestBody);
@@ -81,15 +77,16 @@ class UploadValidator {
         }
 
         // Normalize session structure - always ensure proper fields exist
-        if (!session.upload_id && session.id) session.upload_id = session.id;
-        if (session.quick_share === undefined) session.quick_share = false;
-        if (session.has_password === undefined) session.has_password = false;
-        if (session.one_time === undefined) session.one_time = false;
-        if (session.is_text_content === undefined) session.is_text_content = false;
-        if (!session.uploaded_chunks) session.uploaded_chunks = 0;
-        if (!session.total_chunks) session.total_chunks = 1;
-
+        // Wrap in try-catch to handle getters that throw
         try {
+            if (!session.upload_id && session.id) session.upload_id = session.id;
+            if (session.quick_share === undefined) session.quick_share = false;
+            if (session.has_password === undefined) session.has_password = false;
+            if (session.one_time === undefined) session.one_time = false;
+            if (session.is_text_content === undefined) session.is_text_content = false;
+            if (!session.uploaded_chunks) session.uploaded_chunks = 0;
+            if (!session.total_chunks) session.total_chunks = 1;
+
             console.log('🔑 Upload session details:', {
                 uploadId: session.upload_id,
                 quick_share: session.quick_share,
@@ -101,8 +98,12 @@ class UploadValidator {
             });
         } catch (error) {
             console.error('❌ Error logging session details:', error);
-            console.log('🔍 Session object keys:', Object.keys(session));
-            console.log('🔍 Session object values:', Object.values(session));
+            try {
+                console.log('🔍 Session object keys:', Object.keys(session));
+                console.log('🔍 Session object values:', Object.values(session));
+            } catch (nestedError) {
+                console.error('❌ Cannot access session properties:', nestedError);
+            }
         }
 
         // Ensure expiration_time is set (fallback to 24 hours if missing)
@@ -130,8 +131,8 @@ class UploadValidator {
             };
         }
 
-        const uploadedChunks = session.uploaded_chunks || 0;
-        const totalChunks = session.total_chunks || 1;
+        const uploadedChunks = session.uploaded_chunks ?? 0;
+        const totalChunks = session.total_chunks ?? 1;
         
         console.log('📝 Chunk check:', { uploadedChunks, totalChunks });
         

@@ -237,10 +237,10 @@ describe('UploadValidator', () => {
         expect(result).toMatchObject({
           quickShareSecret: undefined,
           clientAccessCodeHash: undefined,
-          requiresAccessCode: undefined,
+          requiresAccessCode: false,  // Changed: returns explicit false for safety
           textContent: undefined,
-          isTextUpload: undefined,
-          contentType: undefined,
+          isTextUpload: false,  // Changed: returns explicit false for safety
+          contentType: 'file',  // Changed: returns explicit 'file' for safety
           password: undefined,
           urlSecret: undefined
         });
@@ -253,10 +253,10 @@ describe('UploadValidator', () => {
         expect(result).toMatchObject({
           quickShareSecret: undefined,
           clientAccessCodeHash: undefined,
-          requiresAccessCode: undefined,
+          requiresAccessCode: false,  // Changed: returns explicit false for safety
           textContent: undefined,
-          isTextUpload: undefined,
-          contentType: undefined,
+          isTextUpload: false,  // Changed: returns explicit false for safety
+          contentType: 'file',  // Changed: returns explicit 'file' for safety
           password: undefined,
           urlSecret: undefined
         });
@@ -538,13 +538,13 @@ describe('UploadValidator', () => {
       }).toThrow('Upload session not found');
     });
 
-    test('should force session structure when logging fails', () => {
-      const brokenSession = {
-        // Missing required fields to trigger error handling
+    test('should normalize session structure with minimal data', () => {
+      const minimalSession = {
+        // Only id field provided
         id: 'fallback-id'
       };
 
-      const result = UploadValidator.validateSession(brokenSession);
+      const result = UploadValidator.validateSession(minimalSession);
 
       expect(result.upload_id).toBe('fallback-id');
       expect(result.quick_share).toBe(false);
@@ -553,7 +553,8 @@ describe('UploadValidator', () => {
       expect(result.is_text_content).toBe(false);
       expect(result.uploaded_chunks).toBe(0);
       expect(result.total_chunks).toBe(1);
-      expect(mockConsole.error).toHaveBeenCalledWith('❌ Error logging session details:', expect.any(Error));
+      // Should NOT error - this is handled gracefully
+      expect(mockConsole.error).not.toHaveBeenCalled();
     });
 
     test('should set default expiration time when missing', () => {
