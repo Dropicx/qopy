@@ -190,8 +190,8 @@ jobs:
         run: npm run test:integration
         env:
           NODE_ENV: test
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || secrets.DATABASE_URL }}
-          REDIS_URL: ${{ secrets.TEST_REDIS_URL || secrets.REDIS_URL }}
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
 
       - name: 📊 Generate test summary
         if: always()
@@ -234,8 +234,8 @@ jobs:
         run: npm run test:coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || secrets.DATABASE_URL }}
-          REDIS_URL: ${{ secrets.TEST_REDIS_URL || secrets.REDIS_URL }}
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
 
       - name: 📈 Check coverage thresholds
         run: |

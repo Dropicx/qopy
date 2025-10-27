@@ -166,7 +166,7 @@ jobs:
           fi
         env:
           NODE_ENV: test
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
 
       - name: 📊 Memory usage summary
         run: |
@@ -255,7 +255,7 @@ jobs:
           testPool();
           " 2>&1 | tee -a $GITHUB_STEP_SUMMARY
         env:
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
 
   # ==========================================
   # PERFORMANCE REPORT
