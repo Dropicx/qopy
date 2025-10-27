@@ -2962,9 +2962,9 @@ async function startServer() {
 
         // Code-Verwendung (session. Eigenschaften):
         const SESSION_PROPERTIES = [
-            'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type',
-            'chunk_size', 'total_chunks', 'uploaded_chunks', 'status', 
-            'expiration_time', 'has_password', 'one_time', 'quick_share', 
+            'id', 'upload_id', 'filename', 'original_filename', 'filesize', 'mime_type',
+            'chunk_size', 'total_chunks', 'uploaded_chunks', 'status',
+            'expiration_time', 'has_password', 'one_time', 'quick_share',
             'is_text_content', 'client_ip', 'created_at', 'last_activity', 'completed_at'
         ];
 
@@ -2993,16 +2993,16 @@ async function startServer() {
         // COLUMN ALIGNMENT: file_chunks
         // ========================================
         const CHUNKS_SCHEMA_COLUMNS = [
-            'id', 'upload_id', 'chunk_number', 'chunk_size', 
+            'upload_id', 'chunk_number', 'chunk_size',
             'storage_path', 'created_at'
         ];
 
         const CHUNKS_INSERT_COLUMNS = [
-            'upload_id', 'chunk_number', 'chunk_size', 'checksum', 'storage_path', 'created_at'
+            'upload_id', 'chunk_number', 'chunk_size', 'storage_path', 'created_at'
         ];
 
         const CHUNKS_SESSION_PROPERTIES = [
-            'upload_id', 'chunk_number', 'chunk_size', 'checksum', 'storage_path', 'created_at'
+            'upload_id', 'chunk_number', 'chunk_size', 'storage_path', 'created_at'
         ];
 
         const missingInChunksSchema = [...new Set([...CHUNKS_INSERT_COLUMNS, ...CHUNKS_SESSION_PROPERTIES])]
