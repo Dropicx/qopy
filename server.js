@@ -435,13 +435,13 @@ const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
         
-        // Explicitly block Chrome Extensions and other potentially malicious origins
-        if (origin.startsWith('chrome-extension://') || 
-            origin.startsWith('moz-extension://') || 
+        // Explicitly block Chrome Extensions and other potentially malicious origins (silently reject)
+        if (origin.startsWith('chrome-extension://') ||
+            origin.startsWith('moz-extension://') ||
             origin.startsWith('safari-extension://') ||
             origin.startsWith('ms-browser-extension://')) {
             console.warn(`🚫 BLOCKED: Browser extension origin: ${origin}`);
-            return callback(new Error('Browser extensions are not allowed'));
+            return callback(null, false); // Reject but don't crash with error
         }
         
         const allowedOrigins = [];
@@ -2936,7 +2936,7 @@ async function startServer() {
         await initializeStorage();
 
         // ========================================
-        // SPALTENABGLEICHUNG: upload_sessions
+        // COLUMN ALIGNMENT: upload_sessions
         // ========================================
         // Schema-Definition (CREATE TABLE):
         const SCHEMA_COLUMNS = [
@@ -2968,15 +2968,15 @@ async function startServer() {
             'is_text_content', 'client_ip', 'created_at', 'last_activity', 'completed_at'
         ];
 
-        // Prüfe auf fehlende Spalten im Schema
+        // Check for missing columns in schema
         const missingInSchema = [...new Set([...INSERT_COLUMNS_1, ...INSERT_COLUMNS_2, ...SESSION_PROPERTIES])]
             .filter(col => !SCHEMA_COLUMNS.includes(col));
         
         if (missingInSchema.length > 0) {
-            console.warn(`⚠️ Fehlende Spalten im Schema: ${missingInSchema.join(', ')}`);
+            console.warn(`⚠️ Missing columns in schema: ${missingInSchema.join(', ')}`);
         }
 
-        // Prüfe auf ungenutzte Spalten im Schema
+        // Check for unused columns in schema
         const unusedInSchema = SCHEMA_COLUMNS.filter(col => 
             !INSERT_COLUMNS_1.includes(col) && 
             !INSERT_COLUMNS_2.includes(col) && 
@@ -2984,13 +2984,13 @@ async function startServer() {
         );
         
         if (unusedInSchema.length > 0) {
-            console.warn(`⚠️ Ungenutzte Spalten im Schema: ${unusedInSchema.join(', ')}`);
+            console.warn(`⚠️ Unused columns in schema: ${unusedInSchema.join(', ')}`);
         }
 
-        console.log('✅ Spaltenabgleichung upload_sessions abgeschlossen');
+        console.log('✅ Column alignment upload_sessions completed');
 
         // ========================================
-        // SPALTENABGLEICHUNG: file_chunks
+        // COLUMN ALIGNMENT: file_chunks
         // ========================================
         const CHUNKS_SCHEMA_COLUMNS = [
             'id', 'upload_id', 'chunk_number', 'chunk_size', 
@@ -3009,23 +3009,23 @@ async function startServer() {
             .filter(col => !CHUNKS_SCHEMA_COLUMNS.includes(col));
         
         if (missingInChunksSchema.length > 0) {
-            console.warn(`⚠️ Fehlende Spalten im file_chunks Schema: ${missingInChunksSchema.join(', ')}`);
+            console.warn(`⚠️ Missing columns in file_chunks schema: ${missingInChunksSchema.join(', ')}`);
         }
 
-        // Prüfe auf ungenutzte Spalten im Schema
+        // Check for unused columns in schema
         const unusedInChunksSchema = CHUNKS_SCHEMA_COLUMNS.filter(col => 
             !CHUNKS_INSERT_COLUMNS.includes(col) && 
             !CHUNKS_SESSION_PROPERTIES.includes(col)
         );
         
         if (unusedInChunksSchema.length > 0) {
-            console.warn(`⚠️ Ungenutzte Spalten im file_chunks Schema: ${unusedInChunksSchema.join(', ')}`);
+            console.warn(`⚠️ Unused columns in file_chunks schema: ${unusedInChunksSchema.join(', ')}`);
         }
 
-        console.log('✅ Spaltenabgleichung file_chunks abgeschlossen');
+        console.log('✅ Column alignment file_chunks completed');
 
         // ========================================
-        // SPALTENABGLEICHUNG: clips
+        // COLUMN ALIGNMENT: clips
         // ========================================
         const CLIPS_SCHEMA_COLUMNS = [
             'id', 'clip_id', 'password_hash', 'one_time', 'quick_share', 
@@ -3044,10 +3044,10 @@ async function startServer() {
         const missingInClipsSchema = CLIPS_INSERT_COLUMNS.filter(col => !CLIPS_SCHEMA_COLUMNS.includes(col));
         
         if (missingInClipsSchema.length > 0) {
-            console.warn(`⚠️ Fehlende Spalten im clips Schema: ${missingInClipsSchema.join(', ')}`);
+            console.warn(`⚠️ Missing columns in clips schema: ${missingInClipsSchema.join(', ')}`);
         }
 
-        console.log('✅ Spaltenabgleichung clips abgeschlossen');
+        console.log('✅ Column alignment clips completed');
         
         // Create statistics table if it doesn't exist
         await client.query(`
