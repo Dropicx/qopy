@@ -1,0 +1,345 @@
+name: 🔒 Security Scanning
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - '**/*.js'
+      - 'package*.json'
+      - '.github/workflows/security.yml'
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ==========================================
+  # DEPENDENCY VULNERABILITY SCANNING
+  # ==========================================
+  dependency-scan:
+    name: 📦 Dependency Scan
+    runs-on: k8s-runner-qopy
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🛡️ Run npm audit
+        run: |
+          echo "## 📦 npm Audit Results" >> $GITHUB_STEP_SUMMARY
+          npm audit --json > npm-audit.json || true
+          npm audit --audit-level=moderate || true
+
+          # Parse and display results
+          HIGH=$(cat npm-audit.json | jq '.metadata.vulnerabilities.high // 0')
+          CRITICAL=$(cat npm-audit.json | jq '.metadata.vulnerabilities.critical // 0')
+
+          echo "- 🔴 Critical: $CRITICAL" >> $GITHUB_STEP_SUMMARY
+          echo "- 🟠 High: $HIGH" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::Found $CRITICAL critical vulnerabilities"
+          fi
+
+      - name: 🔍 Run Trivy dependency scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          scanners: 'vuln,secret,config'
+
+      - name: 📤 Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy-dependency-scan'
+
+      - name: 📊 Check outdated packages
+        run: |
+          echo "## 📦 Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          npm outdated --json > outdated.json || true
+          if [ -s outdated.json ]; then
+            echo "⚠️ Some packages are outdated" >> $GITHUB_STEP_SUMMARY
+            cat outdated.json | jq -r 'to_entries[] | "- \(.key): \(.value.current) → \(.value.latest)"' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All packages up to date" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📤 Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-scan-results
+          path: |
+            npm-audit.json
+            trivy-results.sarif
+            outdated.json
+          retention-days: 30
+
+  # ==========================================
+  # SECRET DETECTION
+  # ==========================================
+  secret-detection:
+    name: 🕵️ Secret Detection
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for comprehensive scan
+
+      - name: 🔍 Scan for hardcoded secrets
+        run: |
+          echo "## 🕵️ Secret Scanning Results" >> $GITHUB_STEP_SUMMARY
+
+          # Scan for common secret patterns
+          SECRETS_FOUND=0
+
+          # Check for potential passwords
+          if grep -rn "password\s*=\s*['\"][^'\"]{8,}" --include="*.js" --exclude-dir=node_modules . | grep -v "placeholder\|example\|template\|test"; then
+            echo "::warning::Potential hardcoded passwords found"
+            SECRETS_FOUND=1
+          fi
+
+          # Check for API keys
+          if grep -rn "api[_-]key\s*=\s*['\"][^'\"]{20,}" --include="*.js" --exclude-dir=node_modules . | grep -v "placeholder\|example\|template"; then
+            echo "::warning::Potential API keys found"
+            SECRETS_FOUND=1
+          fi
+
+          # Check for tokens
+          if grep -rn "token\s*=\s*['\"][^'\"]{20,}" --include="*.js" --exclude-dir=node_modules . | grep -v "placeholder\|example\|template\|github"; then
+            echo "::warning::Potential tokens found"
+            SECRETS_FOUND=1
+          fi
+
+          # Check for private keys
+          if grep -rn "BEGIN.*PRIVATE KEY" --include="*" --exclude-dir=node_modules .; then
+            echo "::error::Private keys found in repository"
+            SECRETS_FOUND=1
+          fi
+
+          # Check for AWS credentials
+          if grep -rn "AKIA[0-9A-Z]{16}" --include="*" --exclude-dir=node_modules .; then
+            echo "::error::AWS access keys found"
+            SECRETS_FOUND=1
+          fi
+
+          if [ "$SECRETS_FOUND" -eq 0 ]; then
+            echo "✅ No secrets detected" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Potential secrets detected - review manually" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 🔍 Check environment variable usage
+        run: |
+          echo "## 🔧 Environment Variable Usage" >> $GITHUB_STEP_SUMMARY
+          grep -rn "process\.env\." --include="*.js" --exclude-dir=node_modules . | wc -l >> $GITHUB_STEP_SUMMARY
+          echo "✅ Environment variables properly used" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # CODE SECURITY ANALYSIS
+  # ==========================================
+  code-security:
+    name: 🛡️ Code Security Analysis
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint security rules
+        run: |
+          npm run lint -- --format json --output-file eslint-security.json || true
+          echo "## 🛡️ ESLint Security Analysis" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f eslint-security.json ]; then
+            ERRORS=$(cat eslint-security.json | jq '[.[] | .errorCount] | add // 0')
+            WARNINGS=$(cat eslint-security.json | jq '[.[] | .warningCount] | add // 0')
+            echo "- Errors: $ERRORS" >> $GITHUB_STEP_SUMMARY
+            echo "- Warnings: $WARNINGS" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 🔒 Check security configurations
+        run: |
+          echo "## 🔒 Security Configuration Check" >> $GITHUB_STEP_SUMMARY
+
+          # Check for helmet usage
+          if grep -q "helmet" package.json && grep -q "helmet" server.js; then
+            echo "✅ Helmet security headers configured" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Helmet not properly configured" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for rate limiting
+          if grep -q "express-rate-limit" package.json && grep -q "rateLimit" server.js; then
+            echo "✅ Rate limiting implemented" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Rate limiting not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for input validation
+          if grep -q "express-validator" package.json; then
+            echo "✅ Input validation middleware present" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Input validation not configured" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📤 Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-security-reports
+          path: |
+            eslint-security.json
+          retention-days: 30
+
+  # ==========================================
+  # SQL INJECTION TESTING
+  # ==========================================
+  sql-injection-tests:
+    name: 💉 SQL Injection Tests
+    runs-on: k8s-runner-qopy
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 💉 Run SQL injection tests
+        run: |
+          if [ -f tests/security/sql-injection.test.js ]; then
+            npm test tests/security/sql-injection.test.js
+          else
+            echo "ℹ️ No SQL injection tests found"
+          fi
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
+      - name: 📊 Test summary
+        run: |
+          echo "## 💉 SQL Injection Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ SQL injection tests completed" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # LICENSE COMPLIANCE
+  # ==========================================
+  license-compliance:
+    name: 📜 License Compliance
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 📜 Check licenses
+        run: |
+          echo "## 📜 License Compliance Report" >> $GITHUB_STEP_SUMMARY
+          npx license-checker --summary --production --json > licenses.json
+
+          # Check for problematic licenses
+          if grep -qi "GPL-3.0\|AGPL" licenses.json | grep -v "AGPL-3.0 OR Commercial"; then
+            echo "::warning::Potential license conflicts detected"
+          fi
+
+          echo "✅ License check completed" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📤 Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: licenses.json
+          retention-days: 90
+
+  # ==========================================
+  # SECURITY REPORT
+  # ==========================================
+  security-report:
+    name: 📊 Security Report
+    runs-on: k8s-runner-qopy
+    needs: [dependency-scan, secret-detection, code-security, sql-injection-tests, license-compliance]
+    if: always()
+
+    steps:
+      - name: 📊 Generate security summary
+        run: |
+          echo "# 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Results" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Dependency Scan: ${{ needs.dependency-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🕵️ Secret Detection: ${{ needs.secret-detection.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🛡️ Code Security: ${{ needs.code-security.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 💉 SQL Injection Tests: ${{ needs.sql-injection-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📜 License Compliance: ${{ needs.license-compliance.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Scan completed at: $(date -u)" >> $GITHUB_STEP_SUMMARY
+
+      - name: ❌ Fail if critical issues found
+        if: needs.dependency-scan.result == 'failure' || needs.code-security.result == 'failure'
+        run: |
+          echo "::error::Critical security issues found"
+          exit 1

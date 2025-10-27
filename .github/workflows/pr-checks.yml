@@ -1,0 +1,361 @@
+name: 🔍 PR Quality Gates
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ==========================================
+  # PR VALIDATION
+  # ==========================================
+  pr-validation:
+    name: ✅ PR Validation
+    runs-on: k8s-runner-qopy
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for comparison
+
+      - name: 📝 Check PR title format
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if [[ ! "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?:\ .+ ]]; then
+            echo "::error::PR title must follow Conventional Commits format"
+            echo "Examples: 'feat: add new feature', 'fix(auth): resolve login issue'"
+            exit 1
+          fi
+          echo "✅ PR title follows Conventional Commits format"
+
+      - name: 📏 Check PR size
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | wc -l)
+          CHANGED_LINES=$(git diff --stat origin/${{ github.base_ref }}...HEAD | tail -1 | awk '{print $4+$6}')
+
+          echo "Changed files: $CHANGED_FILES"
+          echo "Changed lines: $CHANGED_LINES"
+
+          if [ "$CHANGED_FILES" -gt 50 ] || [ "$CHANGED_LINES" -gt 1000 ]; then
+            echo "::warning::Large PR detected. Consider breaking into smaller PRs."
+            echo "- Files changed: $CHANGED_FILES (recommended: <50)"
+            echo "- Lines changed: $CHANGED_LINES (recommended: <1000)"
+          fi
+
+      - name: 🏷️ Auto-label PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const labels = [];
+
+            // Label by type from title
+            const title = pr.title.toLowerCase();
+            if (title.startsWith('feat')) labels.push('feature');
+            if (title.startsWith('fix')) labels.push('bug');
+            if (title.startsWith('docs')) labels.push('documentation');
+            if (title.startsWith('perf')) labels.push('performance');
+            if (title.startsWith('refactor')) labels.push('refactoring');
+            if (title.startsWith('test')) labels.push('testing');
+            if (title.startsWith('ci')) labels.push('ci-cd');
+
+            // Label by files changed
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+
+            const fileTypes = files.map(f => f.filename);
+            if (fileTypes.some(f => f.includes('.github/workflows'))) labels.push('ci-cd');
+            if (fileTypes.some(f => f.includes('test') || f.includes('.test.'))) labels.push('testing');
+            if (fileTypes.some(f => f.endsWith('.md'))) labels.push('documentation');
+            if (fileTypes.some(f => f.includes('security') || f.includes('SECURITY'))) labels.push('security');
+
+            // Apply labels
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: [...new Set(labels)]
+              });
+            }
+
+  # ==========================================
+  # QUICK QUALITY CHECKS
+  # ==========================================
+  quick-checks:
+    name: ⚡ Quick Checks
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Quick lint check
+        run: npm run lint || echo "::warning::Linting issues found"
+
+      - name: 💅 Quick format check
+        run: npm run format:check || echo "::warning::Formatting issues found"
+
+      - name: 🧪 Quick test
+        run: npm run test:unit -- --bail --maxWorkers=2
+        env:
+          NODE_ENV: test
+
+  # ==========================================
+  # TEST COVERAGE DIFF
+  # ==========================================
+  coverage-diff:
+    name: 📊 Coverage Diff
+    runs-on: k8s-runner-qopy
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: 📥 Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 📊 Generate PR coverage
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
+      - name: 💾 Save PR coverage
+        run: |
+          mkdir -p pr-coverage
+          cp coverage/coverage-summary.json pr-coverage/
+
+      - name: 📥 Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+
+      - name: 📦 Install base dependencies
+        run: npm ci
+
+      - name: 📊 Generate base coverage
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
+      - name: 📈 Compare coverage
+        run: |
+          BASE_COV=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          PR_COV=$(cat pr-coverage/coverage-summary.json | jq '.total.lines.pct')
+          DIFF=$(echo "$PR_COV - $BASE_COV" | bc)
+
+          echo "Base coverage: $BASE_COV%"
+          echo "PR coverage: $PR_COV%"
+          echo "Difference: $DIFF%"
+
+          if (( $(echo "$DIFF < -1" | bc -l) )); then
+            echo "::error::Coverage decreased by more than 1%"
+            exit 1
+          fi
+
+      - name: 💬 Comment coverage on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const prCov = JSON.parse(fs.readFileSync('pr-coverage/coverage-summary.json', 'utf8'));
+            const baseCov = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+
+            const formatCov = (cov) => ({
+              lines: cov.total.lines.pct.toFixed(2),
+              statements: cov.total.statements.pct.toFixed(2),
+              functions: cov.total.functions.pct.toFixed(2),
+              branches: cov.total.branches.pct.toFixed(2)
+            });
+
+            const pr = formatCov(prCov);
+            const base = formatCov(baseCov);
+
+            const diff = {
+              lines: (pr.lines - base.lines).toFixed(2),
+              statements: (pr.statements - base.statements).toFixed(2),
+              functions: (pr.functions - base.functions).toFixed(2),
+              branches: (pr.branches - base.branches).toFixed(2)
+            };
+
+            const formatDiff = (val) => {
+              const num = parseFloat(val);
+              if (num > 0) return `+${val}% 📈`;
+              if (num < 0) return `${val}% 📉`;
+              return `${val}%`;
+            };
+
+            const comment = `## 📊 Test Coverage Report
+
+            | Metric | Base | PR | Diff |
+            |--------|------|-----|------|
+            | Lines | ${base.lines}% | ${pr.lines}% | ${formatDiff(diff.lines)} |
+            | Statements | ${base.statements}% | ${pr.statements}% | ${formatDiff(diff.statements)} |
+            | Functions | ${base.functions}% | ${pr.functions}% | ${formatDiff(diff.functions)} |
+            | Branches | ${base.branches}% | ${pr.branches}% | ${formatDiff(diff.branches)} |
+
+            ${parseFloat(diff.lines) < -1 ? '⚠️ **Warning**: Coverage decreased by more than 1%' : ''}
+            ${parseFloat(diff.lines) > 1 ? '✨ **Great job**: Coverage increased!' : ''}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # ==========================================
+  # SECURITY QUICK SCAN
+  # ==========================================
+  security-quick-scan:
+    name: 🔒 Security Quick Scan
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🛡️ Quick npm audit
+        run: |
+          npm audit --audit-level=high --json > audit-results.json || true
+          HIGH=$(cat audit-results.json | jq '.metadata.vulnerabilities.high // 0')
+          CRITICAL=$(cat audit-results.json | jq '.metadata.vulnerabilities.critical // 0')
+
+          if [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::Found $CRITICAL critical and $HIGH high vulnerabilities"
+            npm audit --audit-level=high
+            exit 1
+          fi
+
+      - name: 🕵️ Check for secrets
+        run: |
+          if git diff origin/${{ github.base_ref }}...HEAD | grep -iE "(password|secret|key|token)\s*=\s*['\"][^'\"]{8,}"; then
+            echo "::error::Potential secrets detected in diff"
+            exit 1
+          fi
+
+  # ==========================================
+  # PR SUMMARY
+  # ==========================================
+  pr-summary:
+    name: 📋 PR Summary
+    runs-on: k8s-runner-qopy
+    needs: [pr-validation, quick-checks, coverage-diff, security-quick-scan]
+    if: always()
+
+    steps:
+      - name: 📊 Generate PR summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = [
+              { name: 'PR Validation', status: '${{ needs.pr-validation.result }}' },
+              { name: 'Quick Checks', status: '${{ needs.quick-checks.result }}' },
+              { name: 'Coverage Diff', status: '${{ needs.coverage-diff.result }}' },
+              { name: 'Security Scan', status: '${{ needs.security-quick-scan.result }}' }
+            ];
+
+            const statusEmoji = (status) => {
+              if (status === 'success') return '✅';
+              if (status === 'failure') return '❌';
+              if (status === 'skipped') return '⏭️';
+              return '⚠️';
+            };
+
+            let allPassed = jobs.every(j => j.status === 'success');
+
+            const comment = `## 🔍 PR Quality Gates ${allPassed ? '✅' : '❌'}
+
+            ${jobs.map(j => `${statusEmoji(j.status)} **${j.name}**: ${j.status}`).join('\n')}
+
+            ${allPassed ? '✨ All quality gates passed! This PR is ready for review.' : '⚠️ Some quality gates failed. Please review the errors above.'}
+
+            ---
+            <sub>Automated by k8s-runner | [View full pipeline](${context.payload.pull_request.html_url}/checks)</sub>
+            `;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const botComment = comments.find(c => c.body.includes('PR Quality Gates'));
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+      - name: ❌ Fail if quality gates failed
+        if: needs.pr-validation.result == 'failure' || needs.quick-checks.result == 'failure' || needs.coverage-diff.result == 'failure' || needs.security-quick-scan.result == 'failure'
+        run: |
+          echo "::error::One or more quality gates failed"
+          exit 1

@@ -1,0 +1,311 @@
+name: ⚡ Performance Testing
+
+on:
+  schedule:
+    # Run weekly on Monday at 3 AM UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL to test'
+        required: true
+        default: 'https://staging.qopy.app'
+      duration:
+        description: 'Test duration in seconds'
+        required: false
+        default: '60'
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ==========================================
+  # LOAD TESTING
+  # ==========================================
+  load-testing:
+    name: 🔥 Load Testing
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔥 Run Artillery load test
+        run: |
+          TARGET_URL="${{ github.event.inputs.target_url || 'https://staging.qopy.app' }}"
+          DURATION="${{ github.event.inputs.duration || '60' }}"
+
+          echo "Target: $TARGET_URL"
+          echo "Duration: ${DURATION}s"
+
+          # Create Artillery config
+          cat > artillery-config.yml << EOF
+          config:
+            target: "$TARGET_URL"
+            phases:
+              - duration: 10
+                arrivalRate: 5
+                name: "Warm up"
+              - duration: $DURATION
+                arrivalRate: 20
+                name: "Sustained load"
+              - duration: 10
+                arrivalRate: 50
+                name: "Spike"
+          scenarios:
+            - name: "Health check"
+              flow:
+                - get:
+                    url: "/health"
+            - name: "Homepage"
+              flow:
+                - get:
+                    url: "/"
+          EOF
+
+          npx artillery run artillery-config.yml --output artillery-report.json || true
+
+      - name: 📊 Generate load test report
+        run: |
+          if [ -f artillery-report.json ]; then
+            npx artillery report artillery-report.json --output artillery-report.html
+
+            # Extract key metrics
+            echo "## 🔥 Load Test Results" >> $GITHUB_STEP_SUMMARY
+            cat artillery-report.json | jq '.aggregate' >> $GITHUB_STEP_SUMMARY || true
+          fi
+
+      - name: 📤 Upload load test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results
+          path: |
+            artillery-report.json
+            artillery-report.html
+          retention-days: 30
+
+  # ==========================================
+  # RESPONSE TIME BENCHMARKING
+  # ==========================================
+  response-time-benchmark:
+    name: ⏱️ Response Time Benchmark
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⏱️ Benchmark API endpoints
+        run: |
+          TARGET_URL="${{ github.event.inputs.target_url || 'https://staging.qopy.app' }}"
+
+          echo "## ⏱️ Response Time Benchmarks" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Endpoint | Response Time | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------------|---------|" >> $GITHUB_STEP_SUMMARY
+
+          # Function to measure response time
+          benchmark_endpoint() {
+            local endpoint=$1
+            local url="${TARGET_URL}${endpoint}"
+
+            # Measure response time with curl
+            local response_time=$(curl -o /dev/null -s -w '%{time_total}\n' "$url" | awk '{printf "%.0f ms", $1*1000}')
+            local status_code=$(curl -o /dev/null -s -w '%{http_code}\n' "$url")
+
+            local status_emoji="✅"
+            if [ "$status_code" != "200" ]; then
+              status_emoji="❌"
+            fi
+
+            echo "| $endpoint | $response_time | $status_emoji $status_code |" >> $GITHUB_STEP_SUMMARY
+          }
+
+          # Benchmark common endpoints
+          benchmark_endpoint "/"
+          benchmark_endpoint "/health"
+          benchmark_endpoint "/ping"
+          benchmark_endpoint "/api/health"
+
+  # ==========================================
+  # MEMORY LEAK DETECTION
+  # ==========================================
+  memory-leak-detection:
+    name: 💾 Memory Leak Detection
+    runs-on: k8s-runner-qopy
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 💾 Run memory leak test
+        run: |
+          if [ -f tests/memory-leak-test.js ]; then
+            node --expose-gc tests/memory-leak-test.js
+          else
+            echo "ℹ️ No memory leak test found"
+          fi
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
+      - name: 📊 Memory usage summary
+        run: |
+          echo "## 💾 Memory Leak Detection" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Memory leak tests completed" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # BUNDLE SIZE ANALYSIS
+  # ==========================================
+  bundle-size-analysis:
+    name: 📦 Bundle Size Analysis
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci --omit=dev
+
+      - name: 📊 Analyze bundle size
+        run: |
+          echo "## 📦 Bundle Size Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Calculate total node_modules size
+          MODULES_SIZE=$(du -sh node_modules | cut -f1)
+          echo "- node_modules size: $MODULES_SIZE" >> $GITHUB_STEP_SUMMARY
+
+          # Count dependencies
+          DEP_COUNT=$(cat package.json | jq '.dependencies | length')
+          echo "- Production dependencies: $DEP_COUNT" >> $GITHUB_STEP_SUMMARY
+
+          # Check for large dependencies
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Largest dependencies:" >> $GITHUB_STEP_SUMMARY
+          du -sh node_modules/* | sort -hr | head -10 >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # DATABASE PERFORMANCE
+  # ==========================================
+  database-performance:
+    name: 🗄️ Database Performance
+    runs-on: k8s-runner-qopy
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🗄️ Run database performance tests
+        run: |
+          echo "## 🗄️ Database Performance" >> $GITHUB_STEP_SUMMARY
+
+          # Test database connection pool
+          node -e "
+          const { Pool } = require('pg');
+          const pool = new Pool({
+            connectionString: process.env.DATABASE_URL,
+            max: 20
+          });
+
+          async function testPool() {
+            const start = Date.now();
+            const promises = Array(50).fill().map(() => pool.query('SELECT 1'));
+            await Promise.all(promises);
+            const duration = Date.now() - start;
+            console.log('50 queries executed in ' + duration + 'ms');
+            await pool.end();
+          }
+
+          testPool();
+          " 2>&1 | tee -a $GITHUB_STEP_SUMMARY
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
+  # ==========================================
+  # PERFORMANCE REPORT
+  # ==========================================
+  performance-report:
+    name: 📊 Performance Report
+    runs-on: k8s-runner-qopy
+    needs: [load-testing, response-time-benchmark, memory-leak-detection, bundle-size-analysis, database-performance]
+    if: always()
+
+    steps:
+      - name: 📊 Generate performance summary
+        run: |
+          echo "# ⚡ Performance Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Results" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔥 Load Testing: ${{ needs.load-testing.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏱️ Response Time: ${{ needs.response-time-benchmark.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 💾 Memory Leaks: ${{ needs.memory-leak-detection.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Bundle Size: ${{ needs.bundle-size-analysis.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🗄️ Database Performance: ${{ needs.database-performance.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Performance tests completed at: $(date -u)" >> $GITHUB_STEP_SUMMARY

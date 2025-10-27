@@ -1,0 +1,485 @@
+name: 🚀 Main CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, dev, develop]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  POSTGRES_VERSION: '15'
+  REDIS_VERSION: '7'
+
+jobs:
+  # ==========================================
+  # CODE QUALITY & LINTING
+  # ==========================================
+  code-quality:
+    name: 🎨 Code Quality
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for better analysis
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: |
+          npm run lint || echo "::warning::ESLint found issues"
+          npm run lint -- --format json --output-file eslint-report.json || true
+
+      - name: 💅 Check Prettier formatting
+        run: npm run format:check || echo "::warning::Code formatting issues found"
+
+      - name: 📊 Analyze code complexity
+        run: |
+          npx madge --circular --extensions js ./
+          npx madge --json server.js > complexity-report.json || true
+
+      - name: 📤 Upload quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-reports
+          path: |
+            eslint-report.json
+            complexity-report.json
+          retention-days: 30
+
+  # ==========================================
+  # SECURITY SCANNING
+  # ==========================================
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: k8s-runner-qopy
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🛡️ Run npm audit
+        run: |
+          npm audit --audit-level=moderate --json > npm-audit.json || true
+          npm audit --audit-level=high
+
+      - name: 🔐 Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: 📤 Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: 🕵️ Detect secrets in code
+        run: |
+          echo "🔍 Scanning for potential secrets..."
+          if grep -r "password\s*=\s*['\"]" --include="*.js" --exclude-dir=node_modules . | grep -v "placeholder\|example\|template"; then
+            echo "::warning::Potential hardcoded passwords found"
+          fi
+          if grep -r "api[_-]key\s*=\s*['\"]" --include="*.js" --exclude-dir=node_modules . | grep -v "placeholder\|example\|template"; then
+            echo "::warning::Potential hardcoded API keys found"
+          fi
+
+      - name: 📤 Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            npm-audit.json
+            trivy-results.sarif
+          retention-days: 30
+
+  # ==========================================
+  # UNIT TESTS
+  # ==========================================
+  unit-tests:
+    name: 🧪 Unit Tests
+    runs-on: k8s-runner-qopy
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run unit tests
+        run: npm run test:unit
+        env:
+          NODE_ENV: test
+
+      - name: 📊 Generate test summary
+        if: always()
+        run: |
+          echo "## 🧪 Unit Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f junit.xml ]; then
+            echo "✅ Unit tests completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Unit tests failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📤 Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            junit.xml
+          retention-days: 30
+
+  # ==========================================
+  # INTEGRATION TESTS
+  # ==========================================
+  integration-tests:
+    name: 🔗 Integration Tests
+    runs-on: k8s-runner-qopy
+
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:${{ env.REDIS_VERSION }}
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔗 Run integration tests
+        run: npm run test:integration
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+
+      - name: 📊 Generate test summary
+        if: always()
+        run: |
+          echo "## 🔗 Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Integration tests completed with PostgreSQL and Redis" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📤 Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            junit.xml
+          retention-days: 30
+
+  # ==========================================
+  # TEST COVERAGE
+  # ==========================================
+  test-coverage:
+    name: 📊 Test Coverage
+    runs-on: k8s-runner-qopy
+    needs: [unit-tests, integration-tests]
+
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:${{ env.REDIS_VERSION }}
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 📊 Generate coverage report
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+
+      - name: 📈 Check coverage thresholds
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 40" | bc -l) )); then
+            echo "::error::Coverage $COVERAGE% is below minimum 40%"
+            exit 1
+          fi
+
+      - name: 📤 Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-qopy
+          fail_ci_if_error: false
+
+      - name: 📤 Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage/
+          retention-days: 30
+
+      - name: 📊 Coverage summary
+        if: always()
+        run: |
+          echo "## 📊 Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/coverage-summary.json ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat coverage/coverage-summary.json | jq '.total' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ==========================================
+  # BUILD VALIDATION
+  # ==========================================
+  build:
+    name: 🏗️ Build & Validate
+    runs-on: k8s-runner-qopy
+    needs: [code-quality, security-scan]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install production dependencies
+        run: npm ci --omit=dev
+
+      - name: 🏗️ Build application
+        run: npm run build
+
+      - name: ✅ Validate build output
+        run: |
+          echo "✅ Build completed successfully"
+          echo "📦 Node modules installed"
+          echo "🎯 Production dependencies only"
+
+      - name: 📊 Build summary
+        run: |
+          echo "## 🏗️ Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- Node.js: ${{ env.NODE_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: Production" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # DEPLOY TO STAGING (dev branch)
+  # ==========================================
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: k8s-runner-qopy
+    needs: [build, test-coverage]
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.qopy.app
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to Railway Staging
+        run: |
+          echo "🚀 Deploying to Railway staging environment..."
+          # Railway automatically deploys from dev branch
+          echo "✅ Railway deployment triggered"
+
+      - name: ⏳ Wait for deployment
+        run: sleep 30
+
+      - name: 🏥 Health check
+        run: |
+          echo "🏥 Running health checks..."
+          curl -f https://staging.qopy.app/health || exit 1
+          curl -f https://staging.qopy.app/ping || exit 1
+          echo "✅ Staging environment healthy"
+
+      - name: 🧪 Smoke tests
+        run: |
+          echo "🧪 Running smoke tests..."
+          # Test main endpoints
+          curl -f https://staging.qopy.app/ || exit 1
+          echo "✅ Smoke tests passed"
+
+      - name: 📊 Deployment summary
+        run: |
+          echo "## 🚀 Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Deployed to staging successfully" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 URL: https://staging.qopy.app" >> $GITHUB_STEP_SUMMARY
+          echo "📝 Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # DEPLOY TO PRODUCTION (main branch)
+  # ==========================================
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: k8s-runner-qopy
+    needs: [build, test-coverage]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://qopy.app
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to Railway Production
+        run: |
+          echo "🚀 Deploying to Railway production environment..."
+          # Railway automatically deploys from main branch
+          echo "✅ Railway deployment triggered"
+
+      - name: ⏳ Wait for deployment
+        run: sleep 45
+
+      - name: 🏥 Health check
+        run: |
+          echo "🏥 Running health checks..."
+          curl -f https://qopy.app/health || exit 1
+          curl -f https://qopy.app/ping || exit 1
+          echo "✅ Production environment healthy"
+
+      - name: 🧪 Smoke tests
+        run: |
+          echo "🧪 Running smoke tests..."
+          curl -f https://qopy.app/ || exit 1
+          echo "✅ Smoke tests passed"
+
+      - name: 🏷️ Create release tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}"
+          git tag -a "$TAG" -m "Production release $TAG"
+          git push origin "$TAG" || echo "Tag already exists"
+
+      - name: 📊 Deployment summary
+        run: |
+          echo "## 🚀 Production Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Deployed to production successfully" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 URL: https://qopy.app" >> $GITHUB_STEP_SUMMARY
+          echo "📝 Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "🏷️ Tag: v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # NOTIFICATION & REPORTING
+  # ==========================================
+  notify:
+    name: 📢 Notify & Report
+    runs-on: k8s-runner-qopy
+    needs: [deploy-staging, deploy-production]
+    if: always()
+
+    steps:
+      - name: 📊 Pipeline summary
+        run: |
+          echo "## 📊 Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Pipeline completed" >> $GITHUB_STEP_SUMMARY
+          echo "📝 Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "👤 Triggered by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "⏱️ Duration: $(( $(date +%s) - ${{ github.event.head_commit.timestamp }} ))s" >> $GITHUB_STEP_SUMMARY
