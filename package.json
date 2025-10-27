@@ -77,6 +77,9 @@
     "prettier": "^3.1.1",
     "supertest": "^6.3.3"
   },
+  "overrides": {
+    "playwright": "^1.56.1"
+  },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=10.0.0"
