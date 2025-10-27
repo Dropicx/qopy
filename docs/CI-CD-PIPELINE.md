@@ -49,11 +49,36 @@ This will install all new devDependencies including:
 
 ### 2. Configure GitHub Runner
 
-Ensure your self-hosted runner is labeled as `k8s-runner`:
+Ensure your self-hosted runner is labeled as `k8s-runner-qopy`:
 
 ```bash
 # When configuring the runner
-./config.sh --url https://github.com/your-org/qopy --token YOUR_TOKEN --labels k8s-runner
+./config.sh --url https://github.com/your-org/qopy --token YOUR_TOKEN --labels k8s-runner-qopy
+```
+
+**⚠️ Docker Requirement**: The runner must have Docker installed and running for the following jobs:
+- Integration tests (requires PostgreSQL and Redis services)
+- SQL injection tests (requires PostgreSQL service)
+- Memory leak detection (requires PostgreSQL service)
+- Database performance tests (requires PostgreSQL service)
+- Test coverage jobs (requires PostgreSQL and Redis services)
+
+If Docker is not available, these jobs will fail. To enable Docker on your runner:
+
+```bash
+# Install Docker if not already installed
+sudo apt-get update
+sudo apt-get install -y docker.io
+
+# Ensure Docker daemon is running
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add runner user to docker group
+sudo usermod -aG docker $USER
+
+# Restart runner service
+sudo systemctl restart actions.runner.*
 ```
 
 ### 3. Set GitHub Secrets
@@ -278,7 +303,7 @@ npm audit fix
 
 ## 🐛 Troubleshooting
 
-### Workflow Fails on k8s-runner
+### Workflow Fails on k8s-runner-qopy
 
 ```bash
 # Check runner status
@@ -289,6 +314,37 @@ kubectl logs -n github-runners <runner-pod-name>
 
 # Restart runner if needed
 kubectl delete pod -n github-runners <runner-pod-name>
+```
+
+### Docker Services Fail ("Cannot connect to Docker daemon")
+
+**Symptoms**: Jobs with PostgreSQL/Redis services fail with `Cannot connect to the Docker daemon` error.
+
+**Solution**:
+```bash
+# Check if Docker is installed
+docker --version
+
+# Check if Docker daemon is running
+sudo systemctl status docker
+
+# Start Docker daemon if not running
+sudo systemctl start docker
+
+# Check if runner user has Docker permissions
+groups $USER | grep docker
+
+# If not in docker group, add and restart
+sudo usermod -aG docker $USER
+sudo systemctl restart actions.runner.*
+
+# Verify Docker works without sudo
+docker ps
+```
+
+**Alternative**: If Docker can't be enabled, skip database-dependent tests locally:
+```bash
+npm run test:unit  # Run unit tests only (no database required)
 ```
 
 ### ESLint Errors

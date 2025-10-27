@@ -136,7 +136,7 @@ jobs:
           fi
 
           # Check for private keys
-          if grep -rn "BEGIN.*PRIVATE KEY" --include="*" --exclude-dir=node_modules .; then
+          if grep -rn "BEGIN.*PRIVATE KEY" --include="*" --exclude-dir=node_modules --exclude-dir=.github .; then
             echo "::error::Private keys found in repository"
             SECRETS_FOUND=1
           fi
