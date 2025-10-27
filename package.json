@@ -73,6 +73,7 @@
     "license-checker": "^25.0.1",
     "madge": "^6.1.0",
     "nodemon": "^3.0.2",
+    "playwright": "^1.56.1",
     "prettier": "^3.1.1",
     "supertest": "^6.3.3"
   },
