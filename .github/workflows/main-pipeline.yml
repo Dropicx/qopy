@@ -471,7 +471,7 @@ jobs:
   notify:
     name: 📢 Notify & Report
     runs-on: k8s-runner-qopy
-    needs: [deploy-staging, deploy-production]
+    needs: [build, test-coverage]
     if: always()
 
     steps:
