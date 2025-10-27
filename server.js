@@ -64,7 +64,7 @@ const upload = multer({
         }
     }),
     limits: {
-        fileSize: CHUNK_SIZE // 5MB per chunk
+        fileSize: CHUNK_SIZE + (1024 * 1024) // 5MB chunk + 1MB buffer for encryption overhead
     }
 });
 
@@ -2768,6 +2768,39 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Multer error handling middleware (must be before global error handler)
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('❌ Multer error:', err.code, err.message);
+    
+    switch (err.code) {
+      case 'LIMIT_FILE_SIZE':
+        return res.status(413).json({
+          error: 'File too large',
+          message: `Chunk size exceeds limit of ${Math.floor((CHUNK_SIZE + (1024 * 1024)) / (1024 * 1024))}MB`
+        });
+      case 'LIMIT_FILE_COUNT':
+        return res.status(413).json({
+          error: 'Too many files',
+          message: 'Only one file per chunk allowed'
+        });
+      case 'LIMIT_UNEXPECTED_FILE':
+        return res.status(400).json({
+          error: 'Unexpected file',
+          message: 'File field not expected'
+        });
+      default:
+        return res.status(400).json({
+          error: 'Upload error',
+          message: err.message || 'File upload failed'
+        });
+    }
+  }
+  
+  // Pass non-multer errors to the global error handler
+  next(err);
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('❌ Unhandled error:', err);
@@ -2794,11 +2827,11 @@ const cleanupInterval = setInterval(async () => {
 
 // Graceful shutdown handlers
 process.on('SIGTERM', () => {
-    gracefulShutdown();
+    gracefulShutdown('SIGTERM');
 });
 
 process.on('SIGINT', () => {
-    gracefulShutdown();
+    gracefulShutdown('SIGINT');
 });
 
 // Statistics update functions
@@ -2853,30 +2886,43 @@ async function updateStatistics(type, increment = 1) {
 }
 
 // Graceful shutdown
-function gracefulShutdown() {
-    console.log('🛑 Graceful shutdown initiated');
+async function gracefulShutdown(signal = 'SIGTERM') {
+    console.log(`🛑 Graceful shutdown initiated [${signal}]`);
     
     // Clear cleanup interval
     if (cleanupInterval) {
         clearInterval(cleanupInterval);
     }
     
-    // Close database connection pool
-    pool.end()
-        .then(() => {
-            console.log('✅ Server shutdown complete');
-            process.exit(0);
-        })
-        .catch((err) => {
-            console.error('❌ Error closing database pool:', err.message);
-            process.exit(1);
-        });
-    
-    // Force exit after timeout
-    setTimeout(() => {
-        console.log('⚠️ Database pool close timeout, forcing exit...');
+    // Set a more generous timeout for Railway platform (30 seconds)
+    const shutdownTimeout = setTimeout(() => {
+        console.log('⚠️ Graceful shutdown timeout exceeded, forcing exit...');
         process.exit(1);
-    }, 10000);
+    }, 30000); // Increased from 10s to 30s for Railway
+    
+    try {
+        // Close Redis connection first
+        if (redisManager) {
+            console.log('📕 Disconnecting Redis...');
+            await redisManager.disconnect();
+            console.log('✅ Redis disconnected gracefully');
+        }
+        
+        // Close database connection pool
+        console.log('🗄️ Closing database pool...');
+        await pool.end();
+        console.log('✅ Database pool closed');
+        
+        // Clear the timeout
+        clearTimeout(shutdownTimeout);
+        
+        console.log('✅ Server shutdown complete');
+        process.exit(0);
+    } catch (error) {
+        console.error('❌ Error during graceful shutdown:', error.message);
+        clearTimeout(shutdownTimeout);
+        process.exit(1);
+    }
 }
 
 // Initialize and start server

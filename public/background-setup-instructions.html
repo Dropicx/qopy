@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Background Image Setup Instructions</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .preview {
+            border: 1px solid #ddd;
+            padding: 1rem;
+            margin: 1rem 0;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .note {
+            background: #e3f2fd;
+            padding: 1rem;
+            border-left: 4px solid #1976d2;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Wave Background Setup Instructions</h1>
+    
+    <div class="note">
+        <strong>Important:</strong> The CSS has been updated to display the wave background image. You just need to save the image file.
+    </div>
+
+    <h2>Steps to Complete Setup:</h2>
+    
+    <ol>
+        <li>
+            <strong>Save the wave image:</strong>
+            <ul>
+                <li>Save your wave background image as <code>wave-background.jpg</code></li>
+                <li>Place it in: <code>/home/catchmelit/Projects/qopy/public/images/wave-background.jpg</code></li>
+            </ul>
+        </li>
+        
+        <li>
+            <strong>CSS Already Updated:</strong>
+            <p>The following CSS has been added to <code>styles.css</code>:</p>
+            <ul>
+                <li>A <code>::before</code> pseudo-element on the body that displays the wave image</li>
+                <li>Opacity set to 0.15 (15% opacity) for subtle transparency</li>
+                <li>Fixed positioning to cover the entire viewport</li>
+                <li>Background-size: cover to ensure it fills the screen</li>
+                <li>Z-index: -1 to keep it behind all content</li>
+            </ul>
+        </li>
+        
+        <li>
+            <strong>Customization Options:</strong>
+            <p>You can adjust these values in the CSS:</p>
+            <ul>
+                <li><code>opacity: 0.15;</code> - Change to make more/less transparent (0.1 = very transparent, 0.3 = less transparent)</li>
+                <li><code>background-position: center;</code> - Adjust to position the image differently</li>
+                <li><code>background-size: cover;</code> - Change to 'contain' if you want to see the entire image</li>
+            </ul>
+        </li>
+    </ol>
+
+    <div class="preview">
+        <h3>Current Implementation:</h3>
+        <p>The wave background will appear on all pages with 15% opacity, creating a subtle, professional effect behind your content.</p>
+        <p>The existing gradient overlays are preserved and will appear on top of the wave background for additional visual depth.</p>
+    </div>
+
+    <h2>Alternative Image Formats:</h2>
+    <p>If you prefer a different format, you can update the CSS to use:</p>
+    <ul>
+        <li><code>wave-background.png</code> - For PNG format with transparency</li>
+        <li><code>wave-background.webp</code> - For better compression and quality</li>
+    </ul>
+    <p>Just update line 110 in <code>styles.css</code> with the correct filename.</p>
+
+</body>
+</html>

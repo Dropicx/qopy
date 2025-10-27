@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Validation - Visual Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        
+        .test-container {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .visual-test {
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .expired { color: #dc2626; }
+        .valid { color: #059669; }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f3f4f6;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            transition: width 0.3s ease;
+        }
+        
+        .result {
+            font-weight: 600;
+            padding: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔍 Production Validation - Visual Tests</h1>
+        <p>This page validates the visual aspects of both fixes.</p>
+    </div>
+    
+    <div class="test-container">
+        <h2>📅 Date Parsing Visual Tests</h2>
+        
+        <div class="visual-test">
+            <h3>Test 1: Valid Future Date</h3>
+            <div class="result" id="future-date">Loading...</div>
+        </div>
+        
+        <div class="visual-test">
+            <h3>Test 2: Expired Date (Red)</h3>
+            <div class="result" id="expired-date">Loading...</div>
+        </div>
+        
+        <div class="visual-test">
+            <h3>Test 3: Invalid Date Format</h3>
+            <div class="result" id="invalid-date">Loading...</div>
+        </div>
+        
+        <div class="visual-test">
+            <h3>Test 4: Edge Case - Seconds vs Milliseconds</h3>
+            <div class="result" id="timestamp-conversion">Loading...</div>
+        </div>
+    </div>
+    
+    <div class="test-container">
+        <h2>📊 Upload Progress Visual Tests</h2>
+        
+        <div class="visual-test">
+            <h3>Test 1: 33.3% Progress</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-33"></div>
+            </div>
+            <div class="result" id="progress-33-text">Loading...</div>
+        </div>
+        
+        <div class="visual-test">
+            <h3>Test 2: 66.7% Progress</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-67"></div>
+            </div>
+            <div class="result" id="progress-67-text">Loading...</div>
+        </div>
+        
+        <div class="visual-test">
+            <h3>Test 3: 100% Complete</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-100"></div>
+            </div>
+            <div class="result" id="progress-100-text">Loading...</div>
+        </div>
+        
+        <div class="visual-test">
+            <h3>Test 4: Edge Case - Over 100% (should cap at 100%)</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-over"></div>
+            </div>
+            <div class="result" id="progress-over-text">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        // Simulate the enhanced showShareResult date parsing logic
+        function processExpiryDate(expiresAt) {
+            console.log('Processing expiry date:', { expiresAt, type: typeof expiresAt });
+            
+            if (expiresAt === null || expiresAt === undefined) {
+                return { text: 'Not available', color: 'inherit' };
+            }
+            
+            // Handle empty strings or zero values
+            if (expiresAt === '' || expiresAt === 0 || expiresAt === '0') {
+                return { text: 'No expiration', color: 'inherit' };
+            }
+            
+            // Convert to number for timestamp processing
+            let timestamp;
+            if (typeof expiresAt === 'string') {
+                // Validate string format (should be numeric)
+                if (!/^\d+$/.test(expiresAt.trim())) {
+                    console.warn('Invalid timestamp format:', expiresAt);
+                    return { text: 'Invalid date format', color: 'inherit' };
+                }
+                timestamp = parseInt(expiresAt.trim(), 10);
+            } else if (typeof expiresAt === 'number') {
+                timestamp = expiresAt;
+            } else {
+                console.warn('Unexpected expiry date type:', typeof expiresAt, expiresAt);
+                return { text: 'Invalid date type', color: 'inherit' };
+            }
+            
+            // Validate timestamp range
+            if (timestamp < 0) {
+                console.warn('Negative timestamp:', timestamp);
+                return { text: 'Invalid timestamp', color: 'inherit' };
+            }
+            
+            // Auto-detect seconds vs milliseconds
+            const currentTime = Date.now();
+            let finalTimestamp = timestamp;
+            
+            // If timestamp looks like seconds (smaller number), convert to milliseconds
+            if (timestamp < 10000000000) { // Less than year 2286 in seconds
+                finalTimestamp = timestamp * 1000;
+                console.log('Converted seconds to milliseconds:', timestamp, '->', finalTimestamp);
+            }
+            
+            // Validate the final timestamp is reasonable
+            const minValidTime = new Date('2020-01-01').getTime();
+            const maxValidTime = new Date('2100-01-01').getTime();
+            
+            if (finalTimestamp < minValidTime || finalTimestamp > maxValidTime) {
+                console.warn('Timestamp out of reasonable range:', finalTimestamp);
+                return { text: 'Date out of range', color: 'inherit' };
+            }
+            
+            // Create and validate Date object
+            const expiryDate = new Date(finalTimestamp);
+            
+            if (!isNaN(expiryDate.getTime())) {
+                const formattedDate = expiryDate.toLocaleString();
+                console.log('Successfully formatted date:', formattedDate);
+                
+                // Add expiry status indicator
+                const now = new Date();
+                if (expiryDate < now) {
+                    return { 
+                        text: formattedDate + ' (Expired)', 
+                        color: '#dc2626' // Red for expired
+                    };
+                } else {
+                    return { 
+                        text: formattedDate, 
+                        color: '#059669' // Green for valid
+                    };
+                }
+            } else {
+                console.error('Created invalid Date object from timestamp:', finalTimestamp);
+                return { text: 'Date parsing failed', color: 'inherit' };
+            }
+        }
+
+        // Simulate the upload progress calculation logic
+        function calculateProgress(uploadedBytes, totalBytes) {
+            const progressRaw = totalBytes > 0 ? (uploadedBytes / totalBytes) * 100 : 0;
+            return Math.min(100, Math.max(0, Math.round(progressRaw * 10) / 10)); // Round to 1 decimal
+        }
+
+        // Run date tests
+        document.addEventListener('DOMContentLoaded', function() {
+            // Test 1: Future date
+            const futureTime = Date.now() + (24 * 60 * 60 * 1000); // 24 hours from now
+            const futureResult = processExpiryDate(futureTime);
+            document.getElementById('future-date').textContent = futureResult.text;
+            document.getElementById('future-date').style.color = futureResult.color;
+
+            // Test 2: Expired date
+            const pastTime = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
+            const expiredResult = processExpiryDate(pastTime);
+            document.getElementById('expired-date').textContent = expiredResult.text;
+            document.getElementById('expired-date').style.color = expiredResult.color;
+
+            // Test 3: Invalid format
+            const invalidResult = processExpiryDate('not-a-timestamp');
+            document.getElementById('invalid-date').textContent = invalidResult.text;
+            document.getElementById('invalid-date').style.color = invalidResult.color;
+
+            // Test 4: Seconds to milliseconds conversion
+            const secondsTimestamp = 1735689600; // 2025-01-01 in seconds
+            const conversionResult = processExpiryDate(secondsTimestamp);
+            document.getElementById('timestamp-conversion').textContent = conversionResult.text + ' (converted from seconds)';
+            document.getElementById('timestamp-conversion').style.color = conversionResult.color;
+
+            // Progress tests
+            const progress33 = calculateProgress(333, 1000);
+            document.getElementById('progress-33').style.width = progress33 + '%';
+            document.getElementById('progress-33-text').textContent = progress33 + '%';
+
+            const progress67 = calculateProgress(667, 1000);
+            document.getElementById('progress-67').style.width = progress67 + '%';
+            document.getElementById('progress-67-text').textContent = progress67 + '%';
+
+            const progress100 = calculateProgress(1000, 1000);
+            document.getElementById('progress-100').style.width = progress100 + '%';
+            document.getElementById('progress-100-text').textContent = progress100 + '%';
+
+            const progressOver = calculateProgress(1500, 1000); // Should cap at 100%
+            document.getElementById('progress-over').style.width = progressOver + '%';
+            document.getElementById('progress-over-text').textContent = progressOver + '% (capped from 150%)';
+
+            console.log('All visual tests completed successfully!');
+        });
+    </script>
+</body>
+</html>

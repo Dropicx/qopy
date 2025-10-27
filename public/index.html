@@ -254,19 +254,19 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-how-secure">
-                        <p><strong>Enterprise-grade secure!</strong> We implement the most advanced security measures available:</p>
+                        <p><strong>Security implementation:</strong></p>
                         <ul>
-                            <li>🔐 <strong>Client-side encryption</strong> - Content encrypted in your browser with AES-256-GCM before transmission</li>
-                            <li>🛡️ <strong>Zero-knowledge architecture</strong> - We literally cannot read your content, even if we wanted to</li>
-                            <li>🔑 <strong>Hybrid security system</strong> - URL secrets + passwords for defense in depth</li>
-                            <li>🔄 <strong>PBKDF2 key derivation</strong> - 100,000 iterations for password-protected content</li>
-                            <li>🔒 <strong>Deterministic IV derivation</strong> - IV derived from combined secrets for password-protected clips</li>
-                            <li>⏰ <strong>Auto-expiration</strong> - Content automatically deletes after your chosen time</li>
-                            <li>🔐 <strong>Access code protection</strong> - Optional additional security layer</li>
-                            <li>🔥 <strong>One-time access</strong> - Content can self-destruct after first read</li>
-                            <li>🛡️ <strong>Multi-layered rate limiting</strong> - Protection against abuse and spam</li>
-                            <li>🚫 <strong>No IP tracking</strong> - True privacy-first approach</li>
-                            <li>📦 <strong>Binary storage</strong> - Encrypted content stored as BYTEA for efficiency</li>
+                            <li><strong>Client-side encryption</strong> - Content encrypted in your browser with AES-256-GCM before transmission</li>
+                            <li><strong>Zero-knowledge architecture</strong> - Server cannot access plain text content under any circumstances</li>
+                            <li><strong>Hybrid security system</strong> - URL secrets combined with user passwords for defense in depth</li>
+                            <li><strong>PBKDF2 key derivation</strong> - 100,000 iterations for password-protected content</li>
+                            <li><strong>Deterministic IV derivation</strong> - IV derived from combined secrets for password-protected clips</li>
+                            <li><strong>Auto-expiration</strong> - Content automatically deletes after specified time period</li>
+                            <li><strong>Access code protection</strong> - Optional additional security layer</li>
+                            <li><strong>One-time access</strong> - Content deleted after first access if configured</li>
+                            <li><strong>Multi-layered rate limiting</strong> - Protection against abuse and spam</li>
+                            <li><strong>No IP tracking</strong> - IP addresses processed only for rate limiting, not stored</li>
+                            <li><strong>Binary storage</strong> - Encrypted content stored as BYTEA for efficiency</li>
                         </ul>
                     </div>
                 </div>
@@ -304,14 +304,14 @@
                     <div class="faq-answer" id="faq-spam-protection">
                         <p>We implement a multi-layered rate limiting strategy to prevent abuse while ensuring fair usage for all users:</p>
                         <ul>
-                            <li>🚦 <strong>Burst protection</strong> - Prevents rapid-fire attacks and sudden traffic spikes</li>
-                            <li>🛡️ <strong>General API protection</strong> - Overall usage limits to maintain service stability</li>
-                            <li>📝 <strong>Share API protection</strong> - Specific limits for content creation to prevent spam</li>
-                            <li>📖 <strong>Retrieval API protection</strong> - Balanced limits for content access</li>
-                            <li>🔍 <strong>IP-based enforcement</strong> - Rate limits are enforced based on your IP address</li>
-                            <li>⏰ <strong>Temporary processing</strong> - IP addresses are only processed in memory for rate limiting</li>
-                            <li>🚫 <strong>No permanent storage</strong> - IP addresses are not stored permanently or used for tracking</li>
-                            <li>🛡️ <strong>Browser extension blocking</strong> - Chrome extensions and other potentially malicious origins are blocked</li>
+                            <li><strong>Burst protection</strong> - Prevents rapid-fire attacks and sudden traffic spikes</li>
+                            <li><strong>General API protection</strong> - Overall usage limits to maintain service stability</li>
+                            <li><strong>Share API protection</strong> - Specific limits for content creation to prevent spam</li>
+                            <li><strong>Retrieval API protection</strong> - Balanced limits for content access</li>
+                            <li><strong>IP-based enforcement</strong> - Rate limits are enforced based on your IP address</li>
+                            <li><strong>Temporary processing</strong> - IP addresses are only processed in memory for rate limiting</li>
+                            <li><strong>No permanent storage</strong> - IP addresses are not stored permanently or used for tracking</li>
+                            <li><strong>Browser extension blocking</strong> - Chrome extensions and other potentially malicious origins are blocked</li>
                         </ul>
                         <p><strong>Rate limit responses:</strong> When limits are exceeded, the service returns a 429 "Too Many Requests" status with information about limits and reset times.</p>
                         <p><strong>Exempt endpoints:</strong> Health checks (/health, /api/health, /ping) and admin endpoints are exempt from rate limiting.</p>
@@ -326,17 +326,17 @@
                     <div class="faq-answer" id="faq-data-privacy">
                         <p><strong>Privacy is our top priority:</strong></p>
                         <ul>
-                            <li>🔐 <strong>Client-side encryption</strong> - Your content is encrypted in your browser before we ever see it</li>
-                            <li>🛡️ <strong>Zero-knowledge</strong> - We literally cannot read your content, even if we wanted to</li>
-                            <li>🔒 <strong>Binary database storage</strong> - Only encrypted data is stored as BYTEA, never plain text</li>
-                            <li>🚫 <strong>No user accounts</strong> - Completely anonymous usage</li>
-                            <li>📝 <strong>No content logging</strong> - We never analyze or mine your data</li>
-                            <li>⏰ <strong>Automatic deletion</strong> - Encrypted content disappears after expiration</li>
-                            <li>🌍 <strong>GDPR compliant</strong> - Follows European privacy standards</li>
-                            <li>🚫 <strong>Temporary IP processing</strong> - IP addresses are only processed for rate limiting, not stored permanently</li>
-                            <li>🔒 <strong>Client-side QR generation</strong> - QR codes generated locally, no external API calls</li>
+                            <li><strong>Client-side encryption</strong> - Content is encrypted in your browser before transmission</li>
+                            <li><strong>Zero-knowledge</strong> - Server cannot access plain text content under any circumstances</li>
+                            <li><strong>Binary database storage</strong> - Only encrypted data is stored as BYTEA, never plain text</li>
+                            <li><strong>No user accounts</strong> - Anonymous usage without registration</li>
+                            <li><strong>No content logging</strong> - Content is not analyzed or processed beyond encryption</li>
+                            <li><strong>Automatic deletion</strong> - Encrypted content deleted after expiration</li>
+                            <li><strong>GDPR compliant</strong> - Follows European privacy standards</li>
+                            <li><strong>Temporary IP processing</strong> - IP addresses processed only for rate limiting, not stored permanently</li>
+                            <li><strong>Client-side QR generation</strong> - QR codes generated locally, no external API calls</li>
                         </ul>
-                        <p>Your content is encrypted end-to-end - even if someone hacked our servers, they couldn't read your data!</p>
+                        <p>Content is encrypted end-to-end. Server compromise would not expose plain text data.</p>
                     </div>
                 </div>
 
@@ -366,25 +366,25 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-encryption">
-                        <p><strong>Qopy uses enterprise-grade client-side encryption with advanced hybrid security:</strong></p>
+                        <p><strong>Encryption implementation details:</strong></p>
                         <ul>
                             <li><strong>AES-256-GCM</strong> - Advanced encryption algorithm</li>
-                            <li>🌐 <strong>Client-side processing</strong> - Encryption happens in your browser, not on our servers</li>
-                            <li>🔑 <strong>Hybrid security system</strong>:
+                            <li><strong>Client-side processing</strong> - Encryption performed in browser, not on servers</li>
+                            <li><strong>Hybrid security system</strong>:
                                 <ul>
                                     <li><strong>URL secrets</strong> - 16-character random secret in URL fragment (e.g., #x7y9z2...)</li>
-                                    <li><strong>User access codes</strong> - Your chosen access code for additional protection</li>
-                                    <li><strong>Combined secrets</strong> - Both secrets combined for maximum security</li>
+                                    <li><strong>User access codes</strong> - User-defined access code for additional protection</li>
+                                    <li><strong>Combined secrets</strong> - Both secrets combined for enhanced security</li>
                                 </ul>
                             </li>
-                            <li>🛡️ <strong>Zero-knowledge</strong> - We never see your plain text content</li>
-                            <li>🔄 <strong>PBKDF2 key derivation</strong> - 100,000 iterations for access code-protected content</li>
-                            <li>⚡ <strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
-                            <li>🚫 <strong>No access code transmission</strong> - Access codes never leave your browser</li>
-                            <li>🔒 <strong>Deterministic IV</strong> - For access code-protected clips, IV is derived from combined secret</li>
-                            <li>📦 <strong>Binary storage</strong> - Direct byte concatenation, stored as BYTEA for efficiency</li>
-                            <li>🛡️ <strong>Defense in depth</strong> - Even weak access codes are protected by URL secret</li>
-                            <li>⚡ <strong>Quick Share mode</strong> - Simplified encryption for non-sensitive content</li>
+                            <li><strong>Zero-knowledge</strong> - Server cannot access plain text content</li>
+                            <li><strong>PBKDF2 key derivation</strong> - 100,000 iterations for access code-protected content</li>
+                            <li><strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
+                            <li><strong>No access code transmission</strong> - Access codes remain client-side only</li>
+                            <li><strong>Deterministic IV</strong> - For access code-protected clips, IV is derived from combined secret</li>
+                            <li><strong>Binary storage</strong> - Direct byte concatenation, stored as BYTEA for efficiency</li>
+                            <li><strong>Defense in depth</strong> - Access codes protected by URL secret</li>
+                            <li><strong>Quick Share mode</strong> - Simplified encryption for non-sensitive content</li>
                         </ul>
                         <p><strong>How it works:</strong></p>
                         <ol>
@@ -401,14 +401,14 @@
                             <li>We never see the plain text at any point</li>
                             <li>Access codes and URL secrets are used only for encryption, never sent to our servers</li>
                         </ol>
-                        <p><strong>🔒 Enhanced Security Benefits:</strong></p>
+                        <p><strong>Enhanced Security Benefits:</strong></p>
                         <ul>
-                            <li><strong>Brute force protection</strong> - Even simple access codes are protected by the URL secret</li>
-                            <li><strong>URL-based access control</strong> - Only those with the complete URL can access the content</li>
-                            <li><strong>Defense in depth</strong> - Two-factor security: something you know (access code) + something you have (URL)</li>
-                            <li><strong>Automatic generation</strong> - URL secrets are generated automatically, no user action required</li>
+                            <li><strong>Brute force protection</strong> - Access codes protected by URL secret</li>
+                            <li><strong>URL-based access control</strong> - Complete URL required for content access</li>
+                            <li><strong>Defense in depth</strong> - Two-factor security: access code plus URL</li>
+                            <li><strong>Automatic generation</strong> - URL secrets generated automatically</li>
                         </ul>
-                        <p><strong>⚠️ Important:</strong> Client-side encryption is only available through the web interface. API calls send content as plaintext to the server.</p>
+                        <p><strong>Important:</strong> Client-side encryption available only through web interface. API calls transmit content as plaintext.</p>
                     </div>
                 </div>
 
@@ -420,7 +420,7 @@
                     <div class="faq-answer" id="faq-api-usage">
                         <p><strong>Yes! Qopy provides a complete REST API for programmatic access:</strong></p>
                         
-                        <h4>📝 Creating Clips (POST /api/share)</h4>
+                        <h4>Creating Clips (POST /api/share)</h4>
                         <pre><code>curl -X POST https://qopy.app/api/share \
   -H "Content-Type: application/json" \
   -d '{
@@ -430,13 +430,13 @@
     "hasPassword": false
   }'</code></pre>
                         
-                        <h4>📖 Retrieving Clips (GET /api/clip/:clipId)</h4>
+                        <h4>Retrieving Clips (GET /api/clip/:clipId)</h4>
                         <pre><code>curl https://qopy.app/api/clip/X8K2M9</code></pre>
                         
-                        <h4>ℹ️ Getting Clip Info (GET /api/clip/:clipId/info)</h4>
+                        <h4>Getting Clip Info (GET /api/clip/:clipId/info)</h4>
                         <pre><code>curl https://qopy.app/api/clip/X8K2M9/info</code></pre>
                         
-                        <h4>🔧 API Parameters:</h4>
+                        <h4>API Parameters:</h4>
                         <ul>
                             <li><strong>content</strong> - Text content (1-100,000 characters)</li>
                             <li><strong>expiration</strong> - "5min", "15min", "30min", "1hr", "6hr", "24hr"</li>
@@ -445,7 +445,7 @@
                             <li><strong>quickShare</strong> - Boolean, enables Quick Share mode (4-digit ID, 5min expiry)</li>
                         </ul>
                         
-                        <h4>📋 Response Format:</h4>
+                        <h4>Response Format:</h4>
                         <pre><code>{
   "success": true,
   "clipId": "X8K2M9",
@@ -454,22 +454,22 @@
   "oneTime": false
 }</code></pre>
                         
-                        <h4>⚠️ Important Security Note:</h4>
+                        <h4>Important Security Note:</h4>
                         <p><strong>Client-side encryption is only available through the web interface.</strong> When using the API directly (e.g., with curl), content is sent as plaintext to the server and then encrypted server-side.</p>
                         
                         <ul>
-                            <li>✅ <strong>Web interface</strong> - True client-side encryption (content encrypted in browser)</li>
-                            <li>❌ <strong>Direct API calls</strong> - Server-side encryption only (content sent as plaintext)</li>
+                            <li><strong>Web interface</strong> - True client-side encryption (content encrypted in browser)</li>
+                            <li><strong>Direct API calls</strong> - Server-side encryption only (content sent as plaintext)</li>
                         </ul>
                         
                         <p><strong>For maximum security, always use the web interface at <a href="https://qopy.app" target="_blank">qopy.app</a> for client-side encryption.</strong></p>
                         
-                        <h4>🔒 Other API Notes:</h4>
+                        <h4>Other API Notes:</h4>
                         <ul>
-                            <li>🔒 <strong>Rate limiting</strong> - API endpoints are subject to the same rate limiting as the web interface</li>
-                            <li>🛡️ <strong>Validation</strong> - All inputs are validated and sanitized</li>
-                            <li>📱 <strong>No authentication</strong> - No API keys required, but rate limits apply per IP</li>
-                            <li>⚡ <strong>JSON only</strong> - All requests and responses use JSON format</li>
+                            <li><strong>Rate limiting</strong> - API endpoints are subject to the same rate limiting as the web interface</li>
+                            <li><strong>Validation</strong> - All inputs are validated and sanitized</li>
+                            <li><strong>No authentication</strong> - No API keys required, but rate limits apply per IP</li>
+                            <li><strong>JSON only</strong> - All requests and responses use JSON format</li>
                         </ul>
                         
                         <p><strong>Perfect for:</strong> Automation scripts, integrations, mobile apps, and programmatic content sharing!</p>
@@ -482,68 +482,68 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-vs-pastebin">
-                        <p><strong>Qopy outperforms Pastebin in simplicity, privacy, and modern features:</strong></p>
+                        <p><strong>Technical comparison between Qopy and Pastebin:</strong></p>
                         
                         <div class="comparison-table">
                             <div class="comparison-header">
                                 <div class="feature-col">Feature</div>
-                                <div class="qopy-col">🚀 Qopy</div>
-                                <div class="pastebin-col">📋 Pastebin</div>
+                                <div class="qopy-col">Qopy</div>
+                                <div class="pastebin-col">Pastebin</div>
                             </div>
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Privacy & Security</div>
-                                <div class="qopy-col">✅ Enterprise-grade client-side encryption, zero-knowledge, hybrid security</div>
-                                <div class="pastebin-col">❌ No encryption, permanent storage, IP tracking</div>
+                                <div class="qopy-col">Enterprise-grade client-side encryption, zero-knowledge, hybrid security</div>
+                                <div class="pastebin-col">No encryption, permanent storage, IP tracking</div>
                             </div>
                             
                             <div class="comparison-row">
                                 <div class="feature-col">User Experience</div>
-                                <div class="qopy-col">✅ No registration, instant sharing</div>
-                                <div class="pastebin-col">⚠️ Account required for features</div>
+                                <div class="qopy-col">No registration, instant sharing</div>
+                                <div class="pastebin-col">Account required for features</div>
                             </div>
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Mobile Experience</div>
-                                <div class="qopy-col">✅ QR codes, responsive design</div>
-                                <div class="pastebin-col">❌ Poor mobile interface</div>
+                                <div class="qopy-col">QR codes, responsive design</div>
+                                <div class="pastebin-col">Poor mobile interface</div>
                             </div>
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Content Expiration</div>
-                                <div class="qopy-col">✅ Guaranteed auto-deletion</div>
-                                <div class="pastebin-col">⚠️ Manual deletion, may persist</div>
+                                <div class="qopy-col">Guaranteed auto-deletion</div>
+                                <div class="pastebin-col">Manual deletion, may persist</div>
                             </div>
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Ads & Monetization</div>
-                                <div class="qopy-col">✅ Completely ad-free</div>
-                                <div class="pastebin-col">❌ Intrusive advertisements</div>
+                                <div class="qopy-col">Completely ad-free</div>
+                                <div class="pastebin-col">Intrusive advertisements</div>
                             </div>
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Modern Features</div>
-                                <div class="qopy-col">✅ Enterprise-grade encryption, Quick Share mode, hybrid security, QR codes</div>
-                                <div class="pastebin-col">⚠️ No encryption, limited security options</div>
+                                <div class="qopy-col">Enterprise-grade encryption, Quick Share mode, hybrid security, QR codes</div>
+                                <div class="pastebin-col">No encryption, limited security options</div>
                             </div>
                             
                             <div class="comparison-row">
                                 <div class="feature-col">Interface Design</div>
-                                <div class="qopy-col">✅ Modern, Spotify-inspired UI</div>
-                                <div class="pastebin-col">❌ Outdated, cluttered design</div>
+                                <div class="qopy-col">Modern, clean UI</div>
+                                <div class="pastebin-col">Outdated, cluttered design</div>
                             </div>
                         </div>
                         
-                        <p><strong>Why choose Qopy?</strong></p>
+                        <p><strong>Technical advantages:</strong></p>
                         <ul>
-                            <li><strong>Simplicity first</strong> - Share text in 3 clicks, no registration needed</li>
-                            <li><strong>Enterprise-grade encryption</strong> - Client-side AES-256-GCM encryption for ultimate privacy</li>
-                            <li><strong>Zero-knowledge architecture</strong> - We literally cannot read your content</li>
-                            <li><strong>Quick Share mode</strong> - 4-character codes for ultra-fast sharing</li>
+                            <li><strong>Simplified workflow</strong> - Share text without registration</li>
+                            <li><strong>Enterprise-grade encryption</strong> - Client-side AES-256-GCM encryption</li>  
+                            <li><strong>Zero-knowledge architecture</strong> - Server cannot access plain text content</li>
+                            <li><strong>Quick Share mode</strong> - 4-character codes for simplified sharing</li>
                             <li><strong>Enhanced security</strong> - 10-character codes with URL secrets for sensitive content</li>
-                            <li><strong>Mobile-optimized</strong> - QR codes and responsive design for easy sharing</li>
-                            <li><strong>Zero distractions</strong> - No ads, no tracking, no bloat</li>
-                            <li><strong>Lightning fast</strong> - Instant sharing with auto-retrieval and keyboard shortcuts</li>
+                            <li><strong>Mobile-optimized</strong> - QR codes and responsive design</li>
+                            <li><strong>Ad-free interface</strong> - No advertisements or tracking</li>
+                            <li><strong>Performance-optimized</strong> - Instant sharing with auto-retrieval and keyboard shortcuts</li>
                         </ul>
                     </div>
                 </div>
@@ -553,14 +553,14 @@
             <div class="faq-container coffee-faq-ad">
                 <div class="coffee-content">
                     <div class="coffee-info">
-                        <span class="coffee-icon">☕</span>
-                        <span class="coffee-text">Support Qopy development with a coffee – Every cup helps keep the service running smoothly</span>
+                        <span class="coffee-icon"></span>
+                        <span class="coffee-text">Support Qopy development – Your contribution helps keep the service running smoothly and enables continued improvements</span>
                     </div>
                     <a href="https://ko-fi.com/litserv" target="_blank" rel="noopener" class="coffee-button">
-                        <span class="button-icon">💝</span>
-                        Buy me a Coffee
+                        <span class="button-icon"></span>
+                        Support Development
                     </a>
-                    <div class="coffee-note">Support the developer</div>
+                    <div class="coffee-note">Help support the developer</div>
                 </div>
             </div>
 
@@ -568,11 +568,11 @@
             <div class="faq-container railway-faq-ad">
                 <div class="railway-content">
                     <div class="railway-info">
-                        <span class="railway-icon">🚂</span>
-                        <span class="railway-text">Powered by Railway – Lightning-fast infrastructure for reliable performance</span>
+                        <span class="railway-icon"></span>
+                        <span class="railway-text">Powered by Railway – High-performance cloud infrastructure for reliable and scalable deployment</span>
                     </div>
                     <a href="https://railway.com?referralCode=ljmoD5" target="_blank" rel="noopener" class="railway-button">
-                        <span class="button-icon">🚀</span>
+                        <span class="button-icon"></span>
                         Deploy on Railway*
                     </a>
                     <div class="railway-note">*referral link <br> code: ljmoD5</div>
