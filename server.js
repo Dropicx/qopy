@@ -30,6 +30,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const mime = require('mime-types');
 const sharp = require('sharp');
+const bcrypt = require('bcrypt');
 
 // Import services
 const FileService = require('./services/FileService');
@@ -2589,28 +2590,47 @@ app.get('/api/clip/:clipId', [
 });
 
 // Admin authentication middleware
-function requireAdminAuth(req, res, next) {
-  const adminToken = process.env.ADMIN_TOKEN;
-  
-  if (!adminToken) {
-    console.error('❌ ADMIN_TOKEN environment variable not set');
+async function requireAdminAuth(req, res, next) {
+  // Check if admin token hash is available
+  if (!adminTokenHash) {
+    console.error('❌ Admin authentication not configured');
     return res.status(500).json({
       error: 'Admin authentication not configured',
-      message: 'Please set ADMIN_TOKEN environment variable'
+      message: 'Server configuration error'
     });
   }
-  
+
   // For API requests, check Authorization header
   if (req.path.startsWith('/api/admin/')) {
     const authHeader = req.headers.authorization;
-    if (!authHeader || authHeader !== `Bearer ${adminToken}`) {
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (!token) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid admin token'
       });
     }
+
+    // Use bcrypt to securely compare the provided token with the hashed token
+    // This prevents timing attacks and ensures passwords are never compared in plaintext
+    try {
+      const isValid = await bcrypt.compare(token, adminTokenHash);
+      if (!isValid) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Invalid admin token'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Token comparison error:', error.message);
+      return res.status(500).json({
+        error: 'Authentication error',
+        message: 'Failed to validate token'
+      });
+    }
   }
-  
+
   next();
 }
 
@@ -2628,17 +2648,21 @@ app.post('/api/admin/auth', [
     }
 
     const { password } = req.body;
-    const adminToken = process.env.ADMIN_TOKEN;
-    
-    if (!adminToken) {
-      console.error('❌ ADMIN_TOKEN environment variable not set');
+
+    // Check if admin token hash is available
+    if (!adminTokenHash) {
+      console.error('❌ Admin authentication not configured');
       return res.status(500).json({
         error: 'Admin authentication not configured',
-        message: 'Please set ADMIN_TOKEN environment variable'
+        message: 'Server configuration error'
       });
     }
-    
-    if (password === adminToken) {
+
+    // Use bcrypt to securely compare the provided password with the hashed token
+    // This prevents timing attacks and ensures passwords are never compared in plaintext
+    const isValid = await bcrypt.compare(password, adminTokenHash);
+
+    if (isValid) {
       res.json({
         success: true,
         message: 'Authentication successful'
@@ -2934,6 +2958,19 @@ async function startServer() {
         
         // Ensure storage directory exists
         await initializeStorage();
+
+        // ========================================
+        // ADMIN SECURITY: Hash admin token at startup
+        // ========================================
+        // Hash the plaintext ADMIN_TOKEN from environment for secure comparison
+        // This prevents timing attacks and ensures passwords are never compared in plaintext
+        let adminTokenHash = null;
+        if (process.env.ADMIN_TOKEN) {
+            console.log('🔐 Hashing admin token for secure authentication...');
+            // Use bcrypt with cost factor 12 (strong security, ~250ms)
+            adminTokenHash = await bcrypt.hash(process.env.ADMIN_TOKEN, 12);
+            console.log('✅ Admin token hashed successfully');
+        }
 
         // ========================================
         // COLUMN ALIGNMENT: upload_sessions
