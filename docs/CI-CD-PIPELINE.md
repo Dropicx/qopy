@@ -56,29 +56,36 @@ Ensure your self-hosted runner is labeled as `k8s-runner-qopy`:
 ./config.sh --url https://github.com/your-org/qopy --token YOUR_TOKEN --labels k8s-runner-qopy
 ```
 
-**⚠️ Docker Requirement**: The runner must have Docker installed and running for the following jobs:
-- Integration tests (requires PostgreSQL and Redis services)
-- SQL injection tests (requires PostgreSQL service)
-- Memory leak detection (requires PostgreSQL service)
-- Database performance tests (requires PostgreSQL service)
-- Test coverage jobs (requires PostgreSQL and Redis services)
+**⚠️ External Database Requirement**: Following the pattern from doctranslator, we use **external database connections** instead of Docker services.
 
-If Docker is not available, these jobs will fail. To enable Docker on your runner:
+**Required GitHub Secrets**:
+Configure these secrets in your repository settings (Settings → Secrets and variables → Actions):
 
 ```bash
-# Install Docker if not already installed
-sudo apt-get update
-sudo apt-get install -y docker.io
+TEST_DATABASE_URL - PostgreSQL connection URL for tests
+  Example: postgresql://user:pass@host:5432/qopy_test
 
-# Ensure Docker daemon is running
-sudo systemctl start docker
-sudo systemctl enable docker
+DATABASE_URL - Primary database URL (fallback for tests)
+  Example: postgresql://user:pass@host:5432/qopy_prod
 
-# Add runner user to docker group
-sudo usermod -aG docker $USER
+TEST_REDIS_URL - Redis connection URL for tests (optional)
+  Example: redis://host:6379
 
-# Restart runner service
-sudo systemctl restart actions.runner.*
+REDIS_URL - Primary Redis URL (fallback, optional)
+  Example: redis://host:6379
+```
+
+**Why no Docker services?**:
+- Docker daemon not available on k8s-runner-qopy
+- External database connections are more reliable
+- Matches proven pattern from doctranslator repo
+- Easier to manage and troubleshoot
+
+**Local Testing**:
+For local development, use `.env` file:
+```bash
+DATABASE_URL=postgresql://localhost:5432/qopy_dev
+REDIS_URL=redis://localhost:6379
 ```
 
 ### 3. Set GitHub Secrets
@@ -316,35 +323,44 @@ kubectl logs -n github-runners <runner-pod-name>
 kubectl delete pod -n github-runners <runner-pod-name>
 ```
 
-### Docker Services Fail ("Cannot connect to Docker daemon")
+### Database Connection Failures
 
-**Symptoms**: Jobs with PostgreSQL/Redis services fail with `Cannot connect to the Docker daemon` error.
+**Symptoms**: Tests fail with `connection refused` or `database does not exist` errors.
 
 **Solution**:
 ```bash
-# Check if Docker is installed
-docker --version
+# Verify GitHub secrets are configured
+gh secret list
 
-# Check if Docker daemon is running
-sudo systemctl status docker
+# Check if TEST_DATABASE_URL or DATABASE_URL is set
+gh secret get TEST_DATABASE_URL
+gh secret get DATABASE_URL
 
-# Start Docker daemon if not running
-sudo systemctl start docker
+# Test database connection locally
+psql "$DATABASE_URL" -c "SELECT version();"
 
-# Check if runner user has Docker permissions
-groups $USER | grep docker
-
-# If not in docker group, add and restart
-sudo usermod -aG docker $USER
-sudo systemctl restart actions.runner.*
-
-# Verify Docker works without sudo
-docker ps
+# Ensure database exists and is accessible
+createdb qopy_test  # If database doesn't exist
 ```
 
-**Alternative**: If Docker can't be enabled, skip database-dependent tests locally:
+**Setting Secrets via CLI**:
 ```bash
-npm run test:unit  # Run unit tests only (no database required)
+# Set test database URL
+gh secret set TEST_DATABASE_URL -b "postgresql://user:pass@host:5432/qopy_test"
+
+# Set Redis URL (optional)
+gh secret set TEST_REDIS_URL -b "redis://host:6379"
+```
+
+**Local Testing Without External Database**:
+If you want to run tests locally without external database:
+```bash
+# Start local PostgreSQL and Redis
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=test postgres:15
+docker run -d -p 6379:6379 redis:7
+
+# Run tests
+DATABASE_URL=postgresql://postgres:test@localhost:5432/postgres npm test
 ```
 
 ### ESLint Errors

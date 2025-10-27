@@ -126,21 +126,6 @@ jobs:
     name: 📊 Coverage Diff
     runs-on: k8s-runner-qopy
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_USER: test_user
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - name: 📥 Checkout PR code
         uses: actions/checkout@v4
@@ -160,7 +145,7 @@ jobs:
         run: npm run test:coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || secrets.DATABASE_URL }}
 
       - name: 💾 Save PR coverage
         run: |
@@ -179,7 +164,7 @@ jobs:
         run: npm run test:coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || secrets.DATABASE_URL }}
 
       - name: 📈 Compare coverage
         run: |

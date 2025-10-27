@@ -173,31 +173,6 @@ jobs:
     name: 🔗 Integration Tests
     runs-on: k8s-runner-qopy
 
-    services:
-      postgres:
-        image: postgres:${{ env.POSTGRES_VERSION }}
-        env:
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_USER: test_user
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:${{ env.REDIS_VERSION }}
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
@@ -215,8 +190,8 @@ jobs:
         run: npm run test:integration
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.TEST_REDIS_URL || secrets.REDIS_URL }}
 
       - name: 📊 Generate test summary
         if: always()
@@ -242,31 +217,6 @@ jobs:
     runs-on: k8s-runner-qopy
     needs: [unit-tests, integration-tests]
 
-    services:
-      postgres:
-        image: postgres:${{ env.POSTGRES_VERSION }}
-        env:
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_USER: test_user
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:${{ env.REDIS_VERSION }}
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
@@ -284,8 +234,8 @@ jobs:
         run: npm run test:coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.TEST_REDIS_URL || secrets.REDIS_URL }}
 
       - name: 📈 Check coverage thresholds
         run: |
