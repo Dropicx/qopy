@@ -25,9 +25,19 @@ class FileService {
      * @param {Object} clip - Clip object with file metadata
      */
     setDownloadHeaders(res, clip) {
+        // Handle null/undefined clip object
+        if (!clip || typeof clip !== 'object') {
+            console.error('❌ Invalid clip object for setDownloadHeaders:', clip);
+            res.setHeader('Content-Type', 'application/octet-stream');
+            res.setHeader('Content-Length', 0);
+            res.setHeader('Content-Disposition', 'attachment; filename="download"');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            return;
+        }
+
         res.setHeader('Content-Type', clip.mime_type || 'application/octet-stream');
-        res.setHeader('Content-Length', clip.filesize);
-        res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename}"`);
+        res.setHeader('Content-Length', clip.filesize || 0);
+        res.setHeader('Content-Disposition', `attachment; filename="${clip.original_filename || 'download'}"`);
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 

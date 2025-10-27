@@ -8,14 +8,29 @@ class UploadValidator {
      * @returns {Object} - Parsed and validated upload data
      */
     static parseUploadRequest(requestBody) {
+        // Handle null/undefined request body
+        if (!requestBody || typeof requestBody !== 'object') {
+            console.error('❌ Invalid request body:', requestBody);
+            return {
+                quickShareSecret: undefined,
+                clientAccessCodeHash: undefined,
+                requiresAccessCode: false,
+                textContent: undefined,
+                isTextUpload: false,
+                contentType: 'file',
+                password: undefined,
+                urlSecret: undefined
+            };
+        }
+
         console.log('🔍 Request body:', JSON.stringify(requestBody, null, 2));
-        
+
         let quickShareSecret, clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
         let password, urlSecret; // File upload system
-        
+
         try {
             // Try new text upload system first - check for isTextUpload or quickShareSecret too
-            if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined || 
+            if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined ||
                 requestBody.isTextUpload || requestBody.quickShareSecret) {
                 console.log('🔍 Using NEW text upload system');
                 ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, 
@@ -65,10 +80,19 @@ class UploadValidator {
             throw new Error('Upload session not found');
         }
 
+        // Normalize session structure - always ensure proper fields exist
+        if (!session.upload_id && session.id) session.upload_id = session.id;
+        if (session.quick_share === undefined) session.quick_share = false;
+        if (session.has_password === undefined) session.has_password = false;
+        if (session.one_time === undefined) session.one_time = false;
+        if (session.is_text_content === undefined) session.is_text_content = false;
+        if (!session.uploaded_chunks) session.uploaded_chunks = 0;
+        if (!session.total_chunks) session.total_chunks = 1;
+
         try {
-            console.log('🔑 Upload session details:', { 
-                uploadId: session.upload_id, 
-                quick_share: session.quick_share, 
+            console.log('🔑 Upload session details:', {
+                uploadId: session.upload_id,
+                quick_share: session.quick_share,
                 has_password: session.has_password,
                 one_time: session.one_time,
                 is_text_content: session.is_text_content,
@@ -79,25 +103,6 @@ class UploadValidator {
             console.error('❌ Error logging session details:', error);
             console.log('🔍 Session object keys:', Object.keys(session));
             console.log('🔍 Session object values:', Object.values(session));
-            
-            // FORCE session structure to be compatible
-            if (!session.upload_id) session.upload_id = session.id;
-            if (!session.quick_share) session.quick_share = false;
-            if (!session.has_password) session.has_password = false;
-            if (!session.one_time) session.one_time = false;
-            if (!session.is_text_content) session.is_text_content = false;
-            if (!session.uploaded_chunks) session.uploaded_chunks = 0;
-            if (!session.total_chunks) session.total_chunks = 1;
-            
-            console.log('🔧 FORCED session structure:', {
-                uploadId: session.upload_id,
-                quick_share: session.quick_share,
-                has_password: session.has_password,
-                one_time: session.one_time,
-                is_text_content: session.is_text_content,
-                uploaded_chunks: session.uploaded_chunks,
-                total_chunks: session.total_chunks
-            });
         }
 
         // Ensure expiration_time is set (fallback to 24 hours if missing)
@@ -115,6 +120,16 @@ class UploadValidator {
      * @returns {Object} - Validation result
      */
     static validateChunks(session) {
+        // Handle null/undefined session
+        if (!session || typeof session !== 'object') {
+            console.error('❌ Invalid session for chunk validation:', session);
+            return {
+                uploadedChunks: 0,
+                totalChunks: 1,
+                isComplete: false
+            };
+        }
+
         const uploadedChunks = session.uploaded_chunks || 0;
         const totalChunks = session.total_chunks || 1;
         

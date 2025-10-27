@@ -28,6 +28,12 @@ class QuickShareService {
      * @returns {Object} Modified settings for Quick Share
      */
     static applyQuickShareSettings(settings) {
+        // Handle null/undefined settings
+        if (!settings || typeof settings !== 'object') {
+            console.error('❌ Invalid settings for applyQuickShareSettings:', settings);
+            return {};
+        }
+
         if (!settings.quickShare) {
             return settings;
         }
