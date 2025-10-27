@@ -39,6 +39,13 @@ const createAccessValidationMiddleware = require('./middleware/accessValidation'
 // Note: File storage is handled directly in server.js using fs-extra
 // The previous config/storage.js file has been removed as it was unused
 
+// ========================================
+// ADMIN SECURITY: Global variable for hashed admin token
+// ========================================
+// This is set at server startup in startServer() function
+// and used by requireAdminAuth middleware and login endpoint
+let adminTokenHash = null;
+
 // File storage configuration (define before multer config)
 const STORAGE_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || './uploads';
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
@@ -2964,7 +2971,6 @@ async function startServer() {
         // ========================================
         // Hash the plaintext ADMIN_TOKEN from environment for secure comparison
         // This prevents timing attacks and ensures passwords are never compared in plaintext
-        let adminTokenHash = null;
         if (process.env.ADMIN_TOKEN) {
             console.log('🔐 Hashing admin token for secure authentication...');
             // Use bcrypt with cost factor 12 (strong security, ~250ms)
