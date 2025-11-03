@@ -104,7 +104,7 @@ jobs:
 
       - name: Create pull request
         if: success()
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: ${{ matrix.category }} dependency updates"
@@ -173,7 +173,7 @@ jobs:
 
       - name: Create security fix PR
         if: success()
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "fix: apply automated security fixes"
