@@ -38,7 +38,7 @@ jobs:
 
       - name: Upload outdated report
         if: steps.check.outputs.updates-available == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: outdated-packages
           path: outdated.json
