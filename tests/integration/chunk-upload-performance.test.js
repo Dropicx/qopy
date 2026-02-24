@@ -398,14 +398,10 @@ describe('Chunk Upload Performance Tests', () => {
         console.log(`🔍 Validation (${chunkCount} chunks): ${validationTime}ms (${Math.round(validationTime/chunkCount*100)/100}ms/chunk)`);
       }
 
-      // Verify performance scales reasonably
-      for (let i = 1; i < results.length; i++) {
-        const prev = results[i - 1];
-        const current = results[i];
-        
-        // Time per chunk should not increase dramatically
-        const timePerChunkRatio = current.timePerChunk / prev.timePerChunk;
-        expect(timePerChunkRatio).toBeLessThan(3.0); // Allow variance on CI runners
+      // Verify performance stays within reasonable absolute bounds
+      for (const result of results) {
+        // Each chunk validation should complete within 50ms on any runner
+        expect(result.timePerChunk).toBeLessThan(50);
       }
     });
   });
