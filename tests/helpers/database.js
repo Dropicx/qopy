@@ -21,7 +21,7 @@ const { Pool } = require('pg');
 class TestDatabase {
   constructor() {
     this.pool = new Pool({
-      connectionString: process.env.TEST_DATABASE_URL || 'postgresql://test:test@localhost:5432/qopy_test',
+      connectionString: process.env.DATABASE_URL || process.env.TEST_DATABASE_URL || 'postgresql://test:test@localhost:5432/qopy_test',
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,

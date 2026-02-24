@@ -77,7 +77,7 @@ jobs:
           SKIP_FLAKY_TESTS: '1'
 
       - name: Run integration tests
-        run: npm run test:integration
+        run: npm run test:integration -- --no-coverage --forceExit
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db

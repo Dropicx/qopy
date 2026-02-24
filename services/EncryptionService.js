@@ -11,6 +11,11 @@ class EncryptionService {
     static processAccessCode(session, requestData) {
         const { quickShareSecret, clientAccessCodeHash, requiresAccessCode } = requestData;
         
+        // Validate access code hash - must be non-empty and meet minimum length (bcrypt hashes are 60 chars)
+        const isValidAccessCodeHash = clientAccessCodeHash &&
+            typeof clientAccessCodeHash === 'string' &&
+            clientAccessCodeHash.length >= 32;
+        
         let passwordHash = null;
         let accessCodeHash = null;
         let shouldRequireAccessCode = false;
@@ -37,7 +42,7 @@ class EncryptionService {
                 passwordHash = quickShareSecret;
                 accessCodeHash = null;
                 shouldRequireAccessCode = false;
-            } else if (requiresAccessCode && clientAccessCodeHash) {
+            } else if (requiresAccessCode && isValidAccessCodeHash) {
                 // Normal Share with Password: Use client-generated access code hash
                 console.log('🔐 Using client-side access code hash (Zero-Knowledge):', session.upload_id);
                 accessCodeHash = clientAccessCodeHash;
@@ -70,7 +75,7 @@ class EncryptionService {
         console.log('🔐 Zero-Knowledge File System: No download tokens generated - client handles all encryption and URL secrets');
 
         // FORCE requiresAccessCode to boolean
-        if (requiresAccessCode && clientAccessCodeHash) {
+        if (requiresAccessCode && isValidAccessCodeHash) {
             shouldRequireAccessCode = true;
         }
 

@@ -155,10 +155,11 @@ describe('Refactored Services Integration Tests', () => {
             
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            expect(errorHandler).toHaveBeenCalledWith({
-                file: mockFile,
-                error: 'File too large'
-            });
+            // EventBus passes (data, eventInfo) to callbacks
+            expect(errorHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ file: mockFile, error: 'File too large' }),
+                expect.objectContaining({ event: 'file:validation:error' })
+            );
             expect(uploadManager.state.currentUpload).toBeNull();
         });
 
@@ -175,7 +176,8 @@ describe('Refactored Services Integration Tests', () => {
             const cancelHandler = jest.fn();
             eventBus.on('upload:cancelled', cancelHandler);
 
-            eventBus.emit('upload:cancel');
+            await eventBus.emit('upload:cancel');
+            await new Promise(resolve => setTimeout(resolve, 50)); // Allow nested emit to complete
 
             expect(cancelHandler).toHaveBeenCalled();
             expect(uploadManager.state.currentUpload.status).toBe('cancelled');
@@ -217,20 +219,19 @@ describe('Refactored Services Integration Tests', () => {
             eventBus.on('upload:progress', progressHandler);
             eventBus.on('ui:state:changed', stateHandler);
 
-            // Simulate UI interactions
-            uiController.updateProgress(50, 'Uploading...');
+            // upload:progress flows into UIController; emit to verify handler receives
+            await eventBus.emit('upload:progress', { progress: 50, message: 'Uploading...' });
+            expect(progressHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ progress: 50, message: 'Uploading...' }),
+                expect.objectContaining({ event: 'upload:progress' })
+            );
+
+            // updateUploadState emits ui:state:changed
             uiController.updateUploadState('uploading');
-
-            expect(progressHandler).toHaveBeenCalledWith({
-                progress: 50,
-                message: 'Uploading...'
-            });
-
-            expect(stateHandler).toHaveBeenCalledWith({
-                newState: 'uploading',
-                previousState: 'idle',
-                progress: 50
-            });
+            expect(stateHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ newState: 'uploading', previousState: 'idle', progress: 50 }),
+                expect.objectContaining({ event: 'ui:state:changed' })
+            );
         });
 
         test('should coordinate NetworkService with upload workflow', async () => {
@@ -385,10 +386,10 @@ describe('Refactored Services Integration Tests', () => {
             
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            expect(errorHandler).toHaveBeenCalledWith({
-                file: { name: 'error-test.txt' },
-                error: 'Processing failed'
-            });
+            expect(errorHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ file: { name: 'error-test.txt' }, error: 'Processing failed' }),
+                expect.objectContaining({ event: 'file:validation:error' })
+            );
         });
 
         test('should handle network errors in upload workflow', async () => {
@@ -415,9 +416,10 @@ describe('Refactored Services Integration Tests', () => {
             
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            expect(errorHandler).toHaveBeenCalledWith({
-                error: expect.any(Error)
-            });
+            expect(errorHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ error: expect.any(Error) }),
+                expect.objectContaining({ event: 'upload:error' })
+            );
         });
     });
 

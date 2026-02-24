@@ -23,7 +23,7 @@ const path = require('path');
 // Set test environment variables
 process.env.NODE_ENV = 'test';
 process.env.PORT = '0'; // Use random port for tests
-process.env.DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://test:test@localhost:5432/qopy_test';
+process.env.DATABASE_URL = process.env.DATABASE_URL || process.env.TEST_DATABASE_URL || 'postgresql://test:test@localhost:5432/qopy_test';
 process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://localhost:6379/1';
 
 // Ensure test directories exist

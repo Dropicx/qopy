@@ -37,10 +37,10 @@ describe('Chunk Upload Basic Tests', () => {
 
   // Critical file sizes to test (in bytes)
   const CRITICAL_SIZES = {
-    UNDER_THRESHOLD: 4.9 * 1024 * 1024,    // 4.9MB
-    AT_THRESHOLD: 5 * 1024 * 1024,         // 5MB exactly
-    OVER_THRESHOLD: 5.1 * 1024 * 1024,     // 5.1MB
-    DOUBLE_THRESHOLD: 10 * 1024 * 1024,    // 10MB
+    UNDER_THRESHOLD: Math.round(4.9 * 1024 * 1024),    // 4.9MB
+    AT_THRESHOLD: 5 * 1024 * 1024,                     // 5MB exactly
+    OVER_THRESHOLD: Math.round(5.1 * 1024 * 1024),     // 5.1MB
+    DOUBLE_THRESHOLD: 10 * 1024 * 1024,                // 10MB
   };
 
   const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
@@ -116,7 +116,7 @@ describe('Chunk Upload Basic Tests', () => {
 
       // Should create exactly 1 chunk since it's under threshold
       expect(chunks.length).toBe(1);
-      expect(chunks[0].length).toBe(fileSize);
+      expect(chunks[0].length).toBeCloseTo(fileSize, 0);
 
       await saveChunksToStorage(uploadId, chunks);
 
@@ -194,7 +194,7 @@ describe('Chunk Upload Basic Tests', () => {
       // Should create 2 chunks since it's over threshold
       expect(chunks.length).toBe(2);
       expect(chunks[0].length).toBe(CHUNK_SIZE);
-      expect(chunks[1].length).toBe(fileSize - CHUNK_SIZE);
+      expect(chunks[1].length).toBeCloseTo(fileSize - CHUNK_SIZE, 0);
 
       await saveChunksToStorage(uploadId, chunks);
 
