@@ -45,13 +45,13 @@ describe('Chunk Upload Integration Tests', () => {
   let testStoragePath;
   let cleanupPaths = [];
 
-  // Critical file sizes to test (in bytes)
+  // Critical file sizes to test (in bytes) - use integers to avoid floating-point/BIGINT issues
   const CRITICAL_SIZES = {
-    UNDER_THRESHOLD: 4.9 * 1024 * 1024,    // 4.9MB
-    AT_THRESHOLD: 5 * 1024 * 1024,         // 5MB exactly
-    OVER_THRESHOLD: 5.1 * 1024 * 1024,     // 5.1MB
-    DOUBLE_THRESHOLD: 10 * 1024 * 1024,    // 10MB
-    LARGE_FILE: 50 * 1024 * 1024           // 50MB
+    UNDER_THRESHOLD: Math.round(4.9 * 1024 * 1024),    // 4.9MB
+    AT_THRESHOLD: 5 * 1024 * 1024,                     // 5MB exactly
+    OVER_THRESHOLD: Math.round(5.1 * 1024 * 1024),     // 5.1MB
+    DOUBLE_THRESHOLD: 10 * 1024 * 1024,                // 10MB
+    LARGE_FILE: 50 * 1024 * 1024                       // 50MB
   };
 
   const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks

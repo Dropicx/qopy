@@ -122,9 +122,9 @@ describe('Chunk Upload Performance Tests', () => {
   describe('Assembly Performance Tests', () => {
     test('should assemble small files quickly (under 5MB)', async () => {
       const fileSizes = [
-        1 * 1024 * 1024,     // 1MB
-        2.5 * 1024 * 1024,   // 2.5MB
-        4.9 * 1024 * 1024    // 4.9MB
+        1 * 1024 * 1024,                      // 1MB
+        Math.round(2.5 * 1024 * 1024),       // 2.5MB
+        Math.round(4.9 * 1024 * 1024)         // 4.9MB
       ];
 
       for (const fileSize of fileSizes) {
@@ -163,9 +163,9 @@ describe('Chunk Upload Performance Tests', () => {
 
     test('should assemble medium files efficiently (5-20MB)', async () => {
       const fileSizes = [
-        5.1 * 1024 * 1024,   // 5.1MB (2 chunks)
-        10 * 1024 * 1024,    // 10MB (2 chunks)
-        15.5 * 1024 * 1024   // 15.5MB (4 chunks)
+        Math.round(5.1 * 1024 * 1024),    // 5.1MB (2 chunks)
+        10 * 1024 * 1024,                 // 10MB (2 chunks)
+        Math.round(15.5 * 1024 * 1024)   // 15.5MB (4 chunks)
       ];
 
       for (const fileSize of fileSizes) {

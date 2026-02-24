@@ -47,7 +47,7 @@ describe('Chunk Upload Recovery and Edge Cases', () => {
     EXACTLY_4MB: 4 * 1024 * 1024,
     EXACTLY_5MB: 5 * 1024 * 1024,
     PRIME_SIZE: 7919 * 1024,  // Prime number of KB
-    ODD_SIZE: 5.5 * 1024 * 1024 + 777, // Odd size with remainder
+    ODD_SIZE: Math.round(5.5 * 1024 * 1024) + 777, // Odd size with remainder (integer for BIGINT)
     MAX_SAFE_SIZE: 100 * 1024 * 1024 // 100MB
   };
 

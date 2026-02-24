@@ -53,7 +53,8 @@ class FileAssemblyService {
         console.log('🚀 Parallel file assembly starting:', uploadId);
         const startTime = Date.now();
         
-        if (!uploadId || !session || !session.total_chunks) {
+        const totalChunks = session?.total_chunks ?? session?.chunk_count;
+        if (!uploadId || !session || !totalChunks) {
             throw new Error('Invalid parameters for file assembly');
         }
         
@@ -62,7 +63,7 @@ class FileAssemblyService {
             const limit = createLimiter(5); // Limit concurrent reads to prevent overwhelming the filesystem
             const chunkTasks = [];
             
-            for (let i = 0; i < session.total_chunks; i++) {
+            for (let i = 0; i < totalChunks; i++) {
                 chunkTasks.push(limit(async () => {
                     const chunkPath = path.join(storagePath, 'chunks', uploadId, `chunk_${i}`);
                     
@@ -86,7 +87,7 @@ class FileAssemblyService {
             }
             
             // Execute all chunk reads in parallel
-            console.log(`🔄 Reading ${session.total_chunks} chunks in parallel...`);
+            console.log(`🔄 Reading ${totalChunks} chunks in parallel...`);
             const chunks = await Promise.all(chunkTasks);
             
             // Sort chunks by index to ensure correct order

@@ -98,17 +98,21 @@ class TestDatabase {
 
   async insertTestUpload(uploadData) {
     const {
-      id, original_name, file_size, mime_type, chunk_count, 
+      id, original_name, file_size, mime_type, chunk_count, total_chunks,
       chunks_received, is_complete, temp_path, final_path
     } = uploadData;
+
+    const chunkCount = chunk_count ?? total_chunks ?? 1;
+    const fileSizeInt = typeof file_size === 'number' ? Math.round(file_size) : file_size;
 
     const result = await this.pool.query(
       `INSERT INTO file_uploads (id, original_name, file_size, mime_type, chunk_count, chunks_received, is_complete, temp_path, final_path)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [id, original_name, file_size, mime_type, chunk_count, chunks_received, is_complete, temp_path, final_path]
+      [id, original_name, fileSizeInt, mime_type, chunkCount, chunks_received ?? 0, is_complete ?? false, temp_path, final_path]
     );
 
-    return result.rows[0];
+    const row = result.rows[0];
+    return { ...row, total_chunks: row.chunk_count };
   }
 
   getPool() {
