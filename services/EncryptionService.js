@@ -98,7 +98,7 @@ class EncryptionService {
         const fileMetadata = {
             uploadId,
             originalUploadSession: true,
-            originalFileSize: session?.filesize ?? session?.file_size ?? actualFilesize, // Store original size in metadata
+            originalFileSize: Number(session?.filesize ?? session?.file_size ?? actualFilesize), // Store original size in metadata
             actualFileSize: actualFilesize,
             // No downloadToken - using Zero-Knowledge access code system
             zeroKnowledge: true

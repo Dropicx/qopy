@@ -602,26 +602,25 @@ describe('Chunk Upload Security Tests', () => {
       const chunks = createSecureChunks(uploadId, 3);
       const chunksDir = await saveSecureChunks(uploadId, chunks);
 
-      // Make one chunk read-only to simulate cleanup failure
-      const readOnlyChunkPath = path.join(chunksDir, 'chunk_1');
-      await fs.chmod(readOnlyChunkPath, 0o444); // Read-only
+      // Make chunks directory read-only to prevent unlink on Linux
+      // (on Linux, unlink requires write permission on parent directory, not the file)
+      await fs.chmod(chunksDir, 0o555);
 
       const cleanupResult = await FileAssemblyService.cleanupChunks(
         uploadId, chunks.length, testStoragePath
       );
 
-      // Should report partial success
-      expect(cleanupResult.successful).toBe(2); // 2 out of 3 cleaned
-      expect(cleanupResult.failed).toBe(1);   // 1 failed (read-only)
+      // Should report all failures since directory is not writable
+      expect(cleanupResult.successful).toBe(0);
+      expect(cleanupResult.failed).toBe(3);
       expect(cleanupResult.totalChunks).toBe(3);
 
-      // Verify failed chunk still exists
-      const readOnlyExists = await fs.pathExists(readOnlyChunkPath);
-      expect(readOnlyExists).toBe(true);
+      // Verify chunks still exist
+      const chunk1Exists = await fs.pathExists(path.join(chunksDir, 'chunk_1'));
+      expect(chunk1Exists).toBe(true);
 
-      // Clean up the read-only file manually
-      await fs.chmod(readOnlyChunkPath, 0o644); // Make writable
-      await fs.remove(readOnlyChunkPath);
+      // Restore permissions for cleanup
+      await fs.chmod(chunksDir, 0o755);
     });
 
     test('should prevent information leakage in error messages', async () => {
