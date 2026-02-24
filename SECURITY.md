@@ -74,6 +74,18 @@ Please include the following information in your report:
 
 ## Security Configuration
 
+### CI/CD Secrets (GitHub Actions)
+
+The following repository secrets are used by GitHub Actions. Configure them under **Settings → Secrets and variables → Actions** (do not commit secrets).
+
+| Secret | Used by | Required |
+|--------|---------|----------|
+| `CODECOV_TOKEN` | CI/CD Pipeline (coverage upload) | Optional; coverage upload is `continue-on-error: true` |
+| `SNYK_TOKEN` | Security Audit (scheduled Snyk scan) | Optional; Snyk step is skipped when unset |
+| `GITHUB_TOKEN` | All workflows | Auto-provided by GitHub |
+
+**Deployment**: Staging and production deployment is handled outside the workflow (e.g. Railway GitHub integration). No deploy secrets are required in the repo for the current pipeline.
+
 ### Environment Variables
 Ensure the following environment variables are properly configured:
 
