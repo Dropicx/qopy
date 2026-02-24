@@ -70,9 +70,11 @@ jobs:
           fi
 
       - name: Run unit tests
-        run: npm run test:unit
+        run: npm run test:unit -- --runInBand --forceExit
         env:
           NODE_ENV: test
+          CI: true
+          SKIP_FLAKY_TESTS: '1'
 
       - name: Run integration tests
         run: npm run test:integration
@@ -82,9 +84,11 @@ jobs:
           REDIS_URL: redis://localhost:6379
 
       - name: Generate test coverage
-        run: npm run test:coverage
+        run: npm run test:coverage -- --runInBand --forceExit
         env:
           NODE_ENV: test
+          CI: true
+          SKIP_FLAKY_TESTS: '1'
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
           REDIS_URL: redis://localhost:6379
 

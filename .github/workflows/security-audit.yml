@@ -37,13 +37,14 @@ jobs:
 
       - name: Check for high/critical vulnerabilities
         run: |
-          HIGH_VULNS=$(npm audit --json | jq '.metadata.vulnerabilities.high // 0')
-          CRITICAL_VULNS=$(npm audit --json | jq '.metadata.vulnerabilities.critical // 0')
-          echo "High vulnerabilities: $HIGH_VULNS"
-          echo "Critical vulnerabilities: $CRITICAL_VULNS"
+          # Only check production dependencies - devDeps (e.g. Jest) often have vulns that don't affect deployed app
+          HIGH_VULNS=$(npm audit --json --production 2>/dev/null | jq '.metadata.vulnerabilities.high // 0')
+          CRITICAL_VULNS=$(npm audit --json --production 2>/dev/null | jq '.metadata.vulnerabilities.critical // 0')
+          echo "High vulnerabilities (production): $HIGH_VULNS"
+          echo "Critical vulnerabilities (production): $CRITICAL_VULNS"
           if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
-            echo "⚠️ Found high or critical vulnerabilities!"
-            npm audit --audit-level=high
+            echo "⚠️ Found high or critical vulnerabilities in production dependencies!"
+            npm audit --audit-level=high --production
             exit 1
           fi
 
