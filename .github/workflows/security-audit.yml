@@ -28,9 +28,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci --production=false
-          npm audit --audit-level=moderate
+        run: npm ci --production=false
 
       - name: Run npm audit
         run: |
@@ -78,7 +76,7 @@ jobs:
 
       - name: Generate security report
         run: |
-          cat > security-report.md << 'EOF'
+          cat > security-report.md << EOF
           # Security Audit Report
           
           ## Dependency Vulnerabilities
