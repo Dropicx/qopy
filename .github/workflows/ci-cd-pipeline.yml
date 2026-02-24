@@ -178,10 +178,14 @@ jobs:
     if: github.event_name != 'pull_request'
 
     steps:
+      - name: Set lowercase image name
+        id: image
+        run: echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ github.ref_name }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 
