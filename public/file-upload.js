@@ -503,25 +503,12 @@ class FileUploadManager {
 
     // Enhanced key derivation with backward compatibility + extensive logging
     async generateCompatibleEncryptionKey(password = null, secret = null) {
-        const startTime = performance.now();
-        console.group('🔑 [ENCRYPTION KEY] Compatible Key Generation');
-        
         try {
             const encoder = new TextEncoder();
             
             // Detect if this is an old URL secret (16 chars) or new enhanced passphrase (43+ chars)
             const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
             const isEnhancedPassphrase = secret && secret.length >= 40;
-            
-            console.log('🔍 [DEBUG] Input Analysis:', {
-                hasPassword: !!password,
-                hasSecret: !!secret,
-                secretLength: secret ? secret.length : 0,
-                secretPreview: secret ? secret.substring(0, 8) + '...' : 'none',
-                isOldUrlSecret,
-                isEnhancedPassphrase,
-                detectedFormat: isOldUrlSecret ? 'LEGACY_URL_SECRET' : isEnhancedPassphrase ? 'ENHANCED_PASSPHRASE' : 'UNKNOWN'
-            });
             
             let keyMaterial;
             let salt;
@@ -534,14 +521,6 @@ class FileUploadManager {
                     // Legacy format: urlSecret:password (compatible with script.js)
                     const combined = secret + ':' + password;
                     mode = 'LEGACY_COMBINED';
-                    console.log('🔑 Using legacy combined mode (URL secret + password)');
-                    console.log('🔍 [DEBUG] Legacy Combined Details:', {
-                        urlSecretLength: secret.length,
-                        passwordLength: password.length,
-                        combinedLength: combined.length,
-                        format: 'urlSecret:password'
-                    });
-                    
                     keyMaterial = await window.crypto.subtle.importKey(
                         'raw',
                         encoder.encode(combined),
@@ -555,14 +534,6 @@ class FileUploadManager {
                     // Enhanced format: passphrase:password
                     const combined = secret + ':' + password;
                     mode = 'ENHANCED_COMBINED';
-                    console.log('🔑 Using enhanced combined mode (secure passphrase + password)');
-                    console.log('🔍 [DEBUG] Enhanced Combined Details:', {
-                        passphraseLength: secret.length,
-                        passwordLength: password.length,
-                        combinedLength: combined.length,
-                        format: 'passphrase:password'
-                    });
-                    
                     keyMaterial = await window.crypto.subtle.importKey(
                         'raw',
                         encoder.encode(combined),
@@ -579,12 +550,6 @@ class FileUploadManager {
                 // Secret-only mode
                 if (isOldUrlSecret) {
                     mode = 'LEGACY_SECRET_ONLY';
-                    console.log('🔑 Using legacy URL secret only mode');
-                    console.log('🔍 [DEBUG] Legacy Secret Details:', {
-                        secretLength: secret.length,
-                        format: 'urlSecret-only'
-                    });
-                    
                     keyMaterial = await window.crypto.subtle.importKey(
                         'raw',
                         encoder.encode(secret),
@@ -596,12 +561,6 @@ class FileUploadManager {
                     iterations = 100000;
                 } else if (isEnhancedPassphrase) {
                     mode = 'ENHANCED_SECRET_ONLY';
-                    console.log('🔑 Using enhanced passphrase only mode');
-                    console.log('🔍 [DEBUG] Enhanced Passphrase Details:', {
-                        passphraseLength: secret.length,
-                        format: 'passphrase-only'
-                    });
-                    
                     keyMaterial = await window.crypto.subtle.importKey(
                         'raw',
                         encoder.encode(secret),
@@ -617,16 +576,6 @@ class FileUploadManager {
             } else {
                 throw new Error('Either password or secret must be provided');
             }
-            
-            console.log('🔍 [DEBUG] PBKDF2 Configuration:', {
-                mode,
-                salt,
-                iterations,
-                hashAlgorithm: 'SHA-256',
-                keyLength: 256
-            });
-            
-            console.log('✅ Key material imported successfully');
             
             // Derive key using appropriate parameters
             const derivationStart = performance.now();
@@ -644,53 +593,21 @@ class FileUploadManager {
             );
             const derivationTime = performance.now() - derivationStart;
             
-            const totalTime = performance.now() - startTime;
-            console.log(`✅ Compatible key derived successfully`, {
-                mode,
-                iterations,
-                derivationTime: derivationTime.toFixed(2) + 'ms',
-                totalTime: totalTime.toFixed(2) + 'ms'
-            });
-            
-            console.groupEnd();
             return derivedKey;
         } catch (error) {
-            const totalTime = performance.now() - startTime;
-            console.error('❌ Compatible key generation error:', {
-                error: error.message,
-                totalTime: totalTime.toFixed(2) + 'ms',
-                hasPassword: !!password,
-                hasSecret: !!secret,
-                secretLength: secret ? secret.length : 0
-            });
-            console.groupEnd();
+            console.error('❌ Compatible key generation error:', error.message);
             throw new Error('Failed to generate compatible encryption key: ' + error.message);
         }
     }
 
-    // Compatible IV derivation with extensive logging
+    // Compatible IV derivation
     async deriveCompatibleIV(password, secret = null, customSalt = null) {
-        const startTime = performance.now();
-        console.group('🔐 [IV DERIVATION] Compatible IV Generation');
-        
         try {
             const encoder = new TextEncoder();
             
             // Detect format
             const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
             const isEnhancedPassphrase = secret && secret.length >= 40;
-            
-            console.log('🔍 [DEBUG] IV Input Analysis:', {
-                hasPassword: !!password,
-                passwordLength: password ? password.length : 0,
-                hasSecret: !!secret,
-                secretLength: secret ? secret.length : 0,
-                secretPreview: secret ? secret.substring(0, 8) + '...' : 'none',
-                customSalt,
-                isOldUrlSecret,
-                isEnhancedPassphrase,
-                detectedFormat: isOldUrlSecret ? 'LEGACY_URL_SECRET' : isEnhancedPassphrase ? 'ENHANCED_PASSPHRASE' : 'UNKNOWN'
-            });
             
             let keyMaterial;
             let salt;
@@ -703,8 +620,6 @@ class FileUploadManager {
                     // Legacy format: urlSecret:password
                     const combined = secret + ':' + password;
                     mode = 'LEGACY_COMBINED_IV';
-                    console.log('🔐 Legacy IV derivation (combined mode)');
-                    
                     keyMaterial = await window.crypto.subtle.importKey(
                         'raw',
                         encoder.encode(combined),
@@ -718,8 +633,6 @@ class FileUploadManager {
                     // Enhanced format: passphrase:password
                     const combined = secret + ':' + password;
                     mode = 'ENHANCED_COMBINED_IV';
-                    console.log('🔐 Enhanced IV derivation (combined mode)');
-                    
                     keyMaterial = await window.crypto.subtle.importKey(
                         'raw',
                         encoder.encode(combined),
@@ -736,8 +649,6 @@ class FileUploadManager {
                 // Secret-only mode
                 if (isOldUrlSecret) {
                     mode = 'LEGACY_SECRET_ONLY_IV';
-                    console.log('🔐 Legacy IV derivation (secret-only mode)');
-                    
                     keyMaterial = await window.crypto.subtle.importKey(
                         'raw',
                         encoder.encode(secret),
@@ -749,8 +660,6 @@ class FileUploadManager {
                     iterations = 100000;
                 } else if (isEnhancedPassphrase) {
                     mode = 'ENHANCED_SECRET_ONLY_IV';
-                    console.log('🔐 Enhanced IV derivation (secret-only mode)');
-                    
                     keyMaterial = await window.crypto.subtle.importKey(
                         'raw',
                         encoder.encode(secret),
@@ -767,14 +676,6 @@ class FileUploadManager {
                 throw new Error('Either password or secret must be provided for IV derivation');
             }
             
-            console.log('🔍 [DEBUG] IV PBKDF2 Configuration:', {
-                mode,
-                salt,
-                iterations,
-                hashAlgorithm: 'SHA-256',
-                outputBits: 96
-            });
-            
             // Derive IV using appropriate parameters
             const derivationStart = performance.now();
             const ivBytes = await window.crypto.subtle.deriveBits(
@@ -790,27 +691,9 @@ class FileUploadManager {
             const derivationTime = performance.now() - derivationStart;
             
             const iv = new Uint8Array(ivBytes);
-            const totalTime = performance.now() - startTime;
-            
-            console.log('✅ Compatible IV derived successfully:', {
-                mode,
-                ivLength: iv.length,
-                ivPreview: Array.from(iv.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join(' ') + '...',
-                derivationTime: derivationTime.toFixed(2) + 'ms',
-                totalTime: totalTime.toFixed(2) + 'ms'
-            });
-            
-            console.groupEnd();
             return iv;
         } catch (error) {
-            const totalTime = performance.now() - startTime;
-            console.error('❌ Compatible IV derivation error:', {
-                error: error.message,
-                totalTime: totalTime.toFixed(2) + 'ms',
-                hasPassword: !!password,
-                hasSecret: !!secret
-            });
-            console.groupEnd();
+            console.error('❌ Compatible IV derivation error:', error.message);
             throw new Error('Failed to derive compatible IV: ' + error.message);
         }
     }
@@ -985,15 +868,6 @@ class FileUploadManager {
         console.group('📤 [UPLOAD INIT] Starting Compatible File Upload');
         
         try {
-            console.log('🔍 [DEBUG] Upload Input Analysis:', {
-                fileName: file.name,
-                fileSize: file.size,
-                fileSizeFormatted: this.formatFileSize(file.size),
-                mimeType: file.type,
-                lastModified: new Date(file.lastModified).toISOString(),
-                options
-            });
-            
             // Generate enhanced passphrase for new uploads (but support legacy for downloads)
             console.log('🔐 Generating compatible secret for upload...');
             const compatibleSecret = this.generateCompatibleSecret(true); // true = enhanced mode
@@ -1150,17 +1024,6 @@ class FileUploadManager {
         console.group('📤 [UPLOAD CHUNKS] Compatible File Upload');
         
         try {
-            console.log('🔍 [DEBUG] Upload session analysis:', {
-                uploadId: uploadSession.uploadId,
-                chunkSize: uploadSession.chunkSize,
-                totalChunks: uploadSession.totalChunks,
-                hasCompatibleSecret: !!uploadSession.compatibleSecret,
-                secretType: uploadSession.compatibleSecret?.length >= 40 ? 'Enhanced' : 'Legacy',
-                secretLength: uploadSession.compatibleSecret?.length,
-                fileDataSize: uploadSession.fileDataToUpload?.length,
-                fileDataSizeFormatted: uploadSession.fileDataToUpload ? this.formatFileSize(uploadSession.fileDataToUpload.length) : 'N/A'
-            });
-
             const { uploadId, chunkSize, totalChunks, compatibleSecret, fileDataToUpload } = uploadSession;
 
             // Get access code settings from form
@@ -2031,13 +1894,6 @@ class FileDownloadManager {
         try {
             const hash = window.location.hash;
             
-            console.log('🔍 [DEBUG] URL Analysis:', {
-                fullUrl: window.location.href,
-                hasHash: !!hash,
-                hashLength: hash ? hash.length : 0,
-                hashContent: hash || 'none'
-            });
-            
             if (hash && hash.length > 1) {
                 const secret = hash.substring(1); // Remove the # symbol
                 
@@ -2045,18 +1901,6 @@ class FileDownloadManager {
                 const isLegacy = secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
                 const isEnhanced = secret.length >= 40;
                 const isUnknown = !isLegacy && !isEnhanced;
-                
-                console.log('🔍 [DEBUG] Secret Format Analysis:', {
-                    secretLength: secret.length,
-                    secretPreview: secret.substring(0, 8) + '...',
-                    patterns: {
-                        isLegacy,
-                        isEnhanced,
-                        isUnknown,
-                        regexTest16Char: /^[A-Za-z0-9]{16}$/.test(secret),
-                        regexTestBase64: /^[A-Za-z0-9+/=]+$/.test(secret)
-                    }
-                });
                 
                 let detectedFormat;
                 let expectedSecurity;
@@ -2109,13 +1953,6 @@ class FileDownloadManager {
         console.group('📥 [DOWNLOAD] Starting Backward-Compatible Zero-Knowledge Download');
         
         try {
-            console.log('🔍 [DEBUG] Download request analysis:', {
-                clipId,
-                requestedFilename: filename,
-                userAgent: navigator.userAgent,
-                timestamp: new Date().toISOString()
-            });
-            
             // Extract compatible secret from current URL
             const compatibleSecret = this.extractCompatibleSecret();
             const password = this.getPasswordFromUser();
@@ -2300,13 +2137,6 @@ class FileDownloadManager {
         console.group('📋 [METADATA EXTRACTION] Decrypting Embedded Metadata');
         
         try {
-            console.log('🔍 [DEBUG] Metadata extraction input analysis:', {
-                fileDataSize: fileWithMetadata.length,
-                fileDataSizeFormatted: this.formatFileSize(fileWithMetadata.length),
-                secretLength: compatibleSecret ? compatibleSecret.length : 0,
-                secretType: compatibleSecret?.length >= 40 ? 'Enhanced' : compatibleSecret?.length === 16 ? 'Legacy' : 'Unknown'
-            });
-            
             if (fileWithMetadata.length < 4) {
                 throw new Error(`File too small to contain metadata: ${fileWithMetadata.length} bytes`);
             }
@@ -2439,14 +2269,6 @@ class FileDownloadManager {
         console.group('🎫 [TOKEN] Generating Download Authentication Token');
         
         try {
-            console.log('🔍 [DEBUG] Token generation input:', {
-                clipId,
-                hasPassword: !!password,
-                passwordLength: password ? password.length : 0,
-                hasSecret: !!compatibleSecret,
-                secretLength: compatibleSecret ? compatibleSecret.length : 0,
-                secretType: compatibleSecret?.length >= 40 ? 'Enhanced' : compatibleSecret?.length === 16 ? 'Legacy' : 'Unknown'
-            });
             
             const encoder = new TextEncoder();
             const tokenData = `enhanced:${clipId}:${password || ''}:${compatibleSecret || ''}`;

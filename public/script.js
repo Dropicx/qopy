@@ -343,16 +343,8 @@ class ClipboardApp {
                         
                         this.hideLoading('retrieve-loading');
                         
-                        const passwordSection = document.getElementById('password-section');
-                        const passwordInput = document.getElementById('retrieve-password-input');
-                        
-                        if (passwordSection && passwordInput) {
-                            passwordSection.classList.remove('hidden');
-                            passwordSection.style.display = 'block'; // Ensure it's visible
-                            passwordInput.focus();
-                        }
-                        
-                        this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
+                        if (window.UIHelpers) window.UIHelpers.showPasswordSection();
+                        this.showToast((window.INFO_MESSAGES && window.INFO_MESSAGES.FILE_PASSWORD_REQUIRED) || '🔐 This file requires a password. Please enter it below.', 'info');
                         return;
                     }
                     
@@ -396,12 +388,12 @@ class ClipboardApp {
                             passwordInput.focus();
                         }
                         
-                        this.showToast('🔐 This file requires a password. Please enter it below.', 'info');
+                        this.showToast((window.INFO_MESSAGES && window.INFO_MESSAGES.FILE_PASSWORD_REQUIRED) || '🔐 This file requires a password. Please enter it below.', 'info');
                     } else {
                         // File doesn't require password - wrong URL secret
                         console.log('🔑 File does not require password - wrong URL secret');
                         this.hideLoading('retrieve-loading');
-                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
+                        this.showToast((window.ERROR_MESSAGES && window.ERROR_MESSAGES.ACCESS_DENIED) || '❌ Access denied: Invalid credentials or clip not found', 'error');
                     }
                     return;
                     
@@ -442,18 +434,18 @@ class ClipboardApp {
                             await this.showRetrieveResult(data);
                         } else {
                             this.hideLoading('retrieve-loading');
-                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
+                            this.showToast((window.ERROR_MESSAGES && window.ERROR_MESSAGES.ACCESS_DENIED) || '❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                     } else {
                         this.hideLoading('retrieve-loading');
-                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
+                        this.showToast((window.ERROR_MESSAGES && window.ERROR_MESSAGES.ACCESS_DENIED) || '❌ Access denied: Invalid credentials or clip not found', 'error');
                     }
                     
                 } else {
                     // Other error (file not found, expired, etc.)
                     this.hideLoading('retrieve-loading');
                     if (infoResponse.status === 404) {
-                        this.showToast('❌ File not found or expired', 'error');
+                        this.showToast((window.ERROR_MESSAGES && window.ERROR_MESSAGES.FILE_NOT_FOUND) || '❌ File not found or expired', 'error');
                     } else {
                         this.showToast('❌ Failed to access file', 'error');
                     }
@@ -522,7 +514,7 @@ class ClipboardApp {
                             await this.showRetrieveResult(data);
                         } else {
                             console.error('❌ Authenticated retrieval failed:', response.status);
-                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
+                            this.showToast((window.ERROR_MESSAGES && window.ERROR_MESSAGES.ACCESS_DENIED) || '❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                     } else if ((infoResponse.status === 401 || infoResponse.status === 403) && !password && infoData?.hasPassword === true) {
                         // Authentication failed but server indicates password required
@@ -666,14 +658,14 @@ class ClipboardApp {
                             // Authentication failed with wrong credentials
                             console.error('❌ Authentication failed - invalid credentials:', infoResponse.status);
                             this.hideLoading('retrieve-loading');
-                            this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
+                            this.showToast((window.ERROR_MESSAGES && window.ERROR_MESSAGES.ACCESS_DENIED) || '❌ Access denied: Invalid credentials or clip not found', 'error');
                         }
                         
                     } else {
                         // No URL secret - this shouldn't happen for normal clips
                         console.log('❌ No URL secret available for normal clip');
                         this.hideLoading('retrieve-loading');
-                        this.showToast('❌ Access denied: Invalid credentials or clip not found', 'error');
+                        this.showToast((window.ERROR_MESSAGES && window.ERROR_MESSAGES.ACCESS_DENIED) || '❌ Access denied: Invalid credentials or clip not found', 'error');
                         return;
                     }
                 } else {
@@ -3396,14 +3388,6 @@ class ClipboardApp {
         } else {
             throw new Error('Either password or secret must be provided for IV derivation');
         }
-
-        console.log('🔍 [DEBUG] IV PBKDF2 Configuration:', {
-            mode,
-            salt,
-            iterations,
-            hashAlgorithm: 'SHA-256',
-            outputBits: 96
-        });
 
         // Derive IV using PBKDF2
         const ivBits = await window.crypto.subtle.deriveBits(

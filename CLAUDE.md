@@ -53,8 +53,9 @@ The codebase is actively migrating from a monolithic `server.js` (3,403 lines) t
 ### Core Components
 
 **Main Application**:
-- `server.js` - Express app with routes, middleware, and legacy monolithic logic
-- Includes automatic database migrations on startup
+- `server.js` - Express app with routes, middleware, and business logic
+- `routes/` - Extracted route modules (health.js, static.js)
+- `migrations/run.js` - Database migrations (run on startup)
 - Graceful shutdown handling for PostgreSQL and Redis connections
 
 **Services Directory** (`services/`):
