@@ -2503,7 +2503,7 @@ class FileDownloadManager {
                 border-radius: 5px;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.2);
                 z-index: 1000;
-                max-width: 400px;
+                max-width: min(400px, calc(100vw - 24px));
             `;
             document.body.appendChild(successDiv);
         }
@@ -2563,7 +2563,7 @@ class FileDownloadManager {
                 border-radius: 5px;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.2);
                 z-index: 1000;
-                max-width: 400px;
+                max-width: min(400px, calc(100vw - 24px));
             `;
             document.body.appendChild(errorDiv);
         }

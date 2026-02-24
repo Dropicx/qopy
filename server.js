@@ -682,7 +682,7 @@ async function handleClipRetrieval(req, res, clip, clipId) {
         
         // For Quick Share clips (4-digit ID), include the secret for decryption
         if (clipId.length === 4 && clip.password_hash) {
-          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId, 'secret:', clip.password_hash);
+          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId);
           response.quickShareSecret = clip.password_hash;
         }
         
@@ -747,7 +747,7 @@ async function handleClipRetrieval(req, res, clip, clipId) {
 
     // For Quick Share clips, include the secret for decryption
     if (clipId.length === 4 && clip.password_hash) {
-      console.log('🔑 Adding quickShareSecret for 4-digit clip (inline):', clipId, 'secret:', clip.password_hash);
+      console.log('🔑 Adding quickShareSecret for 4-digit clip (inline):', clipId);
       response.quickShareSecret = clip.password_hash;
     } else if (clipId.length === 10) {
       response.hasPassword = clip.requires_access_code || false;
@@ -2018,7 +2018,7 @@ app.post('/api/clip/:clipId', [
   body('accessCode').optional().isString().withMessage('Access code must be a string')
 ], async (req, res) => {
   try {
-    console.log('🔐 POST /api/clip/:clipId STARTED:', req.params.clipId, 'body:', JSON.stringify(req.body));
+    console.log('🔐 POST /api/clip/:clipId STARTED:', req.params.clipId, 'hasAccessCode:', !!req.body?.accessCode);
     
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

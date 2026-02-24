@@ -1396,10 +1396,11 @@ class ClipboardApp {
             };
             
             if (clipId.length === 10 && password) {
-                // Normal clip with password: Use POST with access code for authentication
+                // Normal clip with password: Use POST with hashed access code (Zero-Knowledge - server never sees password)
                 console.log('🔐 Normal clip with password - using access code authentication (Zero-Knowledge):', clipId);
                 fetchOptions.method = 'POST';
-                requestBody = { accessCode: password };
+                const accessCodeHash = await this.generateAccessCodeHash(password);
+                requestBody = { accessCode: accessCodeHash };
                 fetchOptions.body = JSON.stringify(requestBody);
             } else if (clipId.length === 10) {
                 // Normal clip without password: URL secret only (client-side)

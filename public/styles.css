@@ -1424,7 +1424,7 @@ footer p {
 /* Responsive Design */
 @media (max-width: 768px) {
   .container {
-    padding: 15px;
+    padding: 10px;
   }
 
   .main-logo {
@@ -1436,7 +1436,7 @@ footer p {
   }
 
   .form-container {
-    padding: 1.5rem;
+    padding: 1.5rem 1rem;
   }
 
   .form-row {
@@ -1446,10 +1446,26 @@ footer p {
 
   .form-row .input-group {
     margin-bottom: 1.5rem;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .checkbox-group {
+    width: 100%;
+  }
+
+  .checkbox-label {
+    min-width: 0;
   }
 
   .copy-container {
     flex-direction: column;
+    width: 100%;
+  }
+
+  .copy-container .copy-input {
+    width: 100%;
+    min-width: 0;
   }
 
   .copy-button {
@@ -1457,16 +1473,29 @@ footer p {
   }
 
   .modal {
-    padding: 10px;
+    padding: 8px;
   }
 
   .modal-content {
-    margin: 10px;
+    margin: 8px;
+    width: calc(100% - 16px);
+    max-width: none;
   }
 
   .modal-header,
   .modal-body {
     padding: 1rem;
+  }
+
+  .result-container,
+  .file-download-card,
+  .content-display {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  footer {
+    padding: 1.5rem 10px;
   }
 
   .result-header {
@@ -1603,12 +1632,75 @@ footer p {
 }
 
 @media (max-width: 480px) {
-  textarea {
-    min-height: 150px;
-    font-size: 16px; /* Prevent zoom on iOS */
+  .container {
+    padding: 8px;
+  }
+
+  header {
+    padding: 1rem 0.75rem;
+  }
+
+  .form-container {
+    padding: 1.2rem 0.75rem;
+  }
+
+  footer {
+    padding: 1rem 8px;
+  }
+
+  .tab-button {
+    padding: 10px 8px;
+    font-size: 0.85rem;
+  }
+
+  .copy-container .copy-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .input, .select, textarea {
+    min-width: 0;
   }
 
   .input, .select {
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+
+  .checkbox-group {
+    align-self: flex-start;
+    width: 100%;
+  }
+
+  .checkbox-label {
+    min-width: 0;
+  }
+
+  .checkmark {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  .modal-header,
+  .modal-body {
+    padding: 0.75rem 1rem;
+  }
+
+  .faq-container {
+    padding: 1rem 0.75rem;
+  }
+
+  .comparison-table {
+    overflow-x: auto;
+    min-width: 280px;
+  }
+
+  .file-upload-zone {
+    padding: 1.5rem 0.75rem;
+  }
+
+  textarea {
+    min-height: 150px;
     font-size: 16px; /* Prevent zoom on iOS */
   }
 
