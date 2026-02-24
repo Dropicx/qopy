@@ -358,7 +358,7 @@ describe('Chunk Upload Recovery and Edge Cases', () => {
       const outputPath = path.join(testStoragePath, `${uploadId}-assembled.dat`);
       cleanupPaths.push(outputPath);
 
-      const assembledPath = await FileAssemblyService.assemblyFile(
+      const assembledPath = await FileAssemblyService.assembleFile(
         uploadId, session, testStoragePath, outputPath
       );
 
@@ -552,8 +552,8 @@ describe('Chunk Upload Recovery and Edge Cases', () => {
       expect(assembledData.length).toBe(totalSize);
       expect(assembledData.equals(expectedData)).toBe(true);
 
-      // Verify corruption is preserved (not "fixed")
-      expect(assembledData[100]).toBe(corruptedData[100]);
+      // Verify corruption is preserved in second chunk (not "fixed")
+      expect(assembledData[chunkSize + 100]).toBe(corruptedData[100]);
       expect(assembledData[chunkSize + 500]).toBe(corruptedData[500]);
     });
 

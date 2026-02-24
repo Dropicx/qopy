@@ -209,14 +209,14 @@ describe('Chunk Upload Integration Tests', () => {
       expect(assembledData.length).toBe(fileSize);
       expect(assembledData.equals(fileData)).toBe(true);
 
-      // Test with encryption
+      // Test with encryption (hash must be >= 32 chars for validation)
       const encryptionConfig = EncryptionService.processAccessCode(
         { upload_id: uploadId, has_password: false, quick_share: false },
-        { requiresAccessCode: true, clientAccessCodeHash: 'test-hash-12345' }
+        { requiresAccessCode: true, clientAccessCodeHash: 'test-hash-123456789012345678901234567890' }
       );
 
       expect(encryptionConfig.shouldRequireAccessCode).toBe(true);
-      expect(encryptionConfig.accessCodeHash).toBe('test-hash-12345');
+      expect(encryptionConfig.accessCodeHash).toBe('test-hash-123456789012345678901234567890');
     });
 
     test('should handle 5.1MB file (just over threshold)', async () => {
@@ -368,17 +368,17 @@ describe('Chunk Upload Integration Tests', () => {
       await saveChunksToStorage(uploadId, chunks);
       const session = await createUploadSession(uploadId, chunks.length, fileSize);
 
-      // Test with access code encryption
+      // Test with access code encryption (hash must be >= 32 chars for validation)
       const encryptionConfig = EncryptionService.processAccessCode(
         { upload_id: uploadId, has_password: false, quick_share: false },
         { 
           requiresAccessCode: true, 
-          clientAccessCodeHash: 'secure-hash-abcdef123456' 
+          clientAccessCodeHash: 'secure-hash-abcdef1234567890123456789012' 
         }
       );
 
       expect(encryptionConfig.shouldRequireAccessCode).toBe(true);
-      expect(encryptionConfig.accessCodeHash).toBe('secure-hash-abcdef123456');
+      expect(encryptionConfig.accessCodeHash).toBe('secure-hash-abcdef1234567890123456789012');
       expect(encryptionConfig.passwordHash).toBe('client-encrypted');
 
       // Assemble file

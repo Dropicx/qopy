@@ -11,10 +11,11 @@ class EncryptionService {
     static processAccessCode(session, requestData) {
         const { quickShareSecret, clientAccessCodeHash, requiresAccessCode } = requestData;
         
-        // Validate access code hash - must be non-empty and meet minimum length (bcrypt hashes are 60 chars)
+        // Validate access code hash - must be non-empty, 32-128 chars (bcrypt hashes are 60 chars)
         const isValidAccessCodeHash = clientAccessCodeHash &&
             typeof clientAccessCodeHash === 'string' &&
-            clientAccessCodeHash.length >= 32;
+            clientAccessCodeHash.length >= 32 &&
+            clientAccessCodeHash.length <= 128;
         
         let passwordHash = null;
         let accessCodeHash = null;
@@ -97,7 +98,7 @@ class EncryptionService {
         const fileMetadata = {
             uploadId,
             originalUploadSession: true,
-            originalFileSize: session.filesize, // Store original size in metadata
+            originalFileSize: session?.filesize ?? session?.file_size ?? actualFilesize, // Store original size in metadata
             actualFileSize: actualFilesize,
             // No downloadToken - using Zero-Knowledge access code system
             zeroKnowledge: true

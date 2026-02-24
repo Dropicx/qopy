@@ -71,7 +71,7 @@ class FileAssemblyService {
                     try {
                         await fs.access(chunkPath);
                     } catch (error) {
-                        throw new Error(`Chunk ${i} not found at: ${chunkPath}`);
+                        throw new Error(`Chunk ${i} not found`);
                     }
                     
                     // Read chunk data
@@ -190,6 +190,16 @@ class FileAssemblyService {
             
             const duration = Date.now() - startTime;
             console.log(`🧹 Parallel cleanup completed in ${duration}ms: ${successful} success, ${failed} failed`);
+            
+            // Remove chunks directory after cleanup (recursive removes any remaining files)
+            if (successful > 0) {
+                const chunksDir = path.join(storagePath, 'chunks', uploadId);
+                try {
+                    await fs.rm(chunksDir, { recursive: true, force: true });
+                } catch (dirError) {
+                    // Ignore - directory may not exist or already removed
+                }
+            }
             
             return {
                 totalChunks,

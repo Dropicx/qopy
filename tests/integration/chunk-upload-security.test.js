@@ -79,10 +79,27 @@ describe('Chunk Upload Security Tests', () => {
   };
 
   /**
+   * Check if upload ID contains path traversal - reject malicious IDs
+   */
+  const isPathTraversal = (uploadId) => {
+    if (!uploadId || typeof uploadId !== 'string') return true;
+    const normalized = path.normalize(uploadId);
+    return normalized.includes('..') || normalized.startsWith('/') ||
+      /\.\.[/\\]/.test(uploadId) || /%2e%2e/i.test(uploadId);
+  };
+
+  /**
    * Helper to save chunks securely
    */
   const saveSecureChunks = async (uploadId, chunks) => {
+    if (isPathTraversal(uploadId)) {
+      throw new Error('Path traversal detected in upload ID');
+    }
     const chunksDir = path.join(testStoragePath, 'chunks', uploadId);
+    const resolvedDir = path.resolve(chunksDir);
+    if (!resolvedDir.startsWith(path.resolve(testStoragePath))) {
+      throw new Error('Path traversal would escape storage');
+    }
     await fs.ensureDir(chunksDir);
     cleanupPaths.push(chunksDir);
 
@@ -325,14 +342,14 @@ describe('Chunk Upload Security Tests', () => {
         quick_share: false
       };
 
-      // Test valid encryption config
+      // Test valid encryption config (hash must be >= 32 chars)
       const validConfig = EncryptionService.processAccessCode(session, {
         requiresAccessCode: true,
-        clientAccessCodeHash: 'valid-hash-12345678901234567890'
+        clientAccessCodeHash: 'valid-hash-123456789012345678901234567890'
       });
 
       expect(validConfig.shouldRequireAccessCode).toBe(true);
-      expect(validConfig.accessCodeHash).toBe('valid-hash-12345678901234567890');
+      expect(validConfig.accessCodeHash).toBe('valid-hash-123456789012345678901234567890');
       expect(validConfig.passwordHash).toBe('client-encrypted');
 
       // Test invalid/suspicious encryption configs
