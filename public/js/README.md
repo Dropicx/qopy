@@ -8,12 +8,6 @@
 
 - **standalone/UIHelpers.js** - UI utilities (showPasswordSection, hideLoading, etc.). Attaches to `window.UIHelpers`.
 
-- **services/ApiClient.js** - ES module API client (use with `type="module"`).
-
-- **helpers/UIHelpers.js** - ES module version of UIHelpers.
-
-- **constants/ErrorMessages.js** - ES module version of ErrorMessages.
-
 ## Loading Order (index.html)
 
 1. QopyCrypto (EncryptionService.js)

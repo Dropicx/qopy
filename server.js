@@ -1917,22 +1917,6 @@ app.get('/api/file/:clipId', [
 // - StorageService: /services/StorageService.js (database and file operations)  
 // - QuickShareService: /services/QuickShareService.js (Quick Share specific logic)
 // - ShareValidationMiddleware: /services/ShareValidationMiddleware.js (validation logic)
-// - RefactoredShareEndpoint: /services/RefactoredShareEndpoint.js (clean endpoint implementation)
-//
-// The refactored services maintain the exact same functionality as the original endpoint
-// but with improved maintainability, testability, and separation of concerns.
-//
-// To enable this endpoint, uncomment the RefactoredShareEndpoint usage in the services/
-/*
-// Original 245-line monolithic endpoint implementation is preserved here for reference
-// but has been broken down into the service components listed above.
-//
-// Example usage of refactored services:
-// const RefactoredShareEndpoint = require('./services/RefactoredShareEndpoint');
-// const refactoredShare = new RefactoredShareEndpoint(pool, STORAGE_PATH, generateClipId, generateUploadId, updateStatistics);
-// refactoredShare.createEndpoint(app);
-*/
-
 // Get clip info
 app.get('/api/clip/:clipId/info', [
   param('clipId').custom((value) => {

@@ -12,7 +12,7 @@
     "test:coverage": "jest --coverage",
     "test:unit": "jest tests/unit",
     "test:integration": "jest tests/integration",
-    "test-migration": "node test-migration.js",
+    "test-migration": "node tests/manual/test-migration.js",
     "migrate": "psql $DATABASE_URL -f scripts/database-migration.sql"
   },
   "keywords": [

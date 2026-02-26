@@ -25,12 +25,7 @@ module.exports = {
       'UploadCompletionService.test',
       'UploadValidator.test',
       'FileAssemblyService.test',
-      'CryptoService.test',
-      'FileProcessor.test',
       'QuickShareService.test',
-      'UIController.test',
-      'RefactoredFileUploadManager.test',
-      'NetworkService.test',
       'EncryptionService.test'
     ]
   } : {}),

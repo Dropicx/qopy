@@ -391,6 +391,65 @@ export default function() {
    - Live notifications
    - Reduced polling overhead
 
+## Issue #3 Resolution — Specific Optimizations
+
+The following optimizations were implemented to resolve critical performance issues identified in Issue #3.
+
+### Eliminated Blocking Synchronous File Operations
+
+Converted all synchronous operations to their asynchronous equivalents:
+- `fs.ensureDirSync()` → `await fs.ensureDir()`
+- `fs.existsSync()` → `await fs.pathExists()`
+- `fs.statSync()` → `await fs.stat()`
+
+This ensures the event loop never blocks during file operations, keeping the server responsive for all concurrent users.
+
+### Directory Size Calculation Optimization
+
+Rewrote the recursive `getDirectorySize()` function:
+- Parallel `Promise.all()` for directory traversal
+- 5-minute cache for recently calculated directories
+- Automatic cache cleanup to prevent memory leaks
+- O(n) complexity instead of O(n²)
+
+### Redis Memory Leak Prevention
+
+Comprehensive memory leak prevention system:
+- Event listener tracking with Map-based management
+- Automatic cleanup on disconnect/error
+- Graceful shutdown handlers for process signals
+- Health monitoring with automatic reconnection
+
+**Files Modified**: `config/redis.js`, `server.js`, `services/UploadRepository.js`
+
+### Architecture Decisions
+
+1. **Asynchronous-First Design**: All I/O operations use async/await patterns to prevent event loop blocking.
+2. **Intelligent Caching Strategy**: Strategic caching for expensive operations with automatic expiration.
+3. **Resource Pooling Optimization**: Right-sized connection pools based on actual usage patterns.
+4. **Parallel Processing Architecture**: Leveraged Node.js concurrent operations wherever beneficial.
+
+### Best Practices
+
+```javascript
+// ❌ Bad - Blocks event loop
+if (fs.existsSync(path)) { ... }
+
+// ✅ Good - Non-blocking
+if (await fs.pathExists(path)) { ... }
+```
+
+```javascript
+// ❌ Bad - Sequential
+for (const chunk of chunks) {
+  const data = await readChunk(chunk);
+}
+
+// ✅ Good - Parallel
+const dataPromises = chunks.map(chunk => readChunk(chunk));
+const allData = await Promise.all(dataPromises);
+```
+
 ## Conclusion
 
 The performance optimizations implemented in Qopy provide significant improvements:
