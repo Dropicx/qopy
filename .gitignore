@@ -86,6 +86,7 @@ public/uploads/
 # Build artifacts
 dist/
 build/
+public/dist/
 
 # Local development files
 .local

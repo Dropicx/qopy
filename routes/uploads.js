@@ -9,42 +9,11 @@ const path = require('path');
 const fs = require('fs-extra');
 const rateLimit = require('express-rate-limit');
 const { UploadCompletionService, UploadCompletionError } = require('../services/UploadCompletionService');
+const { createLimiter } = require('../services/utils/concurrencyLimiter');
 
 // Upload ID generation
 function generateUploadId() {
     return uuidv4().replace(/-/g, '').substring(0, 16).toUpperCase();
-}
-
-// Native concurrency limiter to avoid p-limit ES6 import issues
-function createLimiter(limit) {
-    let running = 0;
-    const queue = [];
-
-    const run = async (fn) => {
-        return new Promise((resolve, reject) => {
-            queue.push({ fn, resolve, reject });
-            process();
-        });
-    };
-
-    const process = async () => {
-        if (running >= limit || queue.length === 0) return;
-
-        running++;
-        const { fn, resolve, reject } = queue.shift();
-
-        try {
-            const result = await fn();
-            resolve(result);
-        } catch (error) {
-            reject(error);
-        } finally {
-            running--;
-            process();
-        }
-    };
-
-    return run;
 }
 
 /**

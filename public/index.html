@@ -34,9 +34,6 @@
     <meta name="msapplication-TileColor" content="#1DB954">
     <meta name="mobile-web-app-capable" content="yes">
     
-    <!-- QR Code library for client-side generation -->
-    <script src="/qrcode.min.js"></script>
-    
     <!-- Canonical URL -->
     <link rel="canonical" href="https://qopy.app/">
     
@@ -886,11 +883,12 @@
         </div>
     </footer>
 
-    <script src="/js/crypto/EncryptionService.js"></script>
-    <script src="/js/standalone/ErrorMessages.js"></script>
-    <script src="/js/standalone/UIHelpers.js"></script>
-    <script src="/script.js"></script>
-    <script src="/file-upload.js"></script>
+    <script defer src="/qrcode.min.js"></script>
+    <script defer src="/js/crypto/EncryptionService.js"></script>
+    <script defer src="/js/standalone/ErrorMessages.js"></script>
+    <script defer src="/js/standalone/UIHelpers.js"></script>
+    <script defer src="/script.js"></script>
+    <script defer src="/file-upload.js"></script>
 
     <!-- Privacy Notice Banner -->
     <div id="privacy-notice" class="privacy-notice">

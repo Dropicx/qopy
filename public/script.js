@@ -143,11 +143,11 @@ class ClipboardApp {
             if (e.target.id === 'success-modal') this.closeModal();
         });
 
-        // Toast close buttons
-        document.querySelectorAll('.toast-close').forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.target.closest('.toast').classList.add('hidden');
-            });
+        // Toast close buttons — event delegation for dynamic toasts
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.toast-close')) {
+                e.target.closest('.toast')?.classList.add('hidden');
+            }
         });
 
         // Enter key handling
@@ -174,12 +174,29 @@ class ClipboardApp {
             }
         });
 
-        // FAQ Accordion
-        document.querySelectorAll('.faq-question').forEach(button => {
-            button.addEventListener('click', () => {
-                this.toggleFAQ(button.dataset.faq);
-            });
+        // FAQ Accordion — event delegation for all FAQ questions
+        document.addEventListener('click', (e) => {
+            const faqButton = e.target.closest('.faq-question');
+            if (faqButton) {
+                this.toggleFAQ(faqButton.dataset.faq);
+            }
         });
+
+        // File download button — event delegation on stable parent
+        const contentResult = document.getElementById('content-result');
+        if (contentResult) {
+            contentResult.addEventListener('click', async (e) => {
+                if (e.target.closest('#download-file-button') && this._pendingFileDownload) {
+                    try {
+                        const clipId = document.getElementById('clip-id-input').value.trim();
+                        await this.downloadFile(clipId, this._pendingFileDownload.filename);
+                    } catch (error) {
+                        console.error('Download failed:', error);
+                        this.showToast('Download failed: ' + error.message, 'error');
+                    }
+                }
+            });
+        }
 
         // Privacy Notice Dismiss
         document.getElementById('privacy-dismiss').addEventListener('click', () => {
@@ -2611,21 +2628,8 @@ class ClipboardApp {
             oneTimeFileNotice.classList.add('hidden');
         }
         
-        // Add download event listener
-        const downloadButton = document.getElementById('download-file-button');
-        if (downloadButton) {
-            downloadButton.addEventListener('click', async () => {
-                try {
-                    const clipId = document.getElementById('clip-id-input').value.trim();
-                    await this.downloadFile(clipId, data.filename);
-                } catch (error) {
-                    console.error('❌ Download failed:', error);
-                    this.showToast('❌ Download failed: ' + error.message, 'error');
-                }
-            }, { once: true });
-        } else {
-            console.error('❌ Download button not found!');
-        }
+        // Store data for the delegated download handler
+        this._pendingFileDownload = { filename: data.filename };
         
         // Set time stamps
         const fileCreatedTime = document.getElementById('file-created-time');

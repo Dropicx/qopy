@@ -7,9 +7,6 @@ WORKDIR /app
 # Install curl for downloading external resources
 RUN apk add --no-cache curl
 
-# Upgrade npm to latest version
-RUN npm install -g npm@latest
-
 # Copy package files first to leverage Docker layer caching
 COPY package*.json ./
 COPY .npmrc ./
@@ -18,8 +15,14 @@ COPY .npmrc ./
 RUN rm -f package-lock.json && \
     npm install
 
-# Copy scripts directory (only add-headers.sh remains)
+# Copy scripts directory
 COPY scripts/ ./scripts/
+
+# Copy public directory for frontend build
+COPY public/ ./public/
+
+# Build minified frontend assets
+RUN node scripts/build-frontend.js
 
 # Create data directory for spam IP lists
 RUN mkdir -p data
@@ -29,9 +32,6 @@ FROM node:20-alpine AS production
 
 # Install curl and other utilities needed for runtime
 RUN apk add --no-cache curl wget
-
-# Upgrade npm to latest version
-RUN npm install -g npm@latest
 
 # Set NODE_ENV to production
 ENV NODE_ENV=production
@@ -45,6 +45,9 @@ WORKDIR /app
 
 # Copy dependencies from builder stage
 COPY --from=builder /app/node_modules ./node_modules
+
+# Copy minified frontend assets from builder
+COPY --from=builder /app/public/dist ./public/dist
 
 # Copy application code with proper ownership
 COPY --chown=qopy:nodejs . .
@@ -77,11 +80,11 @@ RUN chown qopy:nodejs /app/startup.sh
 USER qopy
 
 # Expose the port the app runs on
-EXPOSE 3000
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
 # Start the application with database initialization
-CMD ["/app/startup.sh"] 
+CMD ["/app/startup.sh"]

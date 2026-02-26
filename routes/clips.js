@@ -150,8 +150,8 @@ async function handleClipRetrieval(req, res, clip, clipId, { pool, updateStatist
  * @param {import('express').Application} app
  * @param {{ pool: import('pg').Pool, updateStatistics: Function }} deps
  */
-function registerClipRoutes(app, { pool, updateStatistics }) {
-    // Get clip info
+function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
+    // Get clip info (with Redis caching)
     app.get('/api/clip/:clipId/info', [
       clipIdValidator
     ], async (req, res) => {
@@ -166,8 +166,23 @@ function registerClipRoutes(app, { pool, updateStatistics }) {
 
         const { clipId } = req.params;
 
+        // Check Redis cache first
+        if (getRedis) {
+          try {
+            const redis = getRedis();
+            if (redis) {
+              const cached = await redis.get(`clip-info:${clipId}`);
+              if (cached) {
+                return res.json(JSON.parse(cached));
+              }
+            }
+          } catch (cacheError) {
+            // Non-critical: fall through to database
+          }
+        }
+
         const result = await pool.query(
-          'SELECT clip_id, content_type, expiration_time, one_time, password_hash, file_metadata FROM clips WHERE clip_id = $1 AND is_expired = false',
+          'SELECT clip_id, content_type, expiration_time, one_time, password_hash, file_metadata, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
           [clipId]
         );
 
@@ -180,28 +195,34 @@ function registerClipRoutes(app, { pool, updateStatistics }) {
 
         const clip = result.rows[0];
 
-        // Zero-Knowledge Access Code System - no download tokens needed
-        const isQuickShare = clipId.length <= 6;
-
-        // Determine if clip requires access code based on requires_access_code column
+        // Determine if clip requires access code
         let hasPassword = false;
         if (clipId.length === 10) {
-          // For normal clips (10-digit), check if access code is required
-          // Check both requires_access_code and password_hash for backward compatibility
           hasPassword = clip.requires_access_code || clip.password_hash === 'client-encrypted' || false;
-        } else {
-          // For Quick Share clips (6-digit), never have passwords
-          hasPassword = false;
         }
 
-        res.json({
+        const response = {
           success: true,
           clipId: clip.clip_id,
           contentType: clip.content_type,
           expiresAt: clip.expiration_time,
           oneTime: clip.one_time,
           hasPassword: hasPassword
-        });
+        };
+
+        // Cache in Redis (skip one-time clips since they'll be deleted after access)
+        if (getRedis && !clip.one_time) {
+          try {
+            const redis = getRedis();
+            if (redis) {
+              await redis.setEx(`clip-info:${clipId}`, 30, JSON.stringify(response));
+            }
+          } catch (cacheError) {
+            // Non-critical: response still served from database
+          }
+        }
+
+        res.json(response);
 
       } catch (error) {
         res.status(500).json({

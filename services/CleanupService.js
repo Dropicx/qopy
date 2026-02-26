@@ -19,6 +19,8 @@
 const BaseService = require('./core/BaseService');
 const fs = require('fs-extra');
 const path = require('path');
+const { createLimiter } = require('./utils/concurrencyLimiter');
+const { safeDeleteFile } = require('./utils/fileOperations');
 
 /**
  * CleanupService - Handles periodic cleanup of expired clips, uploads, and orphaned files.
@@ -39,39 +41,6 @@ class CleanupService extends BaseService {
     }
 
     /**
-     * Safely delete a file with permission handling
-     * @param {string} filePath - Path to the file to delete
-     * @returns {Promise<Object>} - Result object with success and reason
-     */
-    async safeDeleteFile(filePath) {
-        try {
-            // Check if file exists
-            const fileExists = await fs.pathExists(filePath);
-            if (!fileExists) {
-                return { success: true, reason: 'file_not_exists' };
-            }
-
-            // Get file stats
-            const stats = await fs.stat(filePath);
-
-            // Try to delete
-            await fs.unlink(filePath);
-            return { success: true, reason: 'deleted' };
-        } catch (error) {
-            // Handle specific error cases
-            if (error.code === 'ENOENT') {
-                return { success: true, reason: 'file_not_exists' };
-            } else if (error.code === 'EACCES' || error.code === 'EPERM') {
-                return { success: false, reason: 'permission_denied', error: error.message };
-            } else if (error.code === 'EBUSY' || error.code === 'ENOTEMPTY') {
-                return { success: false, reason: 'file_in_use', error: error.message };
-            } else {
-                return { success: false, reason: 'unknown_error', error: error.message };
-            }
-        }
-    }
-
-    /**
      * Cleanup expired clips: delete associated files, mark as expired, purge old records,
      * and reset the sequence if approaching the limit.
      */
@@ -89,7 +58,7 @@ class CleanupService extends BaseService {
             for (const clip of expiredClipsWithFiles.rows) {
                 if (clip.file_path) {
                     try {
-                        const result = await this.safeDeleteFile(clip.file_path);
+                        const result = await safeDeleteFile(clip.file_path);
                         if (result.success) {
                             deletedFilesCount++;
                         }
@@ -147,90 +116,45 @@ class CleanupService extends BaseService {
     }
 
     /**
-     * Native concurrency limiter to avoid p-limit ES6 import issues
-     * @param {number} limit - Maximum concurrent operations
-     * @returns {Function} - Limiter function
-     */
-    _createLimiter(limit) {
-        let running = 0;
-        const queue = [];
-
-        const run = async (fn) => {
-            return new Promise((resolve, reject) => {
-                queue.push({ fn, resolve, reject });
-                process();
-            });
-        };
-
-        const process = async () => {
-            if (running >= limit || queue.length === 0) return;
-
-            running++;
-            const { fn, resolve, reject } = queue.shift();
-
-            try {
-                const result = await fn();
-                resolve(result);
-            } catch (error) {
-                reject(error);
-            } finally {
-                running--;
-                process();
-            }
-        };
-
-        return run;
-    }
-
-    /**
      * Cleanup expired uploads and orphaned files
      */
     async cleanupExpiredUploads() {
         try {
             const now = Date.now();
 
-            // Get expired upload sessions
+            // Get expired upload session IDs
             const expiredSessions = await this.pool.query(
                 'SELECT upload_id FROM upload_sessions WHERE expiration_time < $1 OR (status = $2 AND last_activity < $3)',
-                [now, 'uploading', now - (24 * 60 * 60 * 1000)] // 24 hours old
+                [now, 'uploading', now - (24 * 60 * 60 * 1000)]
             );
 
-            for (const session of expiredSessions.rows) {
-                const uploadId = session.upload_id;
+            if (expiredSessions.rows.length > 0) {
+                const expiredIds = expiredSessions.rows.map(s => s.upload_id);
 
-                try {
-                    // Get and delete chunks
-                    const chunks = await this.pool.query(
-                        'SELECT storage_path FROM file_chunks WHERE upload_id = $1',
-                        [uploadId]
+                // Single JOIN query to get ALL chunk paths for expired sessions
+                const allChunks = await this.pool.query(
+                    'SELECT storage_path FROM file_chunks WHERE upload_id = ANY($1)',
+                    [expiredIds]
+                );
+
+                // Parallel file deletion with concurrency limiter
+                if (allChunks.rows.length > 0) {
+                    const limit = createLimiter(10);
+                    const deleteTasks = allChunks.rows.map(chunk =>
+                        limit(async () => safeDeleteFile(chunk.storage_path))
                     );
-
-                    const limit = this._createLimiter(10); // Allow more concurrency for file deletion
-
-                    const deleteTasks = chunks.rows.map(chunk =>
-                        limit(async () => {
-                            const result = await this.safeDeleteFile(chunk.storage_path);
-                            if (!result.success) {
-                                // Non-critical: chunk file cleanup failed
-                            }
-                            return result;
-                        })
-                    );
-
                     await Promise.all(deleteTasks);
+                }
 
-                    // Delete database records
-                    await this.pool.query('DELETE FROM file_chunks WHERE upload_id = $1', [uploadId]);
-                    await this.pool.query('DELETE FROM upload_sessions WHERE upload_id = $1', [uploadId]);
+                // Batch delete database records
+                await this.pool.query('DELETE FROM file_chunks WHERE upload_id = ANY($1)', [expiredIds]);
+                await this.pool.query('DELETE FROM upload_sessions WHERE upload_id = ANY($1)', [expiredIds]);
 
-                    // Clear cache
-                    const redis = this.getRedis();
-                    if (redis) {
-                        await redis.del(`upload:${uploadId}`);
-                    }
-
-                } catch (error) {
-                    // Individual upload cleanup error - continue with remaining
+                // Redis cache cleanup
+                const redis = this.getRedis();
+                if (redis) {
+                    const cacheKeys = expiredIds.map(id => `upload:${id}`);
+                    await Promise.all(cacheKeys.map(key => redis.del(key).catch(() => {})));
                 }
             }
 
@@ -243,20 +167,12 @@ class CleanupService extends BaseService {
                 )
             `, [now]);
 
-            let deletedCount = 0;
-            let failedCount = 0;
-
-            for (const file of orphanedFiles.rows) {
-                const result = await this.safeDeleteFile(file.file_path);
-
-                if (result.success) {
-                    if (result.reason === 'deleted') {
-                        deletedCount++;
-                    }
-                } else {
-                    failedCount++;
-                    // Non-critical: orphaned file cleanup failed
-                }
+            if (orphanedFiles.rows.length > 0) {
+                const limit = createLimiter(10);
+                const deleteTasks = orphanedFiles.rows.map(file =>
+                    limit(async () => safeDeleteFile(file.file_path))
+                );
+                await Promise.all(deleteTasks);
             }
 
         } catch (error) {

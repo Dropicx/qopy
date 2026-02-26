@@ -28,6 +28,8 @@ const { Pool } = require('pg');
 const fs = require('fs-extra');
 const multer = require('multer');
 const crypto = require('crypto');
+const { createLimiter } = require('./services/utils/concurrencyLimiter');
+const { safeDeleteFile } = require('./services/utils/fileOperations');
 const mime = require('mime-types');
 // Import services
 const FileService = require('./services/FileService');
@@ -494,7 +496,10 @@ app.get('/api/config', (req, res) => {
     res.json({ pbkdf2Salt: process.env.PBKDF2_SALT });
 });
 
-// Serve static files (before API routes)
+// Serve minified assets first (if built), then fall back to source
+if (fs.pathExistsSync(path.join(__dirname, 'public', 'dist'))) {
+    app.use(express.static(path.join(__dirname, 'public', 'dist')));
+}
 app.use(express.static('public'));
 
 // Explicit static file routes for /clip/ and root assets
@@ -507,7 +512,7 @@ registerAdminRoutes(app, { pool });
 
 // Clip retrieval routes
 const { registerClipRoutes } = require('./routes/clips');
-registerClipRoutes(app, { pool, updateStatistics });
+registerClipRoutes(app, { pool, updateStatistics, getRedis });
 
 // Clip ID generation (cryptographically secure)
 function generateClipId(quickShare = false) {
@@ -525,34 +530,7 @@ function generateClipId(quickShare = false) {
 
 // handleClipRetrieval has been moved to routes/clips.js
 
-// Helper function to safely delete files with permission handling
-async function safeDeleteFile(filePath) {
-    try {
-        // Check if file exists
-        const fileExists = await fs.pathExists(filePath);
-        if (!fileExists) {
-            return { success: true, reason: 'file_not_exists' };
-        }
-        
-        // Get file stats
-        const stats = await fs.stat(filePath);
-        
-        // Try to delete
-        await fs.unlink(filePath);
-        return { success: true, reason: 'deleted' };
-    } catch (error) {
-        // Handle specific error cases
-        if (error.code === 'ENOENT') {
-            return { success: true, reason: 'file_not_exists' };
-        } else if (error.code === 'EACCES' || error.code === 'EPERM') {
-            return { success: false, reason: 'permission_denied', error: error.message };
-        } else if (error.code === 'EBUSY' || error.code === 'ENOTEMPTY') {
-            return { success: false, reason: 'file_in_use', error: error.message };
-        } else {
-            return { success: false, reason: 'unknown_error', error: error.message };
-        }
-    }
-}
+// safeDeleteFile imported from services/utils/fileOperations.js
 
 
 // Upload session retrieval (used by upload routes and UploadCompletionService)
@@ -612,38 +590,6 @@ async function assembleFile(uploadId, session) {
         const writeStream = require('fs').createWriteStream(finalPath);
         
         // 🚀 PARALLEL OPTIMIZATION: Read all chunks concurrently with controlled concurrency
-        // Native concurrency limiter to avoid p-limit ES6 import issues
-        function createLimiter(limit) {
-            let running = 0;
-            const queue = [];
-            
-            const run = async (fn) => {
-                return new Promise((resolve, reject) => {
-                    queue.push({ fn, resolve, reject });
-                    process();
-                });
-            };
-            
-            const process = async () => {
-                if (running >= limit || queue.length === 0) return;
-                
-                running++;
-                const { fn, resolve, reject } = queue.shift();
-                
-                try {
-                    const result = await fn();
-                    resolve(result);
-                } catch (error) {
-                    reject(error);
-                } finally {
-                    running--;
-                    process();
-                }
-            };
-            
-            return run;
-        }
-        
         const limit = createLimiter(5); // Limit to 5 concurrent operations to avoid overwhelming system
         
         // Create chunk reading tasks

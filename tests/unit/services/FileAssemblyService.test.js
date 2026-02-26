@@ -23,7 +23,9 @@ jest.mock('fs', () => ({
     access: jest.fn(),
     readFile: jest.fn(),
     writeFile: jest.fn(),
-    mkdir: jest.fn()
+    mkdir: jest.fn(),
+    unlink: jest.fn(),
+    rm: jest.fn()
   }
 }));
 
@@ -489,6 +491,181 @@ describe('FileAssemblyService', () => {
 
       expect(result).toBe('/circular/file.txt');
       expect(mockAssembleFileFn).toHaveBeenCalledWith(uploadId, circularSession);
+    });
+  });
+
+  describe('cleanupChunks', () => {
+    test('should cleanup all chunks successfully', async () => {
+      fs.unlink.mockResolvedValue();
+      fs.rm.mockResolvedValue();
+
+      const result = await FileAssemblyService.cleanupChunks('upload-1', 3, '/storage');
+
+      expect(result.totalChunks).toBe(3);
+      expect(result.successful).toBe(3);
+      expect(result.failed).toBe(0);
+      expect(fs.unlink).toHaveBeenCalledTimes(3);
+      expect(fs.rm).toHaveBeenCalledWith(
+        expect.stringContaining('upload-1'),
+        { recursive: true, force: true }
+      );
+    });
+
+    test('should handle partial cleanup failures gracefully', async () => {
+      fs.unlink
+        .mockResolvedValueOnce()
+        .mockRejectedValueOnce(new Error('ENOENT'))
+        .mockResolvedValueOnce();
+      fs.rm.mockResolvedValue();
+
+      const result = await FileAssemblyService.cleanupChunks('upload-2', 3, '/storage');
+
+      expect(result.totalChunks).toBe(3);
+      expect(result.successful).toBe(2);
+      expect(result.failed).toBe(1);
+      expect(result.results[1].success).toBe(false);
+    });
+
+    test('should handle all chunks failing to delete', async () => {
+      fs.unlink.mockRejectedValue(new Error('EACCES'));
+      fs.rm.mockResolvedValue();
+
+      const result = await FileAssemblyService.cleanupChunks('upload-3', 2, '/storage');
+
+      expect(result.successful).toBe(0);
+      expect(result.failed).toBe(2);
+      // Should not try to remove directory when no chunks deleted
+      expect(fs.rm).not.toHaveBeenCalled();
+    });
+
+    test('should handle zero chunks', async () => {
+      const result = await FileAssemblyService.cleanupChunks('upload-empty', 0, '/storage');
+
+      expect(result.totalChunks).toBe(0);
+      expect(result.successful).toBe(0);
+      expect(result.failed).toBe(0);
+      expect(fs.unlink).not.toHaveBeenCalled();
+    });
+
+    test('should handle directory removal failure', async () => {
+      fs.unlink.mockResolvedValue();
+      fs.rm.mockRejectedValue(new Error('ENOENT'));
+
+      const result = await FileAssemblyService.cleanupChunks('upload-4', 1, '/storage');
+
+      // Should still succeed — directory removal failure is non-critical
+      expect(result.successful).toBe(1);
+    });
+
+    test('should return results with correct chunk paths', async () => {
+      fs.unlink.mockResolvedValue();
+      fs.rm.mockResolvedValue();
+
+      const result = await FileAssemblyService.cleanupChunks('upload-5', 2, '/storage');
+
+      expect(result.results[0].path).toContain('chunk_0');
+      expect(result.results[1].path).toContain('chunk_1');
+      expect(result.results[0].success).toBe(true);
+    });
+
+    test('should include duration in result', async () => {
+      fs.unlink.mockResolvedValue();
+      fs.rm.mockResolvedValue();
+
+      const result = await FileAssemblyService.cleanupChunks('upload-6', 1, '/storage');
+
+      expect(typeof result.duration).toBe('number');
+      expect(result.duration).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('validateChunksParallel', () => {
+    test('should validate all chunks exist', async () => {
+      fs.stat
+        .mockResolvedValueOnce({ size: 100 })
+        .mockResolvedValueOnce({ size: 200 })
+        .mockResolvedValueOnce({ size: 150 });
+
+      const result = await FileAssemblyService.validateChunksParallel('upload-1', 3, '/storage');
+
+      expect(result.isComplete).toBe(true);
+      expect(result.totalChunks).toBe(3);
+      expect(result.existingChunks).toBe(3);
+      expect(result.missingChunks).toBe(0);
+      expect(result.totalSize).toBe(450);
+      expect(result.missingChunkIndices).toEqual([]);
+    });
+
+    test('should detect missing chunks', async () => {
+      fs.stat
+        .mockResolvedValueOnce({ size: 100 })
+        .mockRejectedValueOnce(new Error('ENOENT'))
+        .mockResolvedValueOnce({ size: 150 });
+
+      const result = await FileAssemblyService.validateChunksParallel('upload-2', 3, '/storage');
+
+      expect(result.isComplete).toBe(false);
+      expect(result.existingChunks).toBe(2);
+      expect(result.missingChunks).toBe(1);
+      expect(result.missingChunkIndices).toEqual([1]);
+      expect(result.totalSize).toBe(250);
+    });
+
+    test('should handle all chunks missing', async () => {
+      fs.stat.mockRejectedValue(new Error('ENOENT'));
+
+      const result = await FileAssemblyService.validateChunksParallel('upload-3', 3, '/storage');
+
+      expect(result.isComplete).toBe(false);
+      expect(result.existingChunks).toBe(0);
+      expect(result.missingChunks).toBe(3);
+      expect(result.totalSize).toBe(0);
+      expect(result.missingChunkIndices).toEqual([0, 1, 2]);
+    });
+
+    test('should handle zero total chunks', async () => {
+      const result = await FileAssemblyService.validateChunksParallel('upload-4', 0, '/storage');
+
+      expect(result.isComplete).toBe(true);
+      expect(result.totalChunks).toBe(0);
+      expect(result.existingChunks).toBe(0);
+      expect(result.missingChunks).toBe(0);
+    });
+
+    test('should include correct paths in results', async () => {
+      fs.stat.mockResolvedValue({ size: 100 });
+
+      const result = await FileAssemblyService.validateChunksParallel('upload-5', 2, '/storage');
+
+      expect(result.results[0].path).toContain('chunk_0');
+      expect(result.results[1].path).toContain('chunk_1');
+    });
+
+    test('should include duration in result', async () => {
+      fs.stat.mockResolvedValue({ size: 50 });
+
+      const result = await FileAssemblyService.validateChunksParallel('upload-6', 1, '/storage');
+
+      expect(typeof result.duration).toBe('number');
+      expect(result.duration).toBeGreaterThanOrEqual(0);
+    });
+
+    test('should include error message for missing chunks', async () => {
+      fs.stat.mockRejectedValue(new Error('ENOENT: no such file'));
+
+      const result = await FileAssemblyService.validateChunksParallel('upload-7', 1, '/storage');
+
+      expect(result.results[0].exists).toBe(false);
+      expect(result.results[0].error).toContain('ENOENT');
+    });
+
+    test('should report correct size for single chunk', async () => {
+      fs.stat.mockResolvedValue({ size: 5242880 }); // 5MB
+
+      const result = await FileAssemblyService.validateChunksParallel('upload-8', 1, '/storage');
+
+      expect(result.totalSize).toBe(5242880);
+      expect(result.existingChunks).toBe(1);
     });
   });
 });
