@@ -66,7 +66,6 @@ CREATE TABLE IF NOT EXISTS upload_sessions (
     one_time BOOLEAN DEFAULT false,
     quick_share BOOLEAN DEFAULT false,
     is_text_content BOOLEAN DEFAULT false,
-    client_ip VARCHAR(45), -- For rate limiting
     created_at BIGINT NOT NULL,
     last_activity BIGINT NOT NULL,
     completed_at BIGINT

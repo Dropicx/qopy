@@ -385,10 +385,24 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       scriptSrcAttr: ["'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      formAction: ["'self'"],
+      baseUri: ["'self'"],
     },
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  crossOriginOpenerPolicy: { policy: 'same-origin' },
+  permissionsPolicy: {
+    features: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+      payment: [],
+    }
   },
 }));
 
@@ -1392,20 +1406,19 @@ app.post('/api/upload/initiate', [
         };
         
         const expirationTime = Date.now() + expirationTimes[expiration];
-        const clientIP = getClientIP(req);
-        
-        // Store upload session in database
+
+        // Store upload session in database (no client_ip stored for privacy)
         await pool.query(`
             INSERT INTO upload_sessions (
-                upload_id, filename, original_filename, filesize, mime_type, 
-                chunk_size, total_chunks, expiration_time, has_password, 
-                one_time, quick_share, client_ip, created_at, last_activity,
+                upload_id, filename, original_filename, filesize, mime_type,
+                chunk_size, total_chunks, expiration_time, has_password,
+                one_time, quick_share, created_at, last_activity,
                 is_text_content
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         `, [
             uploadId, filename, filename, filesize, finalMimeType,
             CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
-            oneTime, quickShare, clientIP, Date.now(), Date.now(),
+            oneTime, quickShare, Date.now(), Date.now(),
             isTextContent || contentType === 'text'
         ]);
 
@@ -1423,7 +1436,6 @@ app.post('/api/upload/initiate', [
             has_password: hasPassword,
             one_time: oneTime,
             quick_share: quickShare,
-            client_ip: clientIP,
             created_at: Date.now(),
             last_activity: Date.now(),
             is_text_content: isTextContent || contentType === 'text',

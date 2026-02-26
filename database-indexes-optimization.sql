@@ -82,10 +82,6 @@ WHERE status = 'uploading';
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_completion ON upload_sessions(status, completed_at, upload_id)
 WHERE status = 'completed';
 
--- Client IP rate limiting (if used)
-CREATE INDEX IF NOT EXISTS idx_upload_sessions_client_ip ON upload_sessions(client_ip, created_at)
-WHERE client_ip IS NOT NULL;
-
 -- File type analysis
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_mime_type ON upload_sessions(mime_type, status, created_at);
 

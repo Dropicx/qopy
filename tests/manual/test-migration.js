@@ -88,7 +88,7 @@ async function testDatabaseMigration() {
             'id', 'upload_id', 'filename', 'original_filename', 'filesize', 
             'mime_type', 'chunk_size', 'total_chunks', 'uploaded_chunks', 
             'checksums', 'status', 'expiration_time', 'has_password', 
-            'one_time', 'quick_share', 'is_text_content', 'client_ip', 
+            'one_time', 'quick_share', 'is_text_content',
             'created_at', 'last_activity', 'completed_at'
         ];
 

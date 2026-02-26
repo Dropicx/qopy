@@ -43,7 +43,6 @@ async function runMigrations(pool) {
                 one_time BOOLEAN DEFAULT false,
                 quick_share BOOLEAN DEFAULT false,
                 is_text_content BOOLEAN DEFAULT false,
-                client_ip VARCHAR(45),
                 created_at BIGINT NOT NULL,
                 last_activity BIGINT NOT NULL,
                 completed_at BIGINT
@@ -135,6 +134,21 @@ async function runMigrations(pool) {
             }
         } catch (alterError) {
             console.warn(`⚠️ Clips table extension: ${alterError.message}`);
+        }
+
+        // Drop client_ip from upload_sessions (privacy: never read, only used for rate limiting at request time)
+        try {
+            const clientIpCheck = await client.query(`
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'upload_sessions' AND column_name = 'client_ip'
+            `);
+            if (clientIpCheck.rows.length > 0) {
+                await client.query(`DROP INDEX IF EXISTS idx_upload_sessions_client_ip`);
+                await client.query(`ALTER TABLE upload_sessions DROP COLUMN client_ip`);
+                console.log('🗑️ Removed client_ip from upload_sessions (privacy improvement)');
+            }
+        } catch (e) {
+            console.warn(`⚠️ Could not drop client_ip from upload_sessions: ${e.message}`);
         }
 
         const statsCheck = await client.query('SELECT COUNT(*) as count FROM statistics');
