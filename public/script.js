@@ -2868,7 +2868,7 @@ class ClipboardApp {
                 try {
                     const clipId = document.getElementById('clip-id-input').value.trim();
                     console.log('🗂️ Download button clicked for clipId:', clipId);
-                    await this.downloadFile(clipId, filename);
+                    await this.downloadFile(clipId, data.filename);
                 } catch (error) {
                     console.error('❌ Download failed:', error);
                     this.showToast('❌ Download failed: ' + error.message, 'error');
