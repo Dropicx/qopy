@@ -28,7 +28,7 @@ class QuickShareService {
      * @returns {Object} Modified settings for Quick Share
      */
     static applyQuickShareSettings(settings) {
-        if (!settings.quickShare) {
+        if (!settings || !settings.quickShare) {
             return settings;
         }
 
@@ -110,7 +110,7 @@ class QuickShareService {
      * @returns {boolean} Whether this is a Quick Share
      */
     static isQuickShare(settings) {
-        return Boolean(settings.quickShare);
+        return Boolean(settings && settings.quickShare);
     }
 }
 

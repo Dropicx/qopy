@@ -34,6 +34,7 @@ const sharp = require('sharp');
 // Import services
 const FileService = require('./services/FileService');
 const createAccessValidationMiddleware = require('./middleware/accessValidation');
+const QuickShareProtection = require('./middleware/quickShareProtection');
 
 // Note: File storage is handled directly in server.js using fs-extra
 // The previous config/storage.js file has been removed as it was unused
@@ -476,6 +477,9 @@ function getClientIP(req) {
   return req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket?.remoteAddress;
 }
 
+// Quick Share failed-lookup protection
+const quickShareProtection = new QuickShareProtection();
+
 // Rate limiting monitoring
 function logRateLimitEvent(req, res, next) {
     const clientIP = getClientIP(req);
@@ -535,6 +539,25 @@ const retrieveLimiter = rateLimit({
   keyGenerator: getClientIP
 });
 
+// Quick Share rate limiter (stricter for short clip IDs to prevent brute-force)
+const quickShareLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // 10 requests per IP per minute for short clip lookups
+  message: {
+    error: 'Too many requests',
+    message: 'Quick Share rate limit exceeded. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIP,
+  skip: (req) => {
+    // Only apply to clip retrieval with short IDs (Quick Share length)
+    const clipIdMatch = req.path.match(/^\/api\/clip\/([A-Za-z0-9]+)/);
+    if (!clipIdMatch) return true;
+    return clipIdMatch[1].length > 6;
+  }
+});
+
 // Burst rate limiting (very short window for immediate protection)
 const burstLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
@@ -570,6 +593,8 @@ app.use('/api/', logRateLimitEvent); // Logging first
 app.use('/api/', burstLimiter); // Burst protection
 app.use('/api/', generalLimiter); // General protection
 app.use('/api/share', shareLimiter); // Share-specific protection
+app.use('/api/clip/', quickShareLimiter); // Quick Share brute-force protection
+app.use(quickShareProtection.middleware(getClientIP)); // Failed-lookup tracking for short IDs
 app.use('/api/clip/', retrieveLimiter); // Retrieval-specific protection
 
 // Public config endpoint (non-sensitive settings for client)
@@ -584,14 +609,15 @@ app.use(express.static('public'));
 const { registerStaticRoutes } = require('./routes/static');
 registerStaticRoutes(app);
 
-// Clip ID generation
+// Clip ID generation (cryptographically secure)
 function generateClipId(quickShare = false) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const length = quickShare ? 6 : 10; // 6 for Quick Share (36^6 = 2.18B), 10 for normal shares
+  const bytes = crypto.randomBytes(length);
   let result = '';
-  const length = quickShare ? 4 : 10; // 4 for Quick Share, 10 for normal shares
-  
+
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    result += chars.charAt(bytes[i] % chars.length);
   }
   return result;
 }
@@ -717,9 +743,9 @@ async function handleClipRetrieval(req, res, clip, clipId) {
           isTextFile: true // Special flag to indicate this should be decrypted and shown as text
         };
         
-        // For Quick Share clips (4-digit ID), include the secret for decryption
-        if (clipId.length === 4 && clip.password_hash) {
-          console.log('🔑 Adding quickShareSecret for 4-digit clip:', clipId);
+        // For Quick Share clips (short ID), include the secret for decryption
+        if (clipId.length <= 6 && clip.password_hash) {
+          console.log('🔑 Adding quickShareSecret for short clip:', clipId);
           response.quickShareSecret = clip.password_hash;
         }
         
@@ -783,10 +809,10 @@ async function handleClipRetrieval(req, res, clip, clipId) {
     if (clip.mime_type) response.mimeType = clip.mime_type;
 
     // For Quick Share clips, include the secret for decryption
-    if (clipId.length === 4 && clip.password_hash) {
-      console.log('🔑 Adding quickShareSecret for 4-digit clip (inline):', clipId);
+    if (clipId.length <= 6 && clip.password_hash) {
+      console.log('🔑 Adding quickShareSecret for short clip (inline):', clipId);
       response.quickShareSecret = clip.password_hash;
-    } else if (clipId.length === 10) {
+    } else if (clipId.length > 6) {
       response.hasPassword = clip.requires_access_code || false;
     }
     
@@ -1968,8 +1994,8 @@ app.get('/api/clip/:clipId/info', [
     });
 
     // NEW: Zero-Knowledge Access Code System - no download tokens needed
-    const isQuickShare = clipId.length === 4;
-    
+    const isQuickShare = clipId.length <= 6;
+
     if (isQuickShare) {
       console.log('⚡ Quick Share clip - no authentication required:', clipId);
     } else {
@@ -2206,7 +2232,7 @@ app.get('/api/clip/:clipId', [
       });
     }
 
-    const isQuickShare = clipId.length === 4;
+    const isQuickShare = clipId.length <= 6;
     console.log(`✅ Zero-Knowledge GET access granted for clipId: ${clipId}, isQuickShare: ${isQuickShare}`);
 
     // Use shared clip retrieval logic
@@ -2529,6 +2555,9 @@ async function gracefulShutdown(signal = 'SIGTERM') {
     if (cleanupInterval) {
         clearInterval(cleanupInterval);
     }
+
+    // Shutdown Quick Share protection tracker
+    quickShareProtection.shutdown();
     
     // Set a more generous timeout for Railway platform (30 seconds)
     const shutdownTimeout = setTimeout(() => {

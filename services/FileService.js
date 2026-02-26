@@ -27,10 +27,22 @@ class FileService {
     setDownloadHeaders(res, clip) {
         if (!res || typeof res.setHeader !== 'function') return;
         const safeClip = clip || {};
+
+        // Sanitize filename: strip control chars, null bytes, path separators
+        const rawName = safeClip.original_filename ?? 'download';
+        const safeName = rawName
+            .replace(/[/\\]/g, '_')           // path separators → underscore
+            .replace(/[\x00-\x1f\x7f]/g, '') // control characters (includes \n, \r, \0)
+            .replace(/"/g, '\\"')             // escape quotes for Content-Disposition
+            .substring(0, 255)                // cap length
+            || 'download';                    // fallback if empty after sanitization
+
         res.setHeader('Content-Type', safeClip.mime_type || 'application/octet-stream');
         res.setHeader('Content-Length', safeClip.filesize ?? 0);
-        res.setHeader('Content-Disposition', `attachment; filename="${safeClip.original_filename ?? 'download'}"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Download-Options', 'noopen');
     }
 
     /**

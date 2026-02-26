@@ -39,8 +39,8 @@ class AccessValidator {
      */
     async validateAccess(clipId, accessCode) {
         try {
-            // Check if 4-char clip ID is actually a quick share in the database
-            if (clipId.length === 4) {
+            // Check if short clip ID is actually a quick share in the database
+            if (clipId.length <= 6) {
                 const qsResult = await this.pool.query(
                     'SELECT quick_share FROM clips WHERE clip_id = $1 AND is_expired = false AND expiration_time > $2',
                     [clipId, Date.now()]

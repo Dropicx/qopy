@@ -277,7 +277,7 @@ class ClipboardApp {
             
             // Check if this is a file URL (from routing)
             const isFileUrl = this.isFileRequest === true;
-            const isQuickShare = clipId.length === 4;
+            const isQuickShare = clipId.length <= 6;
             
             console.log('🔍 Auto-retrieve info:', {
                 clipId, 
@@ -799,13 +799,13 @@ class ClipboardApp {
             passwordInput.value = '';
         }
         
-        if (clipId.length === 4 || clipId.length === 10) {
+        if (clipId.length <= 6 || clipId.length === 10) {
             try {
                 // Extract URL secret and password for potential authentication
                 const urlSecret = this.extractUrlSecret();
                 const password = this.getPasswordFromUser();
-                
-                if (clipId.length === 10) {
+
+                if (clipId.length > 6) {
                     // Normal clip: use Zero-Knowledge system
                     let response;
                     if (password) {
@@ -1461,8 +1461,8 @@ class ClipboardApp {
                 try {
                     let decryptedContent;
                     
-                    // Check if this is a Quick Share (4-digit ID) or normal clip
-                    if (clipId.length === 4) {
+                    // Check if this is a Quick Share (short ID) or normal clip
+                    if (clipId.length <= 6) {
                         console.log('🔐 Processing Quick Share clip');
                         // Quick Share: Use the secret from server response
                         const quickShareSecret = data.quickShareSecret || data.password_hash;
