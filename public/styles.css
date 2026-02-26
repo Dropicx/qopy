@@ -193,6 +193,18 @@ header {
   100% { opacity: 1; }
 }
 
+/* Static header logo link (legal/features sub-pages) */
+.header-logo-link {
+  color: inherit;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+.header-logo-link:hover {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
 /* Typing animation for each character */
 .typing-logo .char {
   display: inline-block;

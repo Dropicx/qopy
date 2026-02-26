@@ -21,10 +21,10 @@
     <link rel="canonical" href="https://qopy.app/features.html">
     
     <!-- Favicon -->
-    <link rel="icon" href="logos/Favicon.png" type="image/png">
-    <link rel="apple-touch-icon" href="logos/Favicon.png">
+    <link rel="icon" href="/logos/Favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="/logos/Favicon.png">
     
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/styles.css">
     <style>
         .features-page {
             max-width: 1000px;
@@ -61,15 +61,16 @@
         .features-page li {
             margin-bottom: 0.5rem;
         }
-        .back-link {
-            display: inline-block;
-            margin-bottom: 2rem;
+        .lang-switch {
+            text-align: center;
+            margin: -1rem 0 1.5rem 0;
+            font-size: 0.9rem;
+        }
+        .lang-switch a {
             color: var(--accent-color);
             text-decoration: none;
-            font-weight: 500;
         }
-        .back-link:hover {
-            color: var(--accent-hover);
+        .lang-switch a:hover {
             text-decoration: underline;
         }
         .feature-grid {
@@ -135,19 +136,20 @@
             background: #f8f9fa;
             color: var(--accent-hover);
         }
-        footer {
-            background: var(--bg-secondary);
-            margin-top: 3rem;
-        }
     </style>
 </head>
 <body>
     <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="header-subtitle">Paste and share your content on</div>
+                <a href="/" class="typing-logo header-logo-link">qopy.app</a>
+            </div>
+        </header>
+
         <div class="features-page">
-            <a href="/" class="back-link">← Back to Qopy</a>
-            <a href="/features-de.html" class="back-link" style="margin-left: 1rem;">🇩🇪 Deutsche Version</a>
-            
             <h1>Qopy Features - Enterprise-Grade Secure Text & File Sharing Redefined</h1>
+            <p class="lang-switch"><a href="/features-de.html">Deutsche Version</a></p>
             
             <p>Qopy is not just another sharing service. It's a privacy-first, security-focused platform with enterprise-grade encryption that puts your data protection above everything else. Our unified system handles both text and file sharing with the same level of security and privacy protection.</p>
             
@@ -355,7 +357,7 @@
 
     <footer>
         <p>No logs, no tracking, auto-expires. Your privacy is protected.</p>
-        <p>Built for secure, anonymous text and file sharing</p>
+        <p>Built for secure, anonymous text sharing</p>
         <div class="legal-links">
             <a href="/features.html">Features</a>
             <span class="separator">|</span>
