@@ -121,61 +121,35 @@ describe('StorageService', () => {
     });
 
     test('should handle unknown expiration string', () => {
-      const now = Date.now();
-      jest.spyOn(Date, 'now').mockReturnValue(now);
-      
-      const result = storageService.calculateExpirationTime('unknown');
-      expect(result).toBe(now + undefined); // Results in NaN
-      expect(isNaN(result)).toBe(true);
-      
-      Date.now.mockRestore();
+      expect(() => {
+        storageService.calculateExpirationTime('unknown');
+      }).toThrow('Invalid expiration key: unknown');
     });
   });
 
   describe('determinePasswordHash', () => {
     test('should return null hash for no authentication', () => {
-      const result = storageService.determinePasswordHash(false, null, false);
+      const result = storageService.determinePasswordHash(false, false);
       expect(result).toEqual({ passwordHash: null });
     });
 
     test('should return null hash for QuickShare (zero-knowledge)', () => {
-      const secret = 'test-quick-share-secret';
-      const result = storageService.determinePasswordHash(true, secret, false);
+      const result = storageService.determinePasswordHash(true, false);
       expect(result).toEqual({ passwordHash: null });
     });
 
     test('should return client-encrypted for password protected', () => {
-      const result = storageService.determinePasswordHash(false, null, true);
+      const result = storageService.determinePasswordHash(false, true);
       expect(result).toEqual({ passwordHash: 'client-encrypted' });
     });
 
     test('should return null for quickShare even when hasPassword is true (zero-knowledge)', () => {
-      const secret = 'priority-test-secret';
-      const result = storageService.determinePasswordHash(true, secret, true);
+      const result = storageService.determinePasswordHash(true, true);
       expect(result).toEqual({ passwordHash: null });
     });
 
-    test('should return null hash for Quick Share with empty secret (zero-knowledge)', () => {
-      const result = storageService.determinePasswordHash(true, '', false);
-      expect(result).toEqual({ passwordHash: null });
-    });
-
-    test('should return null hash for Quick Share with long secret (zero-knowledge)', () => {
-      const longSecret = 'a'.repeat(61);
-
-      const result = storageService.determinePasswordHash(true, longSecret, false);
-
-      expect(result).toEqual({ passwordHash: null });
-    });
-
-    test('should return null hash for Quick Share with 60-char secret (zero-knowledge)', () => {
-      const secret60 = 'a'.repeat(60);
-      const result = storageService.determinePasswordHash(true, secret60, false);
-      expect(result).toEqual({ passwordHash: null });
-    });
-
-    test('should return null hash for Quick Share with null secret (zero-knowledge)', () => {
-      const result = storageService.determinePasswordHash(true, null, false);
+    test('should return null hash for Quick Share (zero-knowledge)', () => {
+      const result = storageService.determinePasswordHash(true, false);
       expect(result).toEqual({ passwordHash: null });
     });
   });
@@ -289,7 +263,10 @@ describe('StorageService', () => {
         testParams.oneTime
       )).rejects.toThrow('File write failed');
 
-      expect(console.error).toHaveBeenCalledWith('❌ Error storing file:', writeError);
+      expect(console.error).toHaveBeenCalledWith(
+        '[StorageService] ❌ Error storing file',
+        expect.objectContaining({ error: 'File write failed' })
+      );
     });
 
     test('should handle database error', async () => {
@@ -309,7 +286,10 @@ describe('StorageService', () => {
         testParams.oneTime
       )).rejects.toThrow('Database connection failed');
 
-      expect(console.error).toHaveBeenCalledWith('❌ Error storing file:', dbError);
+      expect(console.error).toHaveBeenCalledWith(
+        '[StorageService] ❌ Error storing file',
+        expect.objectContaining({ error: 'Database connection failed' })
+      );
     });
 
     test('should handle oneTime parameter correctly', async () => {
@@ -409,7 +389,10 @@ describe('StorageService', () => {
         testParams.oneTime
       )).rejects.toThrow('Inline storage failed');
 
-      expect(console.error).toHaveBeenCalledWith('❌ Error storing inline:', dbError);
+      expect(console.error).toHaveBeenCalledWith(
+        '[StorageService] ❌ Error storing inline',
+        expect.objectContaining({ error: 'Inline storage failed' })
+      );
     });
 
     test('should handle oneTime parameter correctly', async () => {
@@ -503,12 +486,15 @@ describe('StorageService', () => {
       console.error = jest.fn();
 
       const params = { ...baseParams, shouldStoreAsFile: false };
-      
+
       const result = await storageService.storeClip(params);
 
       expect(result.error).toBe('Database schema issue');
       expect(result.message).toBe('Password hash column too small for Quick Share secrets');
-      expect(console.error).toHaveBeenCalledWith('❌ Database error:', dbError.message);
+      expect(console.error).toHaveBeenCalledWith(
+        '[StorageService] ❌ Database error',
+        expect.objectContaining({ error: dbError.message })
+      );
     });
 
     test('should re-throw non-password_hash database errors', async () => {
@@ -517,9 +503,12 @@ describe('StorageService', () => {
       console.error = jest.fn();
 
       const params = { ...baseParams, shouldStoreAsFile: false };
-      
+
       await expect(storageService.storeClip(params)).rejects.toThrow('General database error');
-      expect(console.error).toHaveBeenCalledWith('❌ Database error:', dbError.message);
+      expect(console.error).toHaveBeenCalledWith(
+        '[StorageService] ❌ Database error',
+        expect.objectContaining({ error: 'General database error' })
+      );
     });
 
     test('should handle file storage error', async () => {
@@ -678,7 +667,7 @@ describe('StorageService', () => {
       const startTime = process.hrtime.bigint();
       
       for (let i = 0; i < 100; i++) {
-        storageService.determinePasswordHash(i % 2 === 0, `secret-${i}`, i % 3 === 0);
+        storageService.determinePasswordHash(i % 2 === 0, i % 3 === 0);
       }
       
       const endTime = process.hrtime.bigint();

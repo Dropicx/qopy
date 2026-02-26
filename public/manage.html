@@ -427,12 +427,13 @@
         <div class="anonymous-id-input">
             <h3>Enter Your Anonymous ID</h3>
             <div class="id-input-group">
-                <input 
-                    type="text" 
-                    class="id-input" 
-                    id="anonymousIdInput" 
+                <input
+                    type="text"
+                    class="id-input"
+                    id="anonymousIdInput"
                     placeholder="XXXX-XXXX-XXXX-XXXX"
                     maxlength="19"
+                    aria-label="Anonymous ID"
                 >
                 <button class="load-btn" id="loadBtn">
                     Load Subscription
@@ -501,7 +502,7 @@
     </div>
 
     <!-- Cancel Confirmation Modal -->
-    <div class="modal" id="cancelModal">
+    <div class="modal" id="cancelModal" role="dialog" aria-modal="true" aria-label="Cancel subscription confirmation">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Cancel Subscription</h2>

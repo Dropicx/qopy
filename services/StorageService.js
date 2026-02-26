@@ -18,14 +18,16 @@
 
 const fs = require('fs-extra');
 const path = require('path');
+const BaseService = require('./core/BaseService');
 
 /**
  * StorageService
  * Handles database operations and file storage for clips
  */
-class StorageService {
-    
+class StorageService extends BaseService {
+
     constructor(pool, STORAGE_PATH, generateUploadId) {
+        super();
         this.pool = pool;
         this.STORAGE_PATH = STORAGE_PATH;
         this.generateUploadId = generateUploadId;
@@ -46,17 +48,20 @@ class StorageService {
             '24hr': 24 * 60 * 60 * 1000
         };
 
+        if (!expirationTimes[expiration]) {
+            throw new Error(`Invalid expiration key: ${expiration}. Valid keys: ${Object.keys(expirationTimes).join(', ')}`);
+        }
+
         return Date.now() + expirationTimes[expiration];
     }
 
     /**
      * Determine password hash based on clip type
      * @param {boolean} quickShare - Is quick share
-     * @param {string} _quickShareSecret - Unused (zero-knowledge: secret never sent to server)
      * @param {boolean} hasPassword - Has password protection
      * @returns {Object} Password hash result
      */
-    determinePasswordHash(quickShare, _quickShareSecret, hasPassword) {
+    determinePasswordHash(quickShare, hasPassword) {
         let passwordHash = null;
 
         if (quickShare) {
@@ -109,7 +114,7 @@ class StorageService {
             return { success: true, storagePath };
             
         } catch (error) {
-            console.error('❌ Error storing file:', error);
+            this.logError('Error storing file', error);
             throw error;
         }
     }
@@ -141,7 +146,7 @@ class StorageService {
             return { success: true };
             
         } catch (error) {
-            console.error('❌ Error storing inline:', error);
+            this.logError('Error storing inline', error);
             throw error;
         }
     }
@@ -170,7 +175,7 @@ class StorageService {
                 );
             }
         } catch (dbError) {
-            console.error('❌ Database error:', dbError.message);
+            this.logError('Database error', dbError);
             if (dbError.message.includes('password_hash')) {
                 return {
                     error: 'Database schema issue',

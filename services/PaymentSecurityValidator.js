@@ -18,6 +18,7 @@
 
 const crypto = require('crypto');
 const BaseService = require('./core/BaseService');
+const { ANONYMOUS_ID_PATTERN, validateAnonymousIdFormat } = require('./utils/anonymousIdValidator');
 
 /**
  * PaymentSecurityValidator - Security validation for anonymous payment system
@@ -25,7 +26,7 @@ const BaseService = require('./core/BaseService');
  */
 class PaymentSecurityValidator extends BaseService {
     constructor() {
-        super('PaymentSecurityValidator');
+        super();
         
         // Security thresholds and limits
         this.limits = {
@@ -38,13 +39,16 @@ class PaymentSecurityValidator extends BaseService {
             suspiciousActivityThreshold: 0.7
         };
         
+        // Maximum entries per tracking Map to prevent unbounded growth
+        this.MAX_MAP_SIZE = 10000;
+
         // Blocked IPs and suspicious activity tracking
         this.blockedIPs = new Map();
         this.suspiciousActivity = new Map();
         this.rateLimitTracking = new Map();
         
-        // Valid anonymous ID patterns
-        this.anonymousIdPattern = /^[123456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[123456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[123456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[123456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
+        // Valid anonymous ID pattern (shared utility)
+        this.anonymousIdPattern = ANONYMOUS_ID_PATTERN;
         
         // Cleanup intervals
         this.startCleanupIntervals();
@@ -55,19 +59,12 @@ class PaymentSecurityValidator extends BaseService {
      */
     validateAnonymousId(anonymousId, strict = true) {
         try {
-            if (!anonymousId || typeof anonymousId !== 'string') {
+            // Basic format validation using shared utility
+            const formatResult = validateAnonymousIdFormat(anonymousId);
+            if (!formatResult.valid) {
                 return {
                     valid: false,
-                    error: 'Anonymous ID must be a string',
-                    severity: 'medium'
-                };
-            }
-            
-            // Check format
-            if (!this.anonymousIdPattern.test(anonymousId)) {
-                return {
-                    valid: false,
-                    error: 'Invalid anonymous ID format. Must be XXXX-XXXX-XXXX-XXXX',
+                    error: formatResult.error,
                     severity: 'medium'
                 };
             }
@@ -211,15 +208,6 @@ class PaymentSecurityValidator extends BaseService {
                 validation.warnings.push('High suspicious activity score');
             }
             
-            // Check for known malicious patterns
-            const maliciousChecks = await this.checkMaliciousPatterns(ipAddress);
-            if (maliciousChecks.isMalicious) {
-                validation.valid = false;
-                validation.error = 'IP address flagged as malicious';
-                validation.maliciousReasons = maliciousChecks.reasons;
-                return validation;
-            }
-            
             return validation;
             
         } catch (error) {
@@ -334,13 +322,6 @@ class PaymentSecurityValidator extends BaseService {
                 }
             }
             
-            // Check for session fixation attempts
-            if (this.detectSessionFixation(sessionToken, ipAddress)) {
-                validation.valid = false;
-                validation.error = 'Potential session fixation attack detected';
-                return validation;
-            }
-            
             return validation;
             
         } catch (error) {
@@ -362,10 +343,11 @@ class PaymentSecurityValidator extends BaseService {
         
         if (!this.rateLimitTracking.has(key)) {
             this.rateLimitTracking.set(key, []);
+            this._enforceMapLimit(this.rateLimitTracking);
         }
-        
+
         const requests = this.rateLimitTracking.get(key);
-        
+
         // Remove old requests outside the window
         const validRequests = requests.filter(timestamp => (now - timestamp) < windowSize);
         this.rateLimitTracking.set(key, validRequests);
@@ -431,7 +413,8 @@ class PaymentSecurityValidator extends BaseService {
             blockedAt: Date.now(),
             expiresAt: expiresAt
         });
-        
+        this._enforceMapLimit(this.blockedIPs);
+
         this.logWarning(`Blocked IP ${ipAddress}: ${reason}`);
     }
 
@@ -481,15 +464,16 @@ class PaymentSecurityValidator extends BaseService {
     recordSuspiciousActivity(ipAddress, type, details = {}) {
         if (!this.suspiciousActivity.has(ipAddress)) {
             this.suspiciousActivity.set(ipAddress, []);
+            this._enforceMapLimit(this.suspiciousActivity);
         }
-        
+
         const activity = this.suspiciousActivity.get(ipAddress);
         activity.push({
             type: type,
             timestamp: Date.now(),
             details: details
         });
-        
+
         // Keep only recent activity (last 24 hours)
         const recent = activity.filter(event => (Date.now() - event.timestamp) < (24 * 60 * 60 * 1000));
         this.suspiciousActivity.set(ipAddress, recent);
@@ -578,12 +562,6 @@ class PaymentSecurityValidator extends BaseService {
         return Math.min(entropy / 6.0, 1.0); // Normalize for typical token charset
     }
 
-    detectSessionFixation(sessionToken, ipAddress) {
-        // Simple session fixation detection
-        // In a real implementation, you'd track session creation patterns
-        return false;
-    }
-
     validateRequestHeaders(req) {
         const suspicious = [];
         
@@ -621,19 +599,6 @@ class PaymentSecurityValidator extends BaseService {
         return false;
     }
 
-    async checkMaliciousPatterns(ipAddress) {
-        // In a real implementation, this would check against:
-        // - Known malicious IP databases
-        // - Tor exit nodes
-        // - VPN/proxy detection services
-        // - Threat intelligence feeds
-        
-        return {
-            isMalicious: false,
-            reasons: []
-        };
-    }
-
     trackPaymentRequest(ipAddress, anonymousId, planType) {
         // Track payment patterns for analysis
         const key = `payment:${ipAddress}`;
@@ -641,21 +606,55 @@ class PaymentSecurityValidator extends BaseService {
     }
 
     /**
+     * Enforce maximum size on a Map by evicting oldest entries (first inserted)
+     */
+    _enforceMapLimit(map) {
+        if (map.size > this.MAX_MAP_SIZE) {
+            const entriesToDelete = map.size - this.MAX_MAP_SIZE;
+            const iterator = map.keys();
+            for (let i = 0; i < entriesToDelete; i++) {
+                map.delete(iterator.next().value);
+            }
+        }
+    }
+
+    /**
+     * Clean up all intervals and tracking data
+     */
+    destroy() {
+        if (this._cleanupInterval) {
+            clearInterval(this._cleanupInterval);
+            this._cleanupInterval = null;
+        }
+        if (this._suspiciousCleanupInterval) {
+            clearInterval(this._suspiciousCleanupInterval);
+            this._suspiciousCleanupInterval = null;
+        }
+        if (this._blockedIPsCleanupInterval) {
+            clearInterval(this._blockedIPsCleanupInterval);
+            this._blockedIPsCleanupInterval = null;
+        }
+        this.blockedIPs.clear();
+        this.suspiciousActivity.clear();
+        this.rateLimitTracking.clear();
+    }
+
+    /**
      * Start cleanup intervals
      */
     startCleanupIntervals() {
         // Clean up old rate limit data every 5 minutes
-        setInterval(() => {
+        this._cleanupInterval = setInterval(() => {
             this.cleanupRateLimitData();
         }, 5 * 60 * 1000);
-        
+
         // Clean up old suspicious activity every hour
-        setInterval(() => {
+        this._suspiciousCleanupInterval = setInterval(() => {
             this.cleanupSuspiciousActivity();
         }, 60 * 60 * 1000);
-        
+
         // Clean up expired IP blocks every 10 minutes
-        setInterval(() => {
+        this._blockedIPsCleanupInterval = setInterval(() => {
             this.cleanupBlockedIPs();
         }, 10 * 60 * 1000);
     }

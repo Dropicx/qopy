@@ -27,7 +27,7 @@ const rateLimit = require('express-rate-limit');
  */
 class PaymentController extends BaseService {
     constructor(dbPool) {
-        super('PaymentController');
+        super();
         this.paymentService = new AnonymousPaymentService();
         this.subscriptionRepo = new SubscriptionRepository(dbPool);
         

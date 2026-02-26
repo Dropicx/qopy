@@ -318,13 +318,16 @@ describe('FileService', () => {
       expect(mockFileStream.on).toHaveBeenCalledWith('end', expect.any(Function));
 
       await streamPromise;
-      expect(console.log).toHaveBeenCalledWith('✅ File streaming completed');
+      expect(console.log).toHaveBeenCalledWith(
+        '[FileService] ✅ File streaming completed',
+        expect.any(Object)
+      );
     });
 
     test('should handle streaming errors', async () => {
       const filePath = '/test/error-file.txt';
       const streamError = new Error('File read error');
-      
+
       mockFileStream.on.mockImplementation((event, callback) => {
         if (event === 'error') {
           setTimeout(() => callback(streamError), 10);
@@ -333,8 +336,11 @@ describe('FileService', () => {
       });
 
       await expect(fileService.streamFile(filePath, res)).rejects.toThrow('File read error');
-      
-      expect(console.error).toHaveBeenCalledWith('❌ Error streaming file:', 'File read error');
+
+      expect(console.error).toHaveBeenCalledWith(
+        '[FileService] ❌ Error streaming file',
+        expect.objectContaining({ error: 'File read error' })
+      );
     });
 
     test('should handle streaming errors with headers not sent', async () => {
@@ -397,13 +403,16 @@ describe('FileService', () => {
       await new Promise(r => setTimeout(r, 25)); // Wait for async delete callback
       
       expect(fs.unlink).toHaveBeenCalledWith(filePath);
-      expect(console.log).toHaveBeenCalledWith('🧹 Deleted one-time file after streaming:', filePath);
+      expect(console.log).toHaveBeenCalledWith(
+        '[FileService] Deleted one-time file after streaming',
+        expect.objectContaining({ filePath })
+      );
     });
 
     test('should handle deletion error for one-time files', async () => {
       const filePath = '/test/one-time-file.txt';
       fs.unlink.mockRejectedValue(new Error('Permission denied'));
-      
+
       const endCallbacks = [];
       mockFileStream.on.mockImplementation((event, callback) => {
         if (event === 'end') {
@@ -414,12 +423,15 @@ describe('FileService', () => {
       });
 
       const streamPromise = fileService.streamFile(filePath, res, { deleteAfterSend: true });
-      
+
       await streamPromise;
       await new Promise(r => setTimeout(r, 25)); // Wait for async delete callback
-      
+
       expect(fs.unlink).toHaveBeenCalledWith(filePath);
-      expect(console.warn).toHaveBeenCalledWith('⚠️ Could not delete one-time file:', 'Permission denied');
+      expect(console.error).toHaveBeenCalledWith(
+        '[FileService] ❌ Could not delete one-time file',
+        expect.objectContaining({ error: 'Permission denied' })
+      );
     });
 
     test('should not delete file when deleteAfterSend is false', async () => {
@@ -482,7 +494,10 @@ describe('FileService', () => {
 
       expect(result).toBe(true);
       expect(fs.unlink).toHaveBeenCalledWith(filePath);
-      expect(console.log).toHaveBeenCalledWith('🧹 File deleted:', filePath);
+      expect(console.log).toHaveBeenCalledWith(
+        '[FileService] File deleted',
+        expect.objectContaining({ filePath })
+      );
     });
 
     test('should handle deletion errors gracefully', async () => {
@@ -494,7 +509,10 @@ describe('FileService', () => {
 
       expect(result).toBe(false);
       expect(fs.unlink).toHaveBeenCalledWith(filePath);
-      expect(console.warn).toHaveBeenCalledWith('⚠️ Could not delete file:', 'Permission denied');
+      expect(console.error).toHaveBeenCalledWith(
+        '[FileService] ❌ Could not delete file',
+        expect.objectContaining({ error: 'Permission denied' })
+      );
     });
 
     test('should handle various deletion error types', async () => {
@@ -508,11 +526,14 @@ describe('FileService', () => {
 
       for (const error of errorTypes) {
         fs.unlink.mockRejectedValue(error);
-        
+
         const result = await fileService.deleteFile('/test/file.txt');
-        
+
         expect(result).toBe(false);
-        expect(console.warn).toHaveBeenCalledWith('⚠️ Could not delete file:', error.message);
+        expect(console.error).toHaveBeenCalledWith(
+          '[FileService] ❌ Could not delete file',
+          expect.objectContaining({ error: error.message })
+        );
       }
     });
 
@@ -745,8 +766,14 @@ describe('FileService', () => {
 
       expect(mockFileStream.pipe).toHaveBeenCalledWith(res);
       expect(fs.unlink).toHaveBeenCalledWith(filePath);
-      expect(console.log).toHaveBeenCalledWith('✅ File streaming completed');
-      expect(console.log).toHaveBeenCalledWith('🧹 Deleted one-time file after streaming:', filePath);
+      expect(console.log).toHaveBeenCalledWith(
+        '[FileService] ✅ File streaming completed',
+        expect.any(Object)
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        '[FileService] Deleted one-time file after streaming',
+        expect.objectContaining({ filePath })
+      );
     });
   });
 });

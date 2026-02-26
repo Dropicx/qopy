@@ -1,10 +1,14 @@
 const fs = require('fs').promises;
 const fsSync = require('fs');
+const BaseService = require('./core/BaseService');
 
 /**
  * FileService - Handles file operations and streaming
  */
-class FileService {
+class FileService extends BaseService {
+    constructor() {
+        super();
+    }
     /**
      * Check if file exists on storage
      * @param {string} filePath - Path to the file
@@ -58,7 +62,7 @@ class FileService {
             fileStream.pipe(res);
 
             fileStream.on('error', (error) => {
-                console.error('❌ Error streaming file:', error.message);
+                this.logError('Error streaming file', error);
                 if (!res.headersSent) {
                     res.status(500).json({
                         error: 'File stream error',
@@ -69,7 +73,7 @@ class FileService {
             });
 
             fileStream.on('end', () => {
-                console.log('✅ File streaming completed');
+                this.logSuccess('File streaming completed');
                 resolve();
             });
 
@@ -78,9 +82,9 @@ class FileService {
                 fileStream.on('end', async () => {
                     try {
                         await fs.unlink(filePath);
-                        console.log('🧹 Deleted one-time file after streaming:', filePath);
+                        this.log('Deleted one-time file after streaming', { filePath });
                     } catch (fileError) {
-                        console.warn('⚠️ Could not delete one-time file:', fileError.message);
+                        this.logError('Could not delete one-time file', fileError);
                     }
                 });
             }
@@ -95,10 +99,10 @@ class FileService {
     async deleteFile(filePath) {
         try {
             await fs.unlink(filePath);
-            console.log('🧹 File deleted:', filePath);
+            this.log('File deleted', { filePath });
             return true;
         } catch (error) {
-            console.warn('⚠️ Could not delete file:', error.message);
+            this.logError('Could not delete file', error);
             return false;
         }
     }

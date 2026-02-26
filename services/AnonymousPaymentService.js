@@ -19,6 +19,7 @@
 const crypto = require('crypto');
 const BaseService = require('./core/BaseService');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { validateAnonymousIdFormat } = require('./utils/anonymousIdValidator');
 
 /**
  * AnonymousPaymentService - Handles Stripe integration for anonymous payments
@@ -26,7 +27,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
  */
 class AnonymousPaymentService extends BaseService {
     constructor() {
-        super('AnonymousPaymentService');
+        super();
         this.idLength = 16; // Minimum 16 characters like Mullvad
         this.supportedPlans = new Map([
             ['basic', { priceId: process.env.STRIPE_BASIC_PRICE_ID, name: 'Basic Plan', price: 500 }], // $5.00
@@ -73,13 +74,7 @@ class AnonymousPaymentService extends BaseService {
      * Validate anonymous ID format
      */
     validateAnonymousId(anonymousId) {
-        if (!anonymousId || typeof anonymousId !== 'string') {
-            return false;
-        }
-        
-        // Check format: XXXX-XXXX-XXXX-XXXX (16 chars + 3 dashes = 19 total)
-        const pattern = /^[123456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[123456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[123456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[123456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
-        return pattern.test(anonymousId);
+        return validateAnonymousIdFormat(anonymousId).valid;
     }
 
     /**

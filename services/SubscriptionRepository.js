@@ -17,7 +17,6 @@
  */
 
 const BaseService = require('./core/BaseService');
-const { Pool } = require('pg');
 
 /**
  * SubscriptionRepository - Database operations for anonymous subscriptions
@@ -25,11 +24,11 @@ const { Pool } = require('pg');
  */
 class SubscriptionRepository extends BaseService {
     constructor(dbPool) {
-        super('SubscriptionRepository');
-        this.pool = dbPool || new Pool({
-            connectionString: process.env.DATABASE_URL,
-            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-        });
+        super();
+        if (!dbPool) {
+            throw new Error('SubscriptionRepository requires a database pool');
+        }
+        this.pool = dbPool;
     }
 
     /**

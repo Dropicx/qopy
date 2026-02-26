@@ -17,6 +17,17 @@
  */
 
 // Qopy Application JavaScript
+const CLIP_CONFIG = {
+    QUICK_SHARE_ID_LENGTH: 6,
+    NORMAL_ID_LENGTH: 10,
+    URL_SECRET_LENGTH: 16,
+    CHAR_LIMIT: 50000,
+    CLIP_ID_CHARS: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+    PBKDF2_ITERATIONS: 100000,
+    AES_IV_LENGTH: 12,
+    MAX_CONTENT_SIZE: 5 * 1024 * 1024,
+};
+
 class ClipboardApp {
     constructor() {
         this.baseUrl = window.location.origin;
@@ -284,7 +295,7 @@ class ClipboardApp {
             
             // Check if this is a file URL (from routing)
             const isFileUrl = this.isFileRequest === true;
-            const isQuickShare = clipId.length === 6;
+            const isQuickShare = clipId.length === CLIP_CONFIG.QUICK_SHARE_ID_LENGTH;
 
             if (isQuickShare) {
                 // Quick Share (6-digit): zero-knowledge, uses URL fragment secret
@@ -375,15 +386,13 @@ class ClipboardApp {
                         
                         this.hideLoading('retrieve-loading');
                         
-                        const passwordSection = document.getElementById('password-section');
                         const passwordInput = document.getElementById('retrieve-password-input');
-                        
-                        if (passwordSection && passwordInput) {
-                            passwordSection.classList.remove('hidden');
-                            passwordSection.style.display = 'block'; // Ensure it's visible
+
+                        this.setPasswordSectionVisible(true);
+                        if (passwordInput) {
                             passwordInput.focus();
                         }
-                        
+
                         this.showToast((window.INFO_MESSAGES && window.INFO_MESSAGES.FILE_PASSWORD_REQUIRED) || '🔐 This file requires a password. Please enter it below.', 'info');
                     } else {
                         // File doesn't require password - wrong URL secret
@@ -459,12 +468,8 @@ class ClipboardApp {
                         this.hideLoading('retrieve-loading');
                         
                         // Show password section
-                        const passwordSection = document.getElementById('password-section');
-                        if (passwordSection) {
-                            passwordSection.style.display = 'block';
-                            passwordSection.classList.remove('hidden');
-                        }
-                        
+                        this.setPasswordSectionVisible(true);
+
                         // BLOCK any further automatic retrievals
                         this.blockAutoRetrieve = true;
                         
@@ -509,14 +514,13 @@ class ClipboardApp {
                         // Authentication failed but server indicates password required
                         this.hideLoading('retrieve-loading');
                         
-                        const passwordSection = document.getElementById('password-section');
                         const passwordInput = document.getElementById('retrieve-password-input');
-                        
-                        if (passwordSection && passwordInput) {
-                            passwordSection.classList.remove('hidden');
+
+                        this.setPasswordSectionVisible(true);
+                        if (passwordInput) {
                             passwordInput.focus();
                         }
-                        
+
                         this.showToast('🔐 This clip requires a password. Please enter it below.', 'info');
                     } else {
                         // Authentication failed with wrong credentials
@@ -538,17 +542,16 @@ class ClipboardApp {
                         this.hideLoading('retrieve-loading');
                         
                         // Show password section and focus password input
-                        const passwordSection = document.getElementById('password-section');
                         const passwordInput = document.getElementById('retrieve-password-input');
-                        
-                        if (passwordSection && passwordInput) {
-                            passwordSection.classList.remove('hidden');
+
+                        this.setPasswordSectionVisible(true);
+                        if (passwordInput) {
                             passwordInput.focus();
                         }
-                        
+
                         return;
                     }
-                    
+
                     // No password required, proceed with retrieval
                     const response = await fetch(`/api/clip/${clipId}`, {
                         method: 'GET',
@@ -626,14 +629,13 @@ class ClipboardApp {
                             // Authentication failed but server indicates password required
                             this.hideLoading('retrieve-loading');
                             
-                            const passwordSection = document.getElementById('password-section');
                             const passwordInput = document.getElementById('retrieve-password-input');
-                            
-                            if (passwordSection && passwordInput) {
-                                passwordSection.classList.remove('hidden');
+
+                            this.setPasswordSectionVisible(true);
+                            if (passwordInput) {
                                 passwordInput.focus();
                             }
-                            
+
                             this.showToast('🔐 This clip requires a password. Please enter it below.', 'info');
                         } else {
                             // Authentication failed with wrong credentials
@@ -701,13 +703,8 @@ class ClipboardApp {
             
             // Ensure password field is hidden by default in retrieve tab
             if (tab === 'retrieve') {
-                const passwordSection = document.getElementById('password-section');
-                
                 // Hide password section by default - it will be shown only if server indicates password is required
-                if (passwordSection) {
-                    passwordSection.classList.add('hidden');
-                }
-                
+                this.setPasswordSectionVisible(false);
             }
 
             // Focus appropriate input after a short delay
@@ -762,19 +759,15 @@ class ClipboardApp {
         }
         
         const clipId = document.getElementById('clip-id-input').value.trim();
-        const passwordSection = document.getElementById('password-section');
         const passwordInput = document.getElementById('retrieve-password-input');
-        
-        
+
         // Always hide password section by default
-        if (passwordSection) {
-            passwordSection.classList.add('hidden');
-        }
+        this.setPasswordSectionVisible(false);
         if (passwordInput) {
             passwordInput.value = '';
         }
         
-        if (clipId.length === 6 || clipId.length === 10) {
+        if (clipId.length === CLIP_CONFIG.QUICK_SHARE_ID_LENGTH || clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH) {
             try {
                 // Extract URL secret and password for potential authentication
                 const urlSecret = this.extractUrlSecret();
@@ -814,9 +807,7 @@ class ClipboardApp {
                     // Show password section ONLY for text content with passwords
                     // Files handle their own password logic in showRetrieveResult
                     if (data.hasPassword && data.contentType === 'text') {
-                        if (passwordSection) {
-                            passwordSection.classList.remove('hidden');
-                        }
+                        this.setPasswordSectionVisible(true);
                         if (passwordInput) {
                             passwordInput.focus();
                         }
@@ -927,7 +918,7 @@ class ClipboardApp {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     filename: file.name,
-                    totalChunks: Math.ceil(file.size / (5 * 1024 * 1024)),
+                    totalChunks: Math.ceil(file.size / CLIP_CONFIG.MAX_CONTENT_SIZE),
                     expiration: expiration,
                     oneTime: oneTime,
                     hasPassword: !!password,
@@ -945,7 +936,7 @@ class ClipboardApp {
             const { uploadId, totalChunks } = sessionData;
 
             // Upload chunks
-            const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+            const chunkSize = CLIP_CONFIG.MAX_CONTENT_SIZE;
             let uploadedChunks = 0;
 
             for (let i = 0; i < totalChunks; i++) {
@@ -1110,11 +1101,12 @@ class ClipboardApp {
 
     // Generate 6-character alphanumeric secret for Quick Share (zero-knowledge)
     generateQuickShareSecret() {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        const array = new Uint8Array(6);
+        const chars = CLIP_CONFIG.CLIP_ID_CHARS;
+        const secretLength = CLIP_CONFIG.QUICK_SHARE_ID_LENGTH;
+        const array = new Uint8Array(secretLength);
         window.crypto.getRandomValues(array);
         let secret = '';
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < secretLength; i++) {
             secret += chars[array[i] % chars.length];
         }
         return secret;
@@ -1190,11 +1182,13 @@ class ClipboardApp {
 
     // Generate clip ID (6 characters for Quick Share, 10 for normal)
     generateClipId(quickShare = false) {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        const length = quickShare ? 6 : 10;
+        const chars = CLIP_CONFIG.CLIP_ID_CHARS;
+        const length = quickShare ? CLIP_CONFIG.QUICK_SHARE_ID_LENGTH : CLIP_CONFIG.NORMAL_ID_LENGTH;
+        const randomValues = new Uint8Array(length);
+        crypto.getRandomValues(randomValues);
         let result = '';
         for (let i = 0; i < length; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
+            result += chars.charAt(randomValues[i] % chars.length);
         }
         return result;
     }
@@ -1234,7 +1228,7 @@ class ClipboardApp {
         }
 
         // Validate password if required
-        if (clipId.length === 10 && password) {
+        if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH && password) {
             if (password.length > 128) {
                 this.showToast(`❌ Password too long: ${password.length} characters (max 128)`, 'error');
                 document.getElementById('retrieve-password-input').focus();
@@ -1271,13 +1265,13 @@ class ClipboardApp {
                 }
             };
             
-            if (clipId.length === 10 && password) {
+            if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH && password) {
                 // Normal clip with password: Use POST with hashed access code (Zero-Knowledge - server never sees password)
                 fetchOptions.method = 'POST';
                 const accessCodeHash = await this.generateAccessCodeHash(password);
                 requestBody = { accessCode: accessCodeHash };
                 fetchOptions.body = JSON.stringify(requestBody);
-            } else if (clipId.length === 10) {
+            } else if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH) {
                 // Normal clip without password: URL secret only (client-side)
                 // Stay with GET request, no authentication needed
             } else {
@@ -1319,7 +1313,7 @@ class ClipboardApp {
                     let decryptedContent;
                     
                     // Check if this is a Quick Share (short ID) or normal clip
-                    if (clipId.length === 6) {
+                    if (clipId.length === CLIP_CONFIG.QUICK_SHARE_ID_LENGTH) {
                         // Quick Share: Use URL secret from fragment or manual input
                         const qsUrlSecret = urlSecret || (document.getElementById('quick-share-secret-input') ? document.getElementById('quick-share-secret-input').value.trim().toUpperCase() : '');
                         if (!qsUrlSecret) {
@@ -1712,7 +1706,7 @@ class ClipboardApp {
             // For Quick Share, also check manual secret input if no URL fragment
             if (!urlSecret && data.redirectTo) {
                 const clipId = data.redirectTo.split('/').pop();
-                if (clipId.length === 6) {
+                if (clipId.length === CLIP_CONFIG.QUICK_SHARE_ID_LENGTH) {
                     const secretInput = document.getElementById('quick-share-secret-input');
                     if (secretInput && secretInput.value.trim()) {
                         urlSecret = secretInput.value.trim().toUpperCase();
@@ -1728,10 +1722,10 @@ class ClipboardApp {
             // NEW: Use Zero-Knowledge Access Code System instead of download tokens
             let requestBody = {};
             
-            if (clipId.length === 10 && password) {
+            if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH && password) {
                 // Normal clip with password: Use access code for authentication
                 requestBody.accessCode = password; // Send password for access control
-            } else if (clipId.length === 10) {
+            } else if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH) {
                 // Normal clip without password: No authentication needed (URL secret is client-side)
             } else {
                 // Quick Share (6-digit): No authentication needed
@@ -1838,28 +1832,23 @@ class ClipboardApp {
 
     // Check if a file requires password input
     checkFilePasswordRequirement(data) {
-        const passwordSection = document.getElementById('password-section');
         const passwordInput = document.getElementById('retrieve-password-input');
-        
+
         // Check if we have URL secret (indicates encryption)
         const urlSecret = this.extractUrlSecret();
-        
+
         // For files, show password section only if:
         // 1. We have a URL secret (indicating encryption) AND
         // 2. The file has a password hash (indicating it was password-protected)
         if (urlSecret && data.hasPassword) {
             // URL secret exists AND file has password, show password input
-            if (passwordSection) {
-                passwordSection.classList.remove('hidden');
-            }
+            this.setPasswordSectionVisible(true);
             if (passwordInput) {
                 passwordInput.focus();
             }
         } else {
             // No URL secret OR no password, hide password section
-            if (passwordSection) {
-                passwordSection.classList.add('hidden');
-            }
+            this.setPasswordSectionVisible(false);
         }
     }
 
@@ -2090,6 +2079,18 @@ class ClipboardApp {
         return div.innerHTML;
     }
 
+    setPasswordSectionVisible(visible) {
+        const passwordSection = document.getElementById('password-section');
+        if (!passwordSection) return;
+        if (visible) {
+            passwordSection.classList.remove('hidden');
+            passwordSection.style.display = 'block';
+        } else {
+            passwordSection.classList.add('hidden');
+            passwordSection.style.display = '';
+        }
+    }
+
     // FAQ Accordion functionality with dynamic height
     toggleFAQ(faqId) {
         const question = document.querySelector(`[data-faq="${faqId}"]`);
@@ -2203,7 +2204,7 @@ class ClipboardApp {
                 {
                     name: 'PBKDF2',
                     salt: salt,
-                    iterations: 100000,
+                    iterations: CLIP_CONFIG.PBKDF2_ITERATIONS,
                     hash: 'SHA-256'
                 },
                 keyMaterial,
@@ -2216,7 +2217,7 @@ class ClipboardApp {
             if (!urlSecret) {
                 throw new Error('URL secret is required for non-password clips');
             }
-            
+
             // Derive key from URL secret using PBKDF2
             const encoder = new TextEncoder();
             const salt = encoder.encode('qopy-salt-v1');
@@ -2231,7 +2232,7 @@ class ClipboardApp {
                 {
                     name: 'PBKDF2',
                     salt: salt,
-                    iterations: 100000,
+                    iterations: CLIP_CONFIG.PBKDF2_ITERATIONS,
                     hash: 'SHA-256'
                 },
                 keyMaterial,
@@ -2513,10 +2514,7 @@ class ClipboardApp {
         }
         
         // Hide password section
-        const passwordSection = document.getElementById('password-section');
-        if (passwordSection) {
-            passwordSection.classList.add('hidden');
-        }
+        this.setPasswordSectionVisible(false);
     }
 
     // Handle File Download
@@ -2624,7 +2622,7 @@ class ClipboardApp {
                     console.error('❌ Download failed:', error);
                     this.showToast('❌ Download failed: ' + error.message, 'error');
                 }
-            });
+            }, { once: true });
         } else {
             console.error('❌ Download button not found!');
         }
@@ -2681,7 +2679,7 @@ class ClipboardApp {
             const password = this.getPasswordFromUser();
 
             // For Quick Share, also check manual secret input
-            if (!urlSecret && clipId.length === 6) {
+            if (!urlSecret && clipId.length === CLIP_CONFIG.QUICK_SHARE_ID_LENGTH) {
                 const secretInput = document.getElementById('quick-share-secret-input');
                 if (secretInput && secretInput.value.trim()) {
                     urlSecret = secretInput.value.trim().toUpperCase();
@@ -2691,10 +2689,10 @@ class ClipboardApp {
             // NEW: Zero-Knowledge Access Code System - no download tokens needed
             const requestBody = {};
             
-            if (clipId.length === 10 && password) {
+            if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH && password) {
                 // Normal clip with password: Use access code for authentication
                 requestBody.accessCode = password; // Send password for access control
-            } else if (clipId.length === 10) {
+            } else if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH) {
                 // Normal clip without password: No authentication needed (URL secret is client-side)
             } else {
                 // Quick Share (6-digit): No authentication needed
@@ -2841,7 +2839,7 @@ class ClipboardApp {
             {
                 name: 'PBKDF2',
                 salt: encoder.encode(salt),
-                iterations: 100000,
+                iterations: CLIP_CONFIG.PBKDF2_ITERATIONS,
                 hash: 'SHA-512'
             },
             keyMaterial,
@@ -3028,7 +3026,7 @@ class ClipboardApp {
                     ['deriveBits']
                 );
                 salt = customSalt || 'qopy-iv-salt-v1';
-                iterations = 100000;
+                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
             } else if (isEnhancedPassphrase) {
                 // Enhanced format: passphrase:password
                 const combined = secret + ':' + password;
@@ -3041,7 +3039,7 @@ class ClipboardApp {
                     ['deriveBits']
                 );
                 salt = customSalt || 'qopy-enhanced-iv-salt-v2';
-                iterations = 100000;
+                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
             } else if (isQuickShareSecret) {
                 // Quick Share format: secret:password
                 const combined = secret + ':' + password;
@@ -3054,7 +3052,7 @@ class ClipboardApp {
                     ['deriveBits']
                 );
                 salt = customSalt || 'qopy-quickshare-iv-salt-v1';
-                iterations = 100000;
+                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
             } else {
                 throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
             }
@@ -3070,7 +3068,7 @@ class ClipboardApp {
                     ['deriveBits']
                 );
                 salt = customSalt || 'qopy-iv-salt-v1';
-                iterations = 100000;
+                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
             } else if (isEnhancedPassphrase) {
                 
                 keyMaterial = await window.crypto.subtle.importKey(
@@ -3081,7 +3079,7 @@ class ClipboardApp {
                     ['deriveBits']
                 );
                 salt = customSalt || 'qopy-enhanced-iv-salt-v2';
-                iterations = 100000;
+                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
             } else if (isQuickShareSecret) {
 
                 keyMaterial = await window.crypto.subtle.importKey(
@@ -3092,7 +3090,7 @@ class ClipboardApp {
                     ['deriveBits']
                 );
                 salt = customSalt || 'qopy-quickshare-iv-salt-v1';
-                iterations = 100000;
+                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
             } else if (isQuickShareUrlSecret) {
 
                 keyMaterial = await window.crypto.subtle.importKey(

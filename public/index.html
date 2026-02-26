@@ -150,11 +150,12 @@
             <div class="form-container">
                 <div class="input-group">
                     <div class="textarea-container">
-                        <textarea 
-                            id="content-input" 
-                            placeholder="Paste or type your content here..." 
+                        <textarea
+                            id="content-input"
+                            placeholder="Paste or type your content here..."
                             rows="10"
                             maxlength="100000"
+                            aria-label="Content to share"
                         ></textarea>
                         <div class="char-counter">
                             <span id="char-count">0</span> / 100,000
@@ -644,7 +645,7 @@
                     <h3>Drop file here or click to select</h3>
                     <p>Maximum file size: 100MB</p>
                     <p>All file types supported</p>
-                    <input type="file" id="file-input" style="display: none;" accept="*/*">
+                    <input type="file" id="file-input" style="display: none;" accept="*/*" aria-label="Select file to upload">
                 </div>
 
                 <!-- File Info Display -->
@@ -744,9 +745,9 @@
         <main id="retrieve-section" class="section">
             <div class="form-container">
                 <div class="input-group">
-                    <input 
-                        type="text" 
-                        id="clip-id-input" 
+                    <input
+                        type="text"
+                        id="clip-id-input"
                         placeholder="Enter clip ID (6 or 10 characters, e.g. X8K2M9 or X8K2M9N4P7)"
                         maxlength="10"
                         style="text-transform: uppercase;"
@@ -755,6 +756,7 @@
                         autocorrect="off"
                         autocapitalize="characters"
                         class="input"
+                        aria-label="Clip ID"
                     >
                 </div>
 
@@ -814,11 +816,11 @@
         </main>
 
         <!-- Success Modal (Global) -->
-        <div id="success-modal" class="modal hidden">
+        <div id="success-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Share link created">
             <div class="modal-content">
                 <div class="modal-header">
                     <h3>✅ Link Created Successfully!</h3>
-                    <button id="close-modal" class="close-button">&times;</button>
+                    <button id="close-modal" class="close-button" aria-label="Close dialog">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="result-section">
@@ -826,7 +828,7 @@
                     </div>
                     
                     <div class="result-section">
-                        <label class="label">Share URL:</label>
+                        <label for="share-url" class="label">Share URL:</label>
                         <div class="copy-container">
                             <input type="text" id="share-url" readonly class="copy-input">
                             <button id="copy-url-button" class="copy-button">Copy</button>
@@ -834,7 +836,7 @@
                     </div>
 
                     <div class="result-section" id="clip-id-section" style="display: none;">
-                        <label class="label">Clip ID:</label>
+                        <label for="clip-id" class="label">Clip ID:</label>
                         <div class="copy-container">
                             <input type="text" id="clip-id" readonly class="copy-input">
                             <button id="copy-id-button" class="copy-button">Copy</button>
@@ -910,18 +912,18 @@
     </div>
 
     <!-- Toast Notifications -->
-    <div id="error-toast" class="hidden">
-        <button class="toast-close">×</button>
+    <div id="error-toast" class="hidden" role="alert">
+        <button class="toast-close" aria-label="Dismiss error notification">×</button>
         <p class="toast-message" id="error-message">Error message</p>
     </div>
 
-    <div id="info-toast" class="hidden">
-        <button class="toast-close">×</button>
+    <div id="info-toast" class="hidden" role="status">
+        <button class="toast-close" aria-label="Dismiss info notification">×</button>
         <p class="toast-message" id="info-message">Info message</p>
     </div>
 
-    <div id="success-toast" class="hidden">
-        <button class="toast-close">×</button>
+    <div id="success-toast" class="hidden" role="status">
+        <button class="toast-close" aria-label="Dismiss success notification">×</button>
         <p class="toast-message" id="success-toast-message">Success message</p>
     </div>
 </body>

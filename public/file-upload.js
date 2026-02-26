@@ -17,6 +17,8 @@
  */
 
 // File Upload Manager for Qopy
+const FILE_UPLOAD_DEBUG = false;
+
 class FileUploadManager {
     constructor() {
         this.currentUpload = null;
@@ -135,7 +137,7 @@ class FileUploadManager {
     }
 
     handleFileSelection(file) {
-        console.log('🗂️ File selected:', file.name, '(' + this.formatFileSize(file.size) + ')');
+        FILE_UPLOAD_DEBUG && console.log('🗂️ File selected:', file.name, '(' + this.formatFileSize(file.size) + ')');
 
         // Validate file size
         if (file.size > this.maxFileSize) {
@@ -203,7 +205,7 @@ class FileUploadManager {
             progressContainer.style.display = 'none';
         }
         
-        console.log('🔄 File selection reset');
+        FILE_UPLOAD_DEBUG && console.log('🔄 File selection reset');
     }
 
     resetUploadControls() {
@@ -254,7 +256,7 @@ class FileUploadManager {
         }
 
         try {
-            console.log('🚀 Starting upload for:', this.selectedFile.name);
+            FILE_UPLOAD_DEBUG && console.log('🚀 Starting upload for:', this.selectedFile.name);
             
             // Get form settings
             const expiration = document.getElementById('file-expiration')?.value || '24hr';
@@ -277,9 +279,9 @@ class FileUploadManager {
             // Store access code in session for completion
             if (accessCode) {
                 this.currentUploadSession.accessCode = accessCode;
-                console.log('💾 Stored access code in session for completion');
+                FILE_UPLOAD_DEBUG && console.log('💾 Stored access code in session for completion');
             }
-            console.log('✅ Upload session created:', uploadSession.uploadId);
+            FILE_UPLOAD_DEBUG && console.log('✅ Upload session created:', uploadSession.uploadId);
 
             // Show progress UI
             this.showProgressUI(true);
@@ -288,7 +290,7 @@ class FileUploadManager {
             // Upload chunks (this also completes the upload)
             const result = await this.uploadChunks(this.selectedFile, uploadSession);
             
-            console.log('✅ Upload completed:', result);
+            FILE_UPLOAD_DEBUG && console.log('✅ Upload completed:', result);
             this.showUploadSuccess(result);
 
         } catch (error) {
@@ -330,12 +332,12 @@ class FileUploadManager {
         
         // Only pad files smaller than 10KB
         if (originalSize >= minimumSize) {
-            console.log(`📦 File size ${originalSize} bytes >= 10KB, no padding needed`);
+            FILE_UPLOAD_DEBUG && console.log(`📦 File size ${originalSize} bytes >= 10KB, no padding needed`);
             return data; // No padding for larger files
         }
         
         const paddingSize = minimumSize - originalSize;
-        console.log(`🔒 Minimal padding: ${originalSize} bytes → ${minimumSize} bytes (+${paddingSize} padding)`);
+        FILE_UPLOAD_DEBUG && console.log(`🔒 Minimal padding: ${originalSize} bytes → ${minimumSize} bytes (+${paddingSize} padding)`);
         
         // Generate cryptographically secure random padding
         const padding = new Uint8Array(paddingSize);
@@ -369,7 +371,7 @@ class FileUploadManager {
         const encoder = new TextEncoder();
         const metadataBytes = encoder.encode(metadataJson);
         
-        console.log(`🔐 Embedding compatible encrypted metadata: ${metadataJson}`);
+        FILE_UPLOAD_DEBUG && console.log(`🔐 Embedding compatible encrypted metadata: ${metadataJson}`);
         
         // Encrypt metadata with compatible secret using AES-GCM
         const metadataKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
@@ -395,7 +397,7 @@ class FileUploadManager {
         finalFile.set(encryptedMetadataArray, 4);
         finalFile.set(fileData, 4 + encryptedMetadataArray.length);
         
-        console.log(`✅ Compatible metadata embedded: ${metadataJson.length} chars → ${encryptedMetadataArray.length} encrypted bytes`);
+        FILE_UPLOAD_DEBUG && console.log(`✅ Compatible metadata embedded: ${metadataJson.length} chars → ${encryptedMetadataArray.length} encrypted bytes`);
         return finalFile;
     }
 
@@ -410,7 +412,7 @@ class FileUploadManager {
             const metadataLength = new DataView(fileWithMetadata.buffer.slice(0, 4)).getUint32(0, false);
             
             if (metadataLength > fileWithMetadata.length - 4 || metadataLength > 1024) { // Sanity check
-                console.log('📦 No valid metadata found, treating as raw file');
+                FILE_UPLOAD_DEBUG && console.log('📦 No valid metadata found, treating as raw file');
                 return { metadata: null, fileData: fileWithMetadata };
             }
             
@@ -431,18 +433,18 @@ class FileUploadManager {
             const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
             const metadata = JSON.parse(metadataJson);
             
-            console.log(`🔓 Extracted encrypted metadata: ${metadataJson}`);
+            FILE_UPLOAD_DEBUG && console.log(`🔓 Extracted encrypted metadata: ${metadataJson}`);
             return { metadata, fileData };
             
         } catch (error) {
-            console.warn('⚠️ Failed to extract metadata (wrong key or corrupted):', error.message);
+            FILE_UPLOAD_DEBUG && console.warn('⚠️ Failed to extract metadata (wrong key or corrupted):', error.message);
             return { metadata: null, fileData: fileWithMetadata };
         }
     }
 
     // Generate secure passphrase (like Proton Drive's recovery phrases) for enhanced security
     generateSecurePassphrase() {
-        console.log('🔐 [ENTROPY] Generating enhanced secure passphrase...');
+        FILE_UPLOAD_DEBUG && console.log('🔐 [ENTROPY] Generating enhanced secure passphrase...');
         
         const startTime = performance.now();
         
@@ -455,7 +457,7 @@ class FileUploadManager {
         
         const generationTime = performance.now() - startTime;
         
-        console.log('✅ Enhanced passphrase generated:', {
+        FILE_UPLOAD_DEBUG && console.log('✅ Enhanced passphrase generated:', {
             type: 'BASE64_ENCODED',
             entropyBits: 256,
             length: base64Passphrase.length,
@@ -497,7 +499,7 @@ class FileUploadManager {
         }
         
         const wordPassphrase = passphrase.join(' ');
-        console.log(`🔐 Generated word-based passphrase: 12 words (~128 bits entropy)`);
+        FILE_UPLOAD_DEBUG && console.log(`🔐 Generated word-based passphrase: 12 words (~128 bits entropy)`);
         return wordPassphrase;
     }
 
@@ -700,7 +702,7 @@ class FileUploadManager {
 
     // Generate backward-compatible secret with extensive logging
     generateCompatibleSecret(enhanced = true) {
-        console.group('🎲 [SECRET GENERATION] Compatible Secret Creation');
+        FILE_UPLOAD_DEBUG && console.group('🎲 [SECRET GENERATION] Compatible Secret Creation');
         
         const startTime = performance.now();
         
@@ -712,17 +714,17 @@ class FileUploadManager {
                 // Generate enhanced passphrase (new default)
                 secret = this.generateSecurePassphrase();
                 secretType = 'ENHANCED_PASSPHRASE';
-                console.log('🔐 Generated enhanced passphrase for maximum security');
+                FILE_UPLOAD_DEBUG && console.log('🔐 Generated enhanced passphrase for maximum security');
             } else {
                 // Generate legacy URL secret (for compatibility)
                 secret = this.generateLegacyUrlSecret();
                 secretType = 'LEGACY_URL_SECRET';
-                console.log('🔑 Generated legacy URL secret for backward compatibility');
+                FILE_UPLOAD_DEBUG && console.log('🔑 Generated legacy URL secret for backward compatibility');
             }
             
             const totalTime = performance.now() - startTime;
             
-            console.log('✅ Compatible secret generated:', {
+            FILE_UPLOAD_DEBUG && console.log('✅ Compatible secret generated:', {
                 type: secretType,
                 length: secret.length,
                 preview: secret.substring(0, 8) + '...',
@@ -731,7 +733,7 @@ class FileUploadManager {
                 generationTime: totalTime.toFixed(2) + 'ms'
             });
             
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             return secret;
         } catch (error) {
             const totalTime = performance.now() - startTime;
@@ -740,14 +742,14 @@ class FileUploadManager {
                 enhanced,
                 totalTime: totalTime.toFixed(2) + 'ms'
             });
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             throw error;
         }
     }
 
     // Legacy URL secret generation with logging
     generateLegacyUrlSecret() {
-        console.log('🔑 [LEGACY] Generating backward-compatible URL secret...');
+        FILE_UPLOAD_DEBUG && console.log('🔑 [LEGACY] Generating backward-compatible URL secret...');
         
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         let result = '';
@@ -755,7 +757,7 @@ class FileUploadManager {
             result += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         
-        console.log('✅ Legacy URL secret generated:', {
+        FILE_UPLOAD_DEBUG && console.log('✅ Legacy URL secret generated:', {
             type: 'ALPHANUMERIC',
             entropyBits: 128,
             length: result.length,
@@ -775,7 +777,7 @@ class FileUploadManager {
             if (password && securePassphrase) {
                 // Combined mode: password + secure passphrase (like Proton's system)
                 const combined = securePassphrase + ':' + password;
-                console.log('🔑 Using password + secure passphrase mode (Proton-style)');
+                FILE_UPLOAD_DEBUG && console.log('🔑 Using password + secure passphrase mode (Proton-style)');
                 keyMaterial = await window.crypto.subtle.importKey(
                     'raw',
                     encoder.encode(combined),
@@ -785,7 +787,7 @@ class FileUploadManager {
                 );
             } else if (securePassphrase) {
                 // Secure passphrase only mode
-                console.log('🔑 Using secure passphrase only mode');
+                FILE_UPLOAD_DEBUG && console.log('🔑 Using secure passphrase only mode');
                 keyMaterial = await window.crypto.subtle.importKey(
                     'raw',
                     encoder.encode(securePassphrase),
@@ -797,7 +799,7 @@ class FileUploadManager {
                 throw new Error('Either password or secure passphrase must be provided');
             }
             
-            console.log('✅ Key material imported successfully');
+            FILE_UPLOAD_DEBUG && console.log('✅ Key material imported successfully');
             
             // Enhanced PBKDF2 with more iterations for longer passphrase
             const derivedKey = await window.crypto.subtle.deriveKey(
@@ -813,7 +815,7 @@ class FileUploadManager {
                 ['encrypt', 'decrypt']
             );
             
-            console.log('✅ Enhanced key derived successfully with 250k iterations');
+            FILE_UPLOAD_DEBUG && console.log('✅ Enhanced key derived successfully with 250k iterations');
             return derivedKey;
         } catch (error) {
             console.error('❌ Enhanced key generation error:', error);
@@ -865,30 +867,30 @@ class FileUploadManager {
 
     async initiateUpload(file, options = {}) {
         const uploadStartTime = performance.now();
-        console.group('📤 [UPLOAD INIT] Starting Compatible File Upload');
+        FILE_UPLOAD_DEBUG && console.group('📤 [UPLOAD INIT] Starting Compatible File Upload');
         
         try {
             // Generate enhanced passphrase for new uploads (but support legacy for downloads)
-            console.log('🔐 Generating compatible secret for upload...');
+            FILE_UPLOAD_DEBUG && console.log('🔐 Generating compatible secret for upload...');
             const compatibleSecret = this.generateCompatibleSecret(true); // true = enhanced mode
             
             // Store original file metadata for success display
             this.storeOriginalMetadata(file.name, file.size, file.type);
-            console.log('💾 Original metadata stored for success display');
+            FILE_UPLOAD_DEBUG && console.log('💾 Original metadata stored for success display');
             
             // Generate hash-based anonymous filename
-            console.log('🎭 Generating anonymous filename...');
+            FILE_UPLOAD_DEBUG && console.log('🎭 Generating anonymous filename...');
             const anonymousFilename = await this.generateHashFilename();
-            console.log('✅ Anonymous filename generated:', anonymousFilename);
+            FILE_UPLOAD_DEBUG && console.log('✅ Anonymous filename generated:', anonymousFilename);
             
             // Read file data and apply minimal padding only for small files
-            console.log('📖 Reading file data and applying padding logic...');
+            FILE_UPLOAD_DEBUG && console.log('📖 Reading file data and applying padding logic...');
             const fileReadStart = performance.now();
             const fileBuffer = await file.arrayBuffer();
             const originalData = new Uint8Array(fileBuffer);
             const fileReadTime = performance.now() - fileReadStart;
             
-            console.log('📊 File read completed:', {
+            FILE_UPLOAD_DEBUG && console.log('📊 File read completed:', {
                 originalSize: originalData.length,
                 readTime: fileReadTime.toFixed(2) + 'ms'
             });
@@ -898,7 +900,7 @@ class FileUploadManager {
             const paddingTime = performance.now() - paddingStart;
             
             const paddingApplied = paddedData.length !== originalData.length;
-            console.log('🔒 Padding analysis:', {
+            FILE_UPLOAD_DEBUG && console.log('🔒 Padding analysis:', {
                 paddingApplied,
                 originalSize: originalData.length,
                 paddedSize: paddedData.length,
@@ -907,7 +909,7 @@ class FileUploadManager {
             });
             
             // Embed metadata (including MIME type) into padded data
-            console.log('📋 Embedding encrypted metadata...');
+            FILE_UPLOAD_DEBUG && console.log('📋 Embedding encrypted metadata...');
             const metadataStart = performance.now();
             const fileWithMetadata = await this.embedMetadata(
                 paddedData, 
@@ -918,7 +920,7 @@ class FileUploadManager {
             );
             const metadataTime = performance.now() - metadataStart;
             
-            console.log('✅ Metadata embedding completed:', {
+            FILE_UPLOAD_DEBUG && console.log('✅ Metadata embedding completed:', {
                 finalSize: fileWithMetadata.length,
                 metadataOverhead: fileWithMetadata.length - paddedData.length,
                 embeddingTime: metadataTime.toFixed(2) + 'ms'
@@ -926,7 +928,7 @@ class FileUploadManager {
             
             const uploadPreparationTime = performance.now() - uploadStartTime;
             
-            console.log(`🔒 Backward-compatible zero-knowledge upload preparation completed:`, {
+            FILE_UPLOAD_DEBUG && console.log(`🔒 Backward-compatible zero-knowledge upload preparation completed:`, {
                 original: {
                     filename: file.name,
                     size: file.size,
@@ -965,7 +967,7 @@ class FileUploadManager {
                 isTextContent: false
             };
             
-            console.log('📡 Making upload initiation request to server...', requestBody);
+            FILE_UPLOAD_DEBUG && console.log('📡 Making upload initiation request to server...', requestBody);
             const serverRequestStart = performance.now();
             
             const response = await fetch('/api/upload/initiate', {
@@ -992,7 +994,7 @@ class FileUploadManager {
             const result = await response.json();
             const totalInitTime = performance.now() - uploadStartTime;
             
-            console.log('✅ Upload session initiated successfully:', {
+            FILE_UPLOAD_DEBUG && console.log('✅ Upload session initiated successfully:', {
                 uploadId: result.uploadId,
                 chunkSize: result.chunkSize,
                 totalChunks: result.totalChunks,
@@ -1004,7 +1006,7 @@ class FileUploadManager {
             result.compatibleSecret = compatibleSecret;
             result.fileDataToUpload = fileWithMetadata;
             
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             return result;
             
         } catch (error) {
@@ -1015,14 +1017,14 @@ class FileUploadManager {
                 fileSize: file.size,
                 totalTime: totalTime.toFixed(2) + 'ms'
             });
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             throw error;
         }
     }
 
     async uploadChunks(file, uploadSession) {
         const uploadStartTime = performance.now();
-        console.group('📤 [UPLOAD CHUNKS] Compatible File Upload');
+        FILE_UPLOAD_DEBUG && console.group('📤 [UPLOAD CHUNKS] Compatible File Upload');
         
         try {
             const { uploadId, chunkSize, totalChunks, compatibleSecret, fileDataToUpload } = uploadSession;
@@ -1031,7 +1033,7 @@ class FileUploadManager {
             const requiresAccessCode = document.getElementById('file-password-checkbox')?.checked || false;
             const accessCode = requiresAccessCode ? document.getElementById('file-password-input')?.value?.trim() : null;
             
-            console.log('🔐 Access code settings analysis:', {
+            FILE_UPLOAD_DEBUG && console.log('🔐 Access code settings analysis:', {
                 requiresAccessCode,
                 accessCodeLength: accessCode ? accessCode.length : 0,
                 accessCodeProvided: requiresAccessCode && accessCode
@@ -1042,7 +1044,7 @@ class FileUploadManager {
             }
 
             // Use compatible encryption (URL-Secret only for file encryption)
-            console.log('🔐 Preparing compatible encryption...');
+            FILE_UPLOAD_DEBUG && console.log('🔐 Preparing compatible encryption...');
             const encryptionStart = performance.now();
             
             // For Access Code System: File encryption uses only URL-Secret, not password
@@ -1051,7 +1053,7 @@ class FileUploadManager {
             
             const encryptionPrepTime = performance.now() - encryptionStart;
             
-            console.log('🔐 Compatible encryption prepared:', {
+            FILE_UPLOAD_DEBUG && console.log('🔐 Compatible encryption prepared:', {
                 keyType: 'secret-only', // Access Code System: File encryption uses only URL-Secret
                 accessCode: accessCode ? 'enabled' : 'disabled',
                 secretLength: compatibleSecret.length,
@@ -1063,7 +1065,7 @@ class FileUploadManager {
             });
 
             // Encrypt the entire file data with metadata
-            console.log('🔒 Encrypting file data...');
+            FILE_UPLOAD_DEBUG && console.log('🔒 Encrypting file data...');
             const fileEncryptionStart = performance.now();
             
             const encryptedData = await window.crypto.subtle.encrypt(
@@ -1083,7 +1085,7 @@ class FileUploadManager {
             finalData.set(iv, 0);
             finalData.set(encryptedArray, iv.length);
             
-            console.log(`✅ File encryption completed:`, {
+            FILE_UPLOAD_DEBUG && console.log(`✅ File encryption completed:`, {
                 originalSize: fileDataToUpload.length,
                 encryptedSize: encryptedArray.length,
                 ivSize: iv.length,
@@ -1094,7 +1096,7 @@ class FileUploadManager {
             });
 
             // Upload chunks with detailed progress tracking
-            console.log('📦 Starting chunk upload process...');
+            FILE_UPLOAD_DEBUG && console.log('📦 Starting chunk upload process...');
             const chunkUploadStart = performance.now();
             let totalBytesUploaded = 0;
             
@@ -1104,7 +1106,7 @@ class FileUploadManager {
                 const end = Math.min(start + chunkSize, finalData.length);
                 const chunk = finalData.slice(start, end);
                 
-                console.log(`📦 [CHUNK ${chunkIndex + 1}/${totalChunks}] Uploading chunk:`, {
+                FILE_UPLOAD_DEBUG && console.log(`📦 [CHUNK ${chunkIndex + 1}/${totalChunks}] Uploading chunk:`, {
                     chunkIndex,
                     start,
                     end,
@@ -1140,7 +1142,7 @@ class FileUploadManager {
                 const progress = Math.min(100, Math.max(0, Math.round(progressRaw)));
                 const chunkTime = performance.now() - chunkStart;
                 
-                console.log(`✅ [CHUNK ${chunkIndex + 1}/${totalChunks}] Upload successful:`, {
+                FILE_UPLOAD_DEBUG && console.log(`✅ [CHUNK ${chunkIndex + 1}/${totalChunks}] Upload successful:`, {
                     progress: progress + '%',
                     bytesUploaded: totalBytesUploaded,
                     bytesUploadedFormatted: this.formatFileSize(totalBytesUploaded),
@@ -1154,7 +1156,7 @@ class FileUploadManager {
             
             const chunkUploadTime = performance.now() - chunkUploadStart;
             
-            console.log('📦 All chunks uploaded successfully:', {
+            FILE_UPLOAD_DEBUG && console.log('📦 All chunks uploaded successfully:', {
                 totalChunks,
                 totalBytesUploaded,
                 totalBytesUploadedFormatted: this.formatFileSize(totalBytesUploaded),
@@ -1163,17 +1165,17 @@ class FileUploadManager {
             });
 
             // Complete upload with access code if required
-            console.log('🏁 Completing upload...');
+            FILE_UPLOAD_DEBUG && console.log('🏁 Completing upload...');
             const completeStart = performance.now();
             
             // Use the completeUpload method to handle access code properly
-            console.log('🔐 Using completeUpload method for access code handling');
+            FILE_UPLOAD_DEBUG && console.log('🔐 Using completeUpload method for access code handling');
             const result = await this.completeUpload(uploadId);
             
             const completeTime = performance.now() - completeStart;
             const totalUploadTime = performance.now() - uploadStartTime;
             
-            console.log('🎉 Upload completed successfully:', {
+            FILE_UPLOAD_DEBUG && console.log('🎉 Upload completed successfully:', {
                 uploadId,
                 result,
                 performance: {
@@ -1185,7 +1187,7 @@ class FileUploadManager {
                 }
             });
             
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             return result;
             
         } catch (error) {
@@ -1195,46 +1197,46 @@ class FileUploadManager {
                 uploadId: uploadSession.uploadId,
                 totalTime: totalTime.toFixed(2) + 'ms'
             });
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             throw error;
         }
     }
 
     async uploadChunk(uploadId, chunkNumber, chunk, encryptionOptions = {}) {
-        console.log(`📦 uploadChunk called for chunk ${chunkNumber}:`, {
+        FILE_UPLOAD_DEBUG && console.log(`📦 uploadChunk called for chunk ${chunkNumber}:`, {
             hasPassword: !!encryptionOptions.password,
             hasUrlSecret: !!encryptionOptions.urlSecret,
             urlSecret: encryptionOptions.urlSecret ? 'present' : 'none'
         });
 
         let chunkData = await chunk.arrayBuffer();
-        console.log(`📦 Original chunk size: ${chunkData.byteLength} bytes`);
+        FILE_UPLOAD_DEBUG && console.log(`📦 Original chunk size: ${chunkData.byteLength} bytes`);
         
         // Encrypt chunk if password or URL secret is provided (but not if already pre-encrypted)
         if ((encryptionOptions.password || encryptionOptions.urlSecret) && !encryptionOptions.preEncrypted) {
             try {
-                console.log(`🔐 Encrypting chunk ${chunkNumber}...`);
+                FILE_UPLOAD_DEBUG && console.log(`🔐 Encrypting chunk ${chunkNumber}...`);
                 const chunkBytes = new Uint8Array(chunkData);
                 const encryptedChunk = await this.encryptChunk(chunkBytes, encryptionOptions.password, encryptionOptions.urlSecret);
                 chunkData = encryptedChunk;
-                console.log(`✅ Chunk ${chunkNumber} encrypted successfully, new size: ${chunkData.byteLength} bytes`);
+                FILE_UPLOAD_DEBUG && console.log(`✅ Chunk ${chunkNumber} encrypted successfully, new size: ${chunkData.byteLength} bytes`);
             } catch (error) {
                 console.error(`❌ Chunk ${chunkNumber} encryption failed:`, error);
                 
                 // Fallback: Upload without encryption if encryption fails
-                console.warn(`⚠️ Falling back to unencrypted upload for chunk ${chunkNumber}`);
+                FILE_UPLOAD_DEBUG && console.warn(`⚠️ Falling back to unencrypted upload for chunk ${chunkNumber}`);
                 chunkData = await chunk.arrayBuffer();
                 
                 // Note: This is not ideal for security, but prevents upload failures
                 // In production, you might want to fail the entire upload instead
             }
         } else if (encryptionOptions.preEncrypted) {
-            console.log(`📦 Chunk ${chunkNumber} is already pre-encrypted, uploading as-is`);
+            FILE_UPLOAD_DEBUG && console.log(`📦 Chunk ${chunkNumber} is already pre-encrypted, uploading as-is`);
         } else {
-            console.log(`⚠️ No encryption options provided for chunk ${chunkNumber}, uploading unencrypted`);
+            FILE_UPLOAD_DEBUG && console.log(`⚠️ No encryption options provided for chunk ${chunkNumber}, uploading unencrypted`);
         }
         
-        console.log(`📤 Uploading chunk ${chunkNumber} with size: ${chunkData.byteLength} bytes`);
+        FILE_UPLOAD_DEBUG && console.log(`📤 Uploading chunk ${chunkNumber} with size: ${chunkData.byteLength} bytes`);
         
         // Create FormData for chunk upload (same as text uploads)
         const formData = new FormData();
@@ -1252,17 +1254,17 @@ class FileUploadManager {
         }
 
         const result = await response.json();
-        console.log(`✅ Chunk ${chunkNumber} uploaded successfully`);
+        FILE_UPLOAD_DEBUG && console.log(`✅ Chunk ${chunkNumber} uploaded successfully`);
         return result;
     }
 
     // Encrypt chunk using the same encryption as text content
     async encryptChunk(chunkBytes, password = null, urlSecret = null) {
         try {
-            console.log('🔐 Starting chunk encryption...');
+            FILE_UPLOAD_DEBUG && console.log('🔐 Starting chunk encryption...');
             
             const key = await this.generateEncryptionKey(password, urlSecret);
-            console.log('✅ Encryption key generated, usages:', key.usages);
+            FILE_UPLOAD_DEBUG && console.log('✅ Encryption key generated, usages:', key.usages);
             
             // Generate IV for this chunk
             let iv;
@@ -1271,19 +1273,19 @@ class FileUploadManager {
             } else {
                 iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1'); // Use same salt as download
             }
-            console.log('✅ IV generated, length:', iv.length);
+            FILE_UPLOAD_DEBUG && console.log('✅ IV generated, length:', iv.length);
             
             // Ensure chunkBytes is a Uint8Array
             const chunkArray = chunkBytes instanceof Uint8Array ? chunkBytes : new Uint8Array(chunkBytes);
             
             // Encrypt the chunk
-            console.log('🔒 Encrypting chunk of size:', chunkArray.length);
+            FILE_UPLOAD_DEBUG && console.log('🔒 Encrypting chunk of size:', chunkArray.length);
             const encryptedData = await window.crypto.subtle.encrypt(
                 { name: 'AES-GCM', iv: iv },
                 key,
                 chunkArray
             );
-            console.log('✅ Chunk encrypted successfully');
+            FILE_UPLOAD_DEBUG && console.log('✅ Chunk encrypted successfully');
             
             // Combine IV + encrypted data
             const encryptedBytes = new Uint8Array(encryptedData);
@@ -1293,7 +1295,7 @@ class FileUploadManager {
             combined.set(ivBytes, 0);
             combined.set(encryptedBytes, ivBytes.length);
             
-            console.log('✅ Combined IV + encrypted data, total size:', combined.length);
+            FILE_UPLOAD_DEBUG && console.log('✅ Combined IV + encrypted data, total size:', combined.length);
             return combined;
         } catch (error) {
             console.error('❌ Encryption error:', error);
@@ -1310,7 +1312,7 @@ class FileUploadManager {
             if (password && urlSecret) {
                 // Password + URL secret mode - MUST match script.js format
                 const combined = urlSecret + ':' + password;
-                console.log('🔑 Using password + URL secret mode');
+                FILE_UPLOAD_DEBUG && console.log('🔑 Using password + URL secret mode');
                 keyMaterial = await window.crypto.subtle.importKey(
                     'raw',
                     encoder.encode(combined),
@@ -1320,7 +1322,7 @@ class FileUploadManager {
                 );
             } else if (urlSecret) {
                 // URL secret only mode
-                console.log('🔑 Using URL secret only mode');
+                FILE_UPLOAD_DEBUG && console.log('🔑 Using URL secret only mode');
                 keyMaterial = await window.crypto.subtle.importKey(
                     'raw',
                     encoder.encode(urlSecret),
@@ -1332,7 +1334,7 @@ class FileUploadManager {
                 throw new Error('Either password or URL secret must be provided');
             }
             
-            console.log('✅ Key material imported successfully');
+            FILE_UPLOAD_DEBUG && console.log('✅ Key material imported successfully');
             
             // Derive key using PBKDF2
             const derivedKey = await window.crypto.subtle.deriveKey(
@@ -1348,7 +1350,7 @@ class FileUploadManager {
                 ['encrypt', 'decrypt']
             );
             
-            console.log('✅ Key derived successfully, usages:', derivedKey.usages);
+            FILE_UPLOAD_DEBUG && console.log('✅ Key derived successfully, usages:', derivedKey.usages);
             
             // Verify key has correct usages
             if (!derivedKey.usages.includes('encrypt')) {
@@ -1415,20 +1417,20 @@ class FileUploadManager {
         let accessCode = requiresAccessCode ? passwordInput?.value?.trim() : null;
         if (!accessCode && this.currentUploadSession?.accessCode) {
             accessCode = this.currentUploadSession.accessCode;
-            console.log('🔐 Using stored access code from session');
+            FILE_UPLOAD_DEBUG && console.log('🔐 Using stored access code from session');
         }
         
         // Hash the access code on client side before sending to server
         let accessCodeHash = null;
         if (accessCode) {
-            console.log('🔐 Generating client-side access code hash');
+            FILE_UPLOAD_DEBUG && console.log('🔐 Generating client-side access code hash');
             accessCodeHash = await this.generateAccessCodeHash(accessCode);
-            console.log('🔐 Client-side access code hash generated:', accessCodeHash.substring(0, 16) + '...');
+            FILE_UPLOAD_DEBUG && console.log('🔐 Client-side access code hash generated:', accessCodeHash.substring(0, 16) + '...');
         }
         
         const urlSecret = this.currentUploadSession?.urlSecret || null;
         
-        console.log('🔍 Form state during completion:', {
+        FILE_UPLOAD_DEBUG && console.log('🔍 Form state during completion:', {
             checkboxChecked: passwordCheckbox?.checked,
             inputValue: passwordInput?.value ? passwordInput.value.substring(0, 3) + '***' : null,
             inputValueLength: passwordInput?.value?.length || 0,
@@ -1437,7 +1439,7 @@ class FileUploadManager {
             accessCodeLength: accessCode?.length || 0
         });
         
-        console.log('🔐 Sending authentication parameters for upload completion:', {
+        FILE_UPLOAD_DEBUG && console.log('🔐 Sending authentication parameters for upload completion:', {
             requiresAccessCode: !!accessCode,
             accessCode: accessCode ? accessCode.substring(0, 3) + '***' : null,
             accessCodeLength: accessCode ? accessCode.length : 0,
@@ -1450,7 +1452,7 @@ class FileUploadManager {
             // checksums can be omitted, server will validate automatically
         };
         
-        console.log('📡 Upload completion request body:', {
+        FILE_UPLOAD_DEBUG && console.log('📡 Upload completion request body:', {
             password: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
             passwordLength: accessCodeHash ? accessCodeHash.length : 0,
             hasUrlSecret: !!urlSecret,
@@ -1477,13 +1479,13 @@ class FileUploadManager {
         if (!this.currentUpload) return;
 
         try {
-            console.log('❌ Cancelling upload:', this.currentUpload.uploadId);
+            FILE_UPLOAD_DEBUG && console.log('❌ Cancelling upload:', this.currentUpload.uploadId);
             
             await fetch(`/api/upload/${this.currentUpload.uploadId}`, {
                 method: 'DELETE'
             });
             
-            console.log('✅ Upload cancelled');
+            FILE_UPLOAD_DEBUG && console.log('✅ Upload cancelled');
             this.showMessage('Upload cancelled.');
             
         } catch (error) {
@@ -1532,8 +1534,8 @@ class FileUploadManager {
     }
 
     showUploadSuccess(result) {
-        console.log('🎉 Upload successful:', result);
-        console.log('🔍 Current upload session:', this.currentUploadSession);
+        FILE_UPLOAD_DEBUG && console.log('🎉 Upload successful:', result);
+        FILE_UPLOAD_DEBUG && console.log('🔍 Current upload session:', this.currentUploadSession);
         
         // Hide progress and show success
         this.showProgressUI(false);
@@ -1545,7 +1547,7 @@ class FileUploadManager {
         if (this.currentUploadSession && this.currentUploadSession.compatibleSecret) {
             urlFragment = this.currentUploadSession.compatibleSecret;
             const secretType = urlFragment.length >= 40 ? 'Enhanced' : 'Legacy';
-            console.log(`🔗 Compatible secret for link (${secretType}):`, urlFragment.substring(0, 8) + '...');
+            FILE_UPLOAD_DEBUG && console.log(`🔗 Compatible secret for link (${secretType}):`, urlFragment.substring(0, 8) + '...');
         }
         
         if (urlFragment) {
@@ -1561,7 +1563,7 @@ class FileUploadManager {
         const requiresAccessCode = document.getElementById('file-password-checkbox')?.checked || false;
         const accessCodeUsed = requiresAccessCode && document.getElementById('file-password-input')?.value?.trim();
         
-        console.log('🔐 Upload security summary:', {
+        FILE_UPLOAD_DEBUG && console.log('🔐 Upload security summary:', {
             secretType,
             isEnhanced,
             requiresAccessCode,
@@ -1614,14 +1616,14 @@ class FileUploadManager {
                 }, 100);
             }
         } catch (error) {
-            console.warn('QR code generation failed:', error);
+            FILE_UPLOAD_DEBUG && console.warn('QR code generation failed:', error);
             this.showToast('QR code generation failed, but URL is available', 'info');
         }
         
         // Set expiry time with robust error handling
         try {
             const expiresAt = result.expiresAt;
-            console.log('🔍 Debug expiresAt:', { value: expiresAt, type: typeof expiresAt });
+            FILE_UPLOAD_DEBUG && console.log('🔍 Debug expiresAt:', { value: expiresAt, type: typeof expiresAt });
             
             if (expiresAt === null || expiresAt === undefined) {
                 document.getElementById('expiry-time').textContent = 'No expiration set';
@@ -1639,7 +1641,7 @@ class FileUploadManager {
             if (typeof expiresAt === 'string') {
                 // Validate string format (should be numeric)
                 if (!/^\d+$/.test(expiresAt.trim())) {
-                    console.warn('Invalid timestamp format:', expiresAt);
+                    FILE_UPLOAD_DEBUG && console.warn('Invalid timestamp format:', expiresAt);
                     document.getElementById('expiry-time').textContent = 'Invalid date format';
                     return;
                 }
@@ -1647,7 +1649,7 @@ class FileUploadManager {
             } else if (typeof expiresAt === 'number') {
                 timestamp = expiresAt;
             } else {
-                console.warn('Unexpected expiry date type:', typeof expiresAt, expiresAt);
+                FILE_UPLOAD_DEBUG && console.warn('Unexpected expiry date type:', typeof expiresAt, expiresAt);
                 document.getElementById('expiry-time').textContent = 'Invalid date type';
                 return;
             }
@@ -1658,7 +1660,7 @@ class FileUploadManager {
             // If timestamp looks like seconds (smaller number), convert to milliseconds
             if (timestamp < 10000000000) { // Less than year 2286 in seconds
                 finalTimestamp = timestamp * 1000;
-                console.log('Converted seconds to milliseconds:', timestamp, '->', finalTimestamp);
+                FILE_UPLOAD_DEBUG && console.log('Converted seconds to milliseconds:', timestamp, '->', finalTimestamp);
             }
             
             // Create and validate Date object
@@ -1666,13 +1668,13 @@ class FileUploadManager {
             
             if (!isNaN(expiryDate.getTime())) {
                 const formattedDate = expiryDate.toLocaleString();
-                console.log('Successfully formatted date:', formattedDate);
+                FILE_UPLOAD_DEBUG && console.log('Successfully formatted date:', formattedDate);
                 const expiryElement = document.getElementById('expiry-time');
                 if (expiryElement) {
                     expiryElement.textContent = formattedDate;
                 }
             } else {
-                console.warn('Failed to create valid date from timestamp:', finalTimestamp);
+                FILE_UPLOAD_DEBUG && console.warn('Failed to create valid date from timestamp:', finalTimestamp);
                 document.getElementById('expiry-time').textContent = 'Invalid date';
             }
         } catch (error) {
@@ -1710,7 +1712,7 @@ class FileUploadManager {
             progressPercentage.textContent = `${safeProgress}%`;
         }
         
-        console.log(`📊 Upload progress: ${safeProgress}%`);
+        FILE_UPLOAD_DEBUG && console.log(`📊 Upload progress: ${safeProgress}%`);
     }
 
     // Remove minimal padding from file data (shared method for both upload and download)
@@ -1721,7 +1723,7 @@ class FileUploadManager {
         }
         
         if (originalSize > paddedData.length) {
-            console.warn('⚠️ Original size larger than padded data, returning padded data');
+            FILE_UPLOAD_DEBUG && console.warn('⚠️ Original size larger than padded data, returning padded data');
             return paddedData;
         }
         
@@ -1730,7 +1732,7 @@ class FileUploadManager {
         const paddingRemoved = paddedData.length - originalSize;
         
         if (paddingRemoved > 0) {
-            console.log(`🔓 Padding removed: ${paddingRemoved} bytes`);
+            FILE_UPLOAD_DEBUG && console.log(`🔓 Padding removed: ${paddingRemoved} bytes`);
         }
         
         return originalData;
@@ -1787,7 +1789,7 @@ class FileUploadManager {
     }
 
     showMessage(message) {
-        console.log('ℹ️', message);
+        FILE_UPLOAD_DEBUG && console.log('ℹ️', message);
         
         // Show info toast
         const infoToast = document.getElementById('info-toast');
@@ -1893,7 +1895,7 @@ class FileUploadManager {
             }, autoHideDelay);
         } else {
             // Fallback to console if toast elements don't exist
-            console.log(`Toast (${type}): ${message}`);
+            FILE_UPLOAD_DEBUG && console.log(`Toast (${type}): ${message}`);
         }
     }
 }
@@ -1906,7 +1908,7 @@ class FileDownloadManager {
 
     // Extract compatible secret from current URL fragment (supports both legacy and enhanced)
     extractCompatibleSecret() {
-        console.group('🔍 [SECRET EXTRACTION] Analyzing URL Fragment');
+        FILE_UPLOAD_DEBUG && console.group('🔍 [SECRET EXTRACTION] Analyzing URL Fragment');
         
         try {
             const hash = window.location.hash;
@@ -1927,20 +1929,20 @@ class FileDownloadManager {
                     detectedFormat = 'LEGACY_URL_SECRET';
                     expectedSecurity = '128-bit entropy';
                     compatibility = 'script.js compatible';
-                    console.log('🔑 Detected legacy URL secret (16 chars)');
+                    FILE_UPLOAD_DEBUG && console.log('🔑 Detected legacy URL secret (16 chars)');
                 } else if (isEnhanced) {
                     detectedFormat = 'ENHANCED_PASSPHRASE';
                     expectedSecurity = '256-bit entropy';
                     compatibility = 'Proton Drive style';
-                    console.log('🔑 Detected enhanced passphrase (43+ chars)');
+                    FILE_UPLOAD_DEBUG && console.log('🔑 Detected enhanced passphrase (43+ chars)');
                 } else {
                     detectedFormat = 'UNKNOWN_FORMAT';
                     expectedSecurity = 'Unknown';
                     compatibility = 'May not be compatible';
-                    console.log('⚠️ Detected unknown secret format');
+                    FILE_UPLOAD_DEBUG && console.log('⚠️ Detected unknown secret format');
                 }
                 
-                console.log('✅ Secret extraction completed:', {
+                FILE_UPLOAD_DEBUG && console.log('✅ Secret extraction completed:', {
                     detectedFormat,
                     secretLength: secret.length,
                     expectedSecurity,
@@ -1951,23 +1953,23 @@ class FileDownloadManager {
                     }
                 });
                 
-                console.groupEnd();
+                FILE_UPLOAD_DEBUG && console.groupEnd();
                 return secret;
             } else {
-                console.log('❌ No URL fragment found - secret required for decryption');
-                console.groupEnd();
+                FILE_UPLOAD_DEBUG && console.log('❌ No URL fragment found - secret required for decryption');
+                FILE_UPLOAD_DEBUG && console.groupEnd();
                 return null;
             }
         } catch (error) {
             console.error('❌ Secret extraction error:', error.message);
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             throw error;
         }
     }
 
     async downloadFile(clipId, filename) {
         const downloadStartTime = performance.now();
-        console.group('📥 [DOWNLOAD] Starting Backward-Compatible Zero-Knowledge Download');
+        FILE_UPLOAD_DEBUG && console.group('📥 [DOWNLOAD] Starting Backward-Compatible Zero-Knowledge Download');
         
         try {
             // Extract compatible secret from current URL
@@ -1976,7 +1978,7 @@ class FileDownloadManager {
             
             const secretType = compatibleSecret?.length >= 40 ? 'Enhanced' : compatibleSecret?.length === 16 ? 'Legacy' : 'Unknown';
             
-            console.log('🔐 Download authentication analysis:', { 
+            FILE_UPLOAD_DEBUG && console.log('🔐 Download authentication analysis:', { 
                 hasCompatibleSecret: !!compatibleSecret, 
                 hasPassword: !!password,
                 secretLength: compatibleSecret ? compatibleSecret.length : 0,
@@ -1990,19 +1992,19 @@ class FileDownloadManager {
             }
             
             // Generate download token for authentication
-            console.log('🎫 Generating download authentication token...');
+            FILE_UPLOAD_DEBUG && console.log('🎫 Generating download authentication token...');
             const tokenStart = performance.now();
             const downloadToken = await this.generateDownloadToken(clipId, password, compatibleSecret);
             const tokenTime = performance.now() - tokenStart;
             
-            console.log('✅ Download token generated:', {
+            FILE_UPLOAD_DEBUG && console.log('✅ Download token generated:', {
                 tokenLength: downloadToken.length,
                 tokenPreview: downloadToken.substring(0, 8) + '...',
                 generationTime: tokenTime.toFixed(2) + 'ms'
             });
             
             // Download encrypted file
-            console.log('📡 Requesting encrypted file from server...');
+            FILE_UPLOAD_DEBUG && console.log('📡 Requesting encrypted file from server...');
             const downloadRequestStart = performance.now();
             
             const downloadResponse = await fetch(`/api/download/${clipId}/${downloadToken}`);
@@ -2022,7 +2024,7 @@ class FileDownloadManager {
             const encryptedData = await downloadResponse.arrayBuffer();
             const downloadDataTime = performance.now() - downloadRequestStart;
             
-            console.log('📦 Encrypted file downloaded successfully:', {
+            FILE_UPLOAD_DEBUG && console.log('📦 Encrypted file downloaded successfully:', {
                 encryptedSize: encryptedData.byteLength,
                 encryptedSizeFormatted: this.formatFileSize(encryptedData.byteLength),
                 downloadTime: downloadDataTime.toFixed(2) + 'ms',
@@ -2030,7 +2032,7 @@ class FileDownloadManager {
             });
             
             // Use compatible decryption based on secret type
-            console.log(`🔓 Starting compatible decryption for ${secretType} format...`);
+            FILE_UPLOAD_DEBUG && console.log(`🔓 Starting compatible decryption for ${secretType} format...`);
             const decryptionStart = performance.now();
             
             const decryptionKey = await this.generateCompatibleEncryptionKey(password, compatibleSecret);
@@ -2038,14 +2040,14 @@ class FileDownloadManager {
             
             const keyGenTime = performance.now() - decryptionStart;
             
-            console.log('🔑 Decryption keys prepared:', {
+            FILE_UPLOAD_DEBUG && console.log('🔑 Decryption keys prepared:', {
                 secretType,
                 keyGenerationTime: keyGenTime.toFixed(2) + 'ms',
                 ivLength: iv.length
             });
             
             // Decrypt the file
-            console.log('🔓 Decrypting file data...');
+            FILE_UPLOAD_DEBUG && console.log('🔓 Decrypting file data...');
             const fileDecryptionStart = performance.now();
             
             const decryptedData = await window.crypto.subtle.decrypt(
@@ -2059,7 +2061,7 @@ class FileDownloadManager {
             
             const fileDecryptionTime = performance.now() - fileDecryptionStart;
             
-            console.log('✅ File decryption completed:', {
+            FILE_UPLOAD_DEBUG && console.log('✅ File decryption completed:', {
                 encryptedSize: encryptedData.byteLength,
                 decryptedSize: decryptedData.byteLength,
                 decryptionOverhead: encryptedData.byteLength - decryptedData.byteLength,
@@ -2067,12 +2069,12 @@ class FileDownloadManager {
             });
             
             // Extract metadata from decrypted file (compatible version)
-            console.log('📋 Extracting embedded metadata...');
+            FILE_UPLOAD_DEBUG && console.log('📋 Extracting embedded metadata...');
             const metadataStart = performance.now();
             const { fileData, metadata } = await this.extractCompatibleMetadata(new Uint8Array(decryptedData), compatibleSecret);
             const metadataTime = performance.now() - metadataStart;
             
-            console.log('📋 Metadata extraction completed:', {
+            FILE_UPLOAD_DEBUG && console.log('📋 Metadata extraction completed:', {
                 originalFilename: metadata?.filename,
                 originalSize: metadata?.size,
                 originalSizeFormatted: metadata?.size ? this.formatFileSize(metadata.size) : 'Unknown',
@@ -2083,14 +2085,14 @@ class FileDownloadManager {
             });
             
             // Create blob with correct MIME type from metadata
-            console.log('🏗️ Creating download blob...');
+            FILE_UPLOAD_DEBUG && console.log('🏗️ Creating download blob...');
             const blobStart = performance.now();
             
             const blob = new Blob([fileData], { type: metadata?.mimeType || 'application/octet-stream' });
             
             const blobTime = performance.now() - blobStart;
             
-            console.log('📦 Download blob created:', {
+            FILE_UPLOAD_DEBUG && console.log('📦 Download blob created:', {
                 blobSize: blob.size,
                 blobSizeFormatted: this.formatFileSize(blob.size),
                 mimeType: blob.type,
@@ -2098,7 +2100,7 @@ class FileDownloadManager {
             });
             
             // Create download link and trigger download
-            console.log('💾 Triggering browser download...');
+            FILE_UPLOAD_DEBUG && console.log('💾 Triggering browser download...');
             const triggerStart = performance.now();
             
             const url = URL.createObjectURL(blob);
@@ -2113,7 +2115,7 @@ class FileDownloadManager {
             const triggerTime = performance.now() - triggerStart;
             const totalDownloadTime = performance.now() - downloadStartTime;
             
-            console.log('🎉 Download process completed successfully:', {
+            FILE_UPLOAD_DEBUG && console.log('🎉 Download process completed successfully:', {
                 finalFilename: metadata?.filename || filename || 'download',
                 finalSize: fileData.length,
                 finalSizeFormatted: this.formatFileSize(fileData.length),
@@ -2132,7 +2134,7 @@ class FileDownloadManager {
             // Show success message
             this.showDownloadSuccess(metadata, secretType);
             
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             
         } catch (error) {
             const totalTime = performance.now() - downloadStartTime;
@@ -2143,7 +2145,7 @@ class FileDownloadManager {
                 totalTime: totalTime.toFixed(2) + 'ms',
                 stack: error.stack
             });
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             this.showDownloadError(error.message);
         }
     }
@@ -2151,7 +2153,7 @@ class FileDownloadManager {
     // Extract metadata with comprehensive logging
     async extractCompatibleMetadata(fileWithMetadata, compatibleSecret) {
         const startTime = performance.now();
-        console.group('📋 [METADATA EXTRACTION] Decrypting Embedded Metadata');
+        FILE_UPLOAD_DEBUG && console.group('📋 [METADATA EXTRACTION] Decrypting Embedded Metadata');
         
         try {
             if (fileWithMetadata.length < 4) {
@@ -2159,11 +2161,11 @@ class FileDownloadManager {
             }
             
             // Read metadata length (first 4 bytes)
-            console.log('📏 Reading metadata length header...');
+            FILE_UPLOAD_DEBUG && console.log('📏 Reading metadata length header...');
             const metadataLengthBytes = fileWithMetadata.slice(0, 4);
             const metadataLength = new DataView(metadataLengthBytes.buffer).getUint32(0, true);
             
-            console.log('📊 Metadata length analysis:', {
+            FILE_UPLOAD_DEBUG && console.log('📊 Metadata length analysis:', {
                 lengthHeaderBytes: Array.from(metadataLengthBytes),
                 metadataLength,
                 metadataLengthFormatted: this.formatFileSize(metadataLength),
@@ -2176,11 +2178,11 @@ class FileDownloadManager {
             }
             
             // Extract encrypted metadata and file data
-            console.log('✂️ Extracting metadata and file data sections...');
+            FILE_UPLOAD_DEBUG && console.log('✂️ Extracting metadata and file data sections...');
             const encryptedMetadata = fileWithMetadata.slice(4, 4 + metadataLength);
             const fileData = fileWithMetadata.slice(4 + metadataLength);
             
-            console.log('📦 Data sections extracted:', {
+            FILE_UPLOAD_DEBUG && console.log('📦 Data sections extracted:', {
                 encryptedMetadataSize: encryptedMetadata.length,
                 fileDataSize: fileData.length,
                 totalReconstructed: 4 + encryptedMetadata.length + fileData.length,
@@ -2188,13 +2190,13 @@ class FileDownloadManager {
             });
             
             // Decrypt metadata using compatible key derivation
-            console.log('🔓 Decrypting metadata with compatible keys...');
+            FILE_UPLOAD_DEBUG && console.log('🔓 Decrypting metadata with compatible keys...');
             const keyGenStart = performance.now();
             const metadataKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
             const metadataIV = await this.deriveCompatibleIV(null, compatibleSecret, 'qopy-metadata-salt');
             const keyGenTime = performance.now() - keyGenStart;
             
-            console.log('🔑 Metadata decryption keys generated:', {
+            FILE_UPLOAD_DEBUG && console.log('🔑 Metadata decryption keys generated:', {
                 keyGenerationTime: keyGenTime.toFixed(2) + 'ms',
                 ivLength: metadataIV.length,
                 salt: 'qopy-metadata-salt'
@@ -2211,7 +2213,7 @@ class FileDownloadManager {
             );
             const decryptionTime = performance.now() - decryptionStart;
             
-            console.log('🔓 Metadata decryption completed:', {
+            FILE_UPLOAD_DEBUG && console.log('🔓 Metadata decryption completed:', {
                 encryptedSize: encryptedMetadata.length,
                 decryptedSize: decryptedMetadataBuffer.byteLength,
                 decryptionTime: decryptionTime.toFixed(2) + 'ms'
@@ -2220,21 +2222,21 @@ class FileDownloadManager {
             const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
             const metadata = JSON.parse(metadataJson);
             
-            console.log('📋 Metadata parsing completed:', {
+            FILE_UPLOAD_DEBUG && console.log('📋 Metadata parsing completed:', {
                 jsonLength: metadataJson.length,
                 jsonPreview: metadataJson.substring(0, 100) + '...',
                 parsedMetadata: metadata
             });
             
             // Remove padding if present
-            console.log('✂️ Removing padding from file data...');
+            FILE_UPLOAD_DEBUG && console.log('✂️ Removing padding from file data...');
             const paddingStart = performance.now();
             const finalFileData = this.removeMinimalPadding(fileData, metadata.size);
             const paddingTime = performance.now() - paddingStart;
             
             const paddingRemoved = fileData.length - finalFileData.length;
             
-            console.log('🔓 Padding removal completed:', {
+            FILE_UPLOAD_DEBUG && console.log('🔓 Padding removal completed:', {
                 originalFileDataSize: fileData.length,
                 finalFileDataSize: finalFileData.length,
                 paddingRemoved,
@@ -2244,7 +2246,7 @@ class FileDownloadManager {
             
             const totalTime = performance.now() - startTime;
             
-            console.log('✅ Compatible metadata extraction successful:', {
+            FILE_UPLOAD_DEBUG && console.log('✅ Compatible metadata extraction successful:', {
                 metadata: {
                     filename: metadata.filename,
                     size: metadata.size,
@@ -2260,7 +2262,7 @@ class FileDownloadManager {
                 }
             });
             
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             return { fileData: finalFileData, metadata };
             
         } catch (error) {
@@ -2272,10 +2274,10 @@ class FileDownloadManager {
                 totalTime: totalTime.toFixed(2) + 'ms',
                 stack: error.stack
             });
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             
             // Return file as-is if metadata extraction fails
-            console.log('⚠️ Falling back to raw file data without metadata');
+            FILE_UPLOAD_DEBUG && console.log('⚠️ Falling back to raw file data without metadata');
             return { fileData: fileWithMetadata, metadata: null };
         }
     }
@@ -2283,14 +2285,14 @@ class FileDownloadManager {
     // Generate download token with logging
     async generateDownloadToken(clipId, password = null, compatibleSecret = null) {
         const startTime = performance.now();
-        console.group('🎫 [TOKEN] Generating Download Authentication Token');
+        FILE_UPLOAD_DEBUG && console.group('🎫 [TOKEN] Generating Download Authentication Token');
         
         try {
             
             const encoder = new TextEncoder();
             const tokenData = `enhanced:${clipId}:${password || ''}:${compatibleSecret || ''}`;
             
-            console.log('🔨 Token data assembly:', {
+            FILE_UPLOAD_DEBUG && console.log('🔨 Token data assembly:', {
                 tokenDataLength: tokenData.length,
                 tokenDataPreview: tokenData.substring(0, 50) + '...',
                 algorithm: 'Compatible (deterministic)'
@@ -2306,7 +2308,7 @@ class FileDownloadManager {
             
             const totalTime = performance.now() - startTime;
             
-            console.log('✅ Download token generated successfully:', {
+            FILE_UPLOAD_DEBUG && console.log('✅ Download token generated successfully:', {
                 fullHashLength: hashHex.length,
                 tokenLength: finalToken.length,
                 tokenPreview: finalToken.substring(0, 8) + '...',
@@ -2316,7 +2318,7 @@ class FileDownloadManager {
                 }
             });
             
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             return finalToken;
             
         } catch (error) {
@@ -2326,7 +2328,7 @@ class FileDownloadManager {
                 clipId,
                 totalTime: totalTime.toFixed(2) + 'ms'
             });
-            console.groupEnd();
+            FILE_UPLOAD_DEBUG && console.groupEnd();
             throw error;
         }
     }
@@ -2504,7 +2506,7 @@ class FileDownloadManager {
 
     // Show download success message (updated for compatibility info)
     showDownloadSuccess(metadata, secretType) {
-        console.log('🎉 Backward-compatible zero-knowledge download successful!');
+        FILE_UPLOAD_DEBUG && console.log('🎉 Backward-compatible zero-knowledge download successful!');
         
         let successDiv = document.getElementById('download-success');
         if (!successDiv) {
@@ -2608,5 +2610,5 @@ document.addEventListener('DOMContentLoaded', () => {
     fileUploadManager = new FileUploadManager();
     fileDownloadManager = new FileDownloadManager();
     
-    console.log('🗂️ File upload/download managers initialized');
+    FILE_UPLOAD_DEBUG && console.log('🗂️ File upload/download managers initialized');
 }); 

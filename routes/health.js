@@ -11,9 +11,7 @@
 function registerHealthRoutes(app, { pool }) {
     app.get('/health', async (req, res) => {
         try {
-            const client = await pool.connect();
-            await client.query('SELECT NOW() as current_time');
-            client.release();
+            await pool.query('SELECT NOW() as current_time');
             res.status(200).json({
                 status: 'OK',
                 uptime: process.uptime(),

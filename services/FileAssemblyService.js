@@ -1,5 +1,10 @@
 const fs = require('fs').promises;
 const path = require('path');
+const BaseService = require('./core/BaseService');
+
+// Static logger instance for use in static methods
+const logger = new BaseService();
+logger.name = 'FileAssemblyService';
 
 /**
  * Simple concurrency limiter using native JavaScript
@@ -50,7 +55,7 @@ class FileAssemblyService {
      * @returns {Promise<string>} - Path to assembled file
      */
     static async assembleFile(uploadId, session, storagePath, outputPath) {
-        console.log('🚀 Parallel file assembly starting:', uploadId);
+        logger.log('Parallel file assembly starting', { uploadId });
         const startTime = Date.now();
         
         const totalChunks = session?.total_chunks ?? session?.chunk_count;
@@ -76,7 +81,7 @@ class FileAssemblyService {
                     
                     // Read chunk data
                     const chunkData = await fs.readFile(chunkPath);
-                    console.log(`📦 Chunk ${i}: ${chunkData.length} bytes`);
+                    logger.log(`Chunk ${i}: ${chunkData.length} bytes`);
                     
                     return {
                         index: i,
@@ -87,20 +92,20 @@ class FileAssemblyService {
             }
             
             // Execute all chunk reads in parallel
-            console.log(`🔄 Reading ${totalChunks} chunks in parallel...`);
+            logger.log(`Reading ${totalChunks} chunks in parallel`);
             const chunks = await Promise.all(chunkTasks);
             
             // Sort chunks by index to ensure correct order
             chunks.sort((a, b) => a.index - b.index);
             
             // 🚀 MEMORY OPTIMIZATION: Use Buffer.concat() for efficient memory usage
-            console.log('🔗 Assembling chunks with Buffer.concat()...');
+            logger.log('Assembling chunks with Buffer.concat()');
             const buffers = chunks.map(chunk => chunk.data);
             const assembledBuffer = Buffer.concat(buffers);
             
             // Calculate total size for verification
             const totalSize = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
-            console.log(`📊 Assembly stats: ${chunks.length} chunks, ${totalSize} bytes total`);
+            logger.log(`Assembly stats: ${chunks.length} chunks, ${totalSize} bytes total`);
             
             // Ensure output directory exists
             await fs.mkdir(path.dirname(outputPath), { recursive: true });
@@ -109,12 +114,12 @@ class FileAssemblyService {
             await fs.writeFile(outputPath, assembledBuffer);
             
             const duration = Date.now() - startTime;
-            console.log(`✅ Parallel assembly completed in ${duration}ms: ${outputPath}`);
+            logger.logSuccess(`Parallel assembly completed in ${duration}ms`, { outputPath });
             
             return outputPath;
             
         } catch (error) {
-            console.error(`❌ Parallel assembly failed for ${uploadId}:`, error);
+            logger.logError(`Parallel assembly failed for ${uploadId}`, error);
             throw new Error(`Failed to assemble file chunks: ${error.message}`);
         }
     }
@@ -127,14 +132,14 @@ class FileAssemblyService {
      * @returns {Promise<string>} - Path to assembled file
      */
     static async assembleFileLegacy(uploadId, session, assembleFileFn) {
-        console.log('📝 Legacy assembly wrapper:', uploadId);
+        logger.log('Legacy assembly wrapper', { uploadId });
         
         if (!assembleFileFn) {
             throw new Error('assembleFile function not provided');
         }
         
         const filePath = await assembleFileFn(uploadId, session);
-        console.log('📝 Legacy assembly completed:', filePath);
+        logger.logSuccess('Legacy assembly completed', { filePath });
         
         return filePath;
     }
@@ -157,7 +162,7 @@ class FileAssemblyService {
      * @returns {Promise<Object>} - Cleanup results with success/failure counts
      */
     static async cleanupChunks(uploadId, totalChunks, storagePath) {
-        console.log(`🧹 Starting parallel cleanup for ${totalChunks} chunks...`);
+        logger.log(`Starting parallel cleanup for ${totalChunks} chunks`);
         const startTime = Date.now();
         
         try {
@@ -171,11 +176,11 @@ class FileAssemblyService {
                     
                     try {
                         await fs.unlink(chunkPath);
-                        console.log(`✅ Cleaned chunk ${i}: ${chunkPath}`);
+                        logger.logSuccess(`Cleaned chunk ${i}`, { chunkPath });
                         return { success: true, chunkIndex: i, path: chunkPath };
                     } catch (error) {
                         // Don't throw - just log and continue with other chunks
-                        console.warn(`⚠️ Failed to clean chunk ${i}: ${error.message}`);
+                        logger.logError(`Failed to clean chunk ${i}`, error);
                         return { success: false, chunkIndex: i, path: chunkPath, error: error.message };
                     }
                 }));
@@ -189,7 +194,7 @@ class FileAssemblyService {
             const failed = results.filter(r => !r.success).length;
             
             const duration = Date.now() - startTime;
-            console.log(`🧹 Parallel cleanup completed in ${duration}ms: ${successful} success, ${failed} failed`);
+            logger.logSuccess(`Parallel cleanup completed in ${duration}ms: ${successful} success, ${failed} failed`);
             
             // Remove chunks directory after cleanup (recursive removes any remaining files)
             if (successful > 0) {
@@ -210,7 +215,7 @@ class FileAssemblyService {
             };
             
         } catch (error) {
-            console.error(`❌ Parallel cleanup failed for ${uploadId}:`, error);
+            logger.logError(`Parallel cleanup failed for ${uploadId}`, error);
             throw new Error(`Failed to cleanup chunks: ${error.message}`);
         }
     }
@@ -223,7 +228,7 @@ class FileAssemblyService {
      * @returns {Promise<Object>} - Validation results with missing chunks info
      */
     static async validateChunksParallel(uploadId, totalChunks, storagePath) {
-        console.log(`🔍 Validating ${totalChunks} chunks in parallel...`);
+        logger.log(`Validating ${totalChunks} chunks in parallel`);
         const startTime = Date.now();
         
         try {
@@ -265,7 +270,7 @@ class FileAssemblyService {
             const duration = Date.now() - startTime;
             const isComplete = missingChunks.length === 0;
             
-            console.log(`🔍 Validation completed in ${duration}ms: ${existingChunks.length}/${totalChunks} chunks found`);
+            logger.logSuccess(`Validation completed in ${duration}ms: ${existingChunks.length}/${totalChunks} chunks found`);
             
             return {
                 isComplete,
@@ -279,7 +284,7 @@ class FileAssemblyService {
             };
             
         } catch (error) {
-            console.error(`❌ Parallel validation failed for ${uploadId}:`, error);
+            logger.logError(`Parallel validation failed for ${uploadId}`, error);
             throw new Error(`Failed to validate chunks: ${error.message}`);
         }
     }

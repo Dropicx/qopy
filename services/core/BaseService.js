@@ -47,6 +47,33 @@ class BaseService {
     }
 
     /**
+     * Log informational message with service context
+     * @param {string} message - Info message
+     * @param {Object} context - Additional context
+     */
+    logInfo(message, context = {}) {
+        this.logger.log(`[${this.name}] INFO: ${message}`, {
+            ...context,
+            service: this.name,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    /**
+     * Log warning with service context
+     * @param {string} message - Warning message
+     * @param {Object} context - Additional context
+     */
+    logWarning(message, context = {}) {
+        const logFn = this.logger.warn || this.logger.log;
+        logFn.call(this.logger, `[${this.name}] WARNING: ${message}`, {
+            ...context,
+            service: this.name,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    /**
      * Log error with service context
      * @param {string} message - Error message
      * @param {Error|Object} error - Error object or context

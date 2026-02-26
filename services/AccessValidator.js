@@ -1,10 +1,12 @@
 const TokenService = require('./TokenService');
+const BaseService = require('./core/BaseService');
 
 /**
  * AccessValidator - Handles access validation logic for clips
  */
-class AccessValidator {
+class AccessValidator extends BaseService {
     constructor(pool) {
+        super();
         this.pool = pool;
         this.tokenService = new TokenService();
     }
@@ -26,7 +28,7 @@ class AccessValidator {
                 requiresAccess: result.rows.length > 0 && result.rows[0].requires_access_code
             };
         } catch (error) {
-            console.error('❌ Error checking access requirement:', error);
+            this.logError('Error checking access requirement', error);
             throw new Error('Failed to check access requirement');
         }
     }
@@ -51,13 +53,13 @@ class AccessValidator {
                 }
 
                 if (qsResult.rows[0].quick_share) {
-                    console.log(`⚡ Quick Share download - no authentication needed for clipId: ${clipId}`);
+                    this.log(`Quick Share download - no authentication needed for clipId: ${clipId}`);
                     return { valid: true, isQuickShare: true };
                 }
                 // Not a quick share — fall through to normal access code validation
             }
 
-            console.log(`🔐 Normal clip download - checking access code for clipId: ${clipId}`);
+            this.log(`Normal clip download - checking access code for clipId: ${clipId}`);
 
             // Check if access code is required
             const accessRequirement = await this.checkAccessRequirement(clipId);
@@ -72,7 +74,7 @@ class AccessValidator {
 
             // Access code is required
             if (!accessCode) {
-                console.log(`❌ Access code required but not provided for clipId: ${clipId}`);
+                this.log(`Access code required but not provided for clipId: ${clipId}`);
                 return { 
                     valid: false, 
                     error: 'Access code required',
@@ -88,7 +90,7 @@ class AccessValidator {
             );
             
             if (validationResult.rows.length === 0) {
-                console.log(`❌ Clip not found for access code validation: ${clipId}`);
+                this.log(`Clip not found for access code validation: ${clipId}`);
                 return { 
                     valid: false, 
                     error: 'Clip not found',
@@ -101,7 +103,7 @@ class AccessValidator {
             
             // If access code required but no hash stored, deny
             if (!clip.access_code_hash) {
-                console.log(`❌ No access code hash stored for clipId: ${clipId}`);
+                this.log(`No access code hash stored for clipId: ${clipId}`);
                 return { 
                     valid: false, 
                     error: 'Access denied',
@@ -114,7 +116,7 @@ class AccessValidator {
             const isValid = await this.tokenService.validateAccessCode(accessCode, clip.access_code_hash);
             
             if (!isValid) {
-                console.log(`❌ Invalid access code for file clipId: ${clipId}`);
+                this.log(`Invalid access code for file clipId: ${clipId}`);
                 return { 
                     valid: false, 
                     error: 'Access denied',
@@ -123,11 +125,11 @@ class AccessValidator {
                 };
             }
             
-            console.log(`✅ Access code validated for file clipId: ${clipId}`);
+            this.logSuccess(`Access code validated for file clipId: ${clipId}`);
             return { valid: true, isQuickShare: false };
             
         } catch (error) {
-            console.error('❌ Error validating access:', error);
+            this.logError('Error validating access', error);
             return { 
                 valid: false, 
                 error: 'Internal server error',
