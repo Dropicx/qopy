@@ -813,7 +813,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .file-icon {
@@ -1479,24 +1479,75 @@ footer p {
     box-sizing: border-box;
   }
 
+  /* Flatten nested card frames on mobile */
+  .result-container {
+    padding: 1rem;
+    border-radius: 10px;
+  }
+
+  .file-download-section {
+    padding: 0;
+    margin-top: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+  }
+
+  .file-download-card {
+    border-width: 1px;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .file-info {
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .file-icon {
+    font-size: 1.5rem;
+  }
+
+  .file-name {
+    font-size: 1rem;
+  }
+
+  .content-display {
+    border-width: 1px;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .result-header {
+    margin-bottom: 0.75rem;
+  }
+
+  .one-time-file-notice {
+    margin: 0.5rem 0;
+  }
+
+  .notice-box {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+
   footer {
     padding: 1.5rem 10px;
   }
 
-  .result-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-  }
-
   .content-info {
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
+    font-size: 0.85rem;
   }
 
   .content-actions {
     flex-direction: column;
     gap: 0.5rem;
+    padding: 0.5rem 0;
+    margin-bottom: 0.75rem;
   }
 
   .copy-button,
@@ -1691,6 +1742,34 @@ footer p {
 
   .qr-image {
     max-width: 150px;
+  }
+
+  /* Extra compact retrieve results on small screens */
+  .result-container {
+    padding: 0.75rem;
+    margin-top: 1rem;
+    border-radius: 8px;
+  }
+
+  .file-download-card {
+    padding: 0.75rem;
+  }
+
+  .content-display {
+    padding: 0.75rem;
+  }
+
+  .result-header {
+    margin-bottom: 0.5rem;
+  }
+
+  .result-header .label {
+    font-size: 0.95rem;
+  }
+
+  .content-info {
+    gap: 0.2rem;
+    font-size: 0.8rem;
   }
 }
 
