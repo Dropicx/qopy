@@ -484,9 +484,9 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: getClientIP,
   skip: (req) => {
-    // Skip rate limiting for health checks, admin routes, and chunk uploads
+    // Skip rate limiting for health checks, admin routes, and chunk uploads/completion
     // Chunk uploads are already protected by the upload session initiation limiter
-    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.match(/^\/api\/upload\/chunk\//);
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.match(/^\/api\/upload\/(chunk|complete)\//);
   }
 });
 
@@ -538,7 +538,7 @@ const quickShareLimiter = rateLimit({
 // Burst rate limiting (very short window for immediate protection)
 const burstLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 30, // 30 requests per IP per minute
+  max: 60, // 60 requests per IP per minute
   message: {
     error: 'Too many requests',
     message: 'Burst rate limit exceeded. Please slow down.'
@@ -547,9 +547,9 @@ const burstLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: getClientIP,
   skip: (req) => {
-    // Skip burst limiting for health checks, admin routes, and chunk uploads
+    // Skip burst limiting for health checks, admin routes, and chunk uploads/completion
     // Chunk uploads are already protected by the upload session initiation limiter
-    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.match(/^\/api\/upload\/chunk\//);
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.match(/^\/api\/upload\/(chunk|complete)\//);
   }
 });
 
