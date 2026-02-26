@@ -14,7 +14,7 @@ We take the security of Qopy seriously. If you believe you have found a security
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please send a report to: **security@lit.services**
+Instead, please report via **GitHub’s private vulnerability reporting**: [Report a vulnerability](https://github.com/Dropicx/qopy/security/advisories/new) (creates a private draft advisory so the issue is not public).
 
 Please include the following information in your report:
 - Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
@@ -164,4 +164,4 @@ We appreciate the security research community's efforts to improve our security.
 
 **Last Updated**: January 2025
 
-For questions about this policy, contact: security@lit.services
+For questions about this policy, open a [GitHub Issue](https://github.com/Dropicx/qopy/issues) or use the Security tab above.

@@ -8,7 +8,7 @@
     <title>Qopy - Enterprise-Grade Secure Text & File Sharing | Client-Side Encryption | Quick Share Mode</title>
     <meta name="description" content="Share text and files securely with enterprise-grade client-side encryption. Zero-knowledge architecture, Quick Share mode, hybrid security, unified platform, no registration required. Ultimate privacy-first alternative to Pastebin.">
     <meta name="keywords" content="text sharing, file sharing, secure paste, temporary text, client-side encryption, pastebin alternative, secure text sharing, secure file sharing, anonymous text sharing, encrypted text, temporary links, privacy-first">
-    <meta name="author" content="Qopy - LIT Services">
+    <meta name="author" content="Qopy - Achim Lenz">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     
     <!-- Open Graph / Facebook -->
@@ -86,13 +86,13 @@
             "Redis caching (optional)"
         ],
         "author": {
-            "@type": "Organization",
-            "name": "LIT Services",
-            "url": "https://lit.services"
+            "@type": "Person",
+            "name": "Achim Lenz",
+            "url": "https://github.com/Dropicx/qopy"
         },
         "publisher": {
-            "@type": "Organization",
-            "name": "LIT Services",
+            "@type": "Person",
+            "name": "Achim Lenz",
             "logo": {
                 "@type": "ImageObject",
                 "url": "https://qopy.app/logos/Main%20Qopy%20logo.png"
@@ -105,17 +105,16 @@
     }
     </script>
     
-    <!-- Organization Structured Data -->
+    <!-- Contact / Responsible Party Structured Data -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "LIT Services",
-        "url": "https://lit.services",
-        "logo": "https://qopy.app/logos/Main%20Qopy%20logo.png",
+        "@type": "Person",
+        "name": "Achim Lenz",
+        "url": "https://github.com/Dropicx/qopy",
         "contactPoint": {
             "@type": "ContactPoint",
-            "email": "qopy@lit.services",
+            "url": "https://github.com/Dropicx/qopy/issues",
             "contactType": "customer service"
         },
         "address": {
@@ -192,7 +191,7 @@
                         <label class="checkbox-label">
                             <input type="checkbox" id="quick-share-checkbox">
                             <span class="checkmark"></span>
-                            Quick Share Mode (4-digit code, 5min expiry, basic encryption, self-destruct optional)
+                            Quick Share Mode (6-digit code, 5min expiry, basic encryption, self-destruct optional)
                         </label>
                     </div>
                 </div>
@@ -238,7 +237,7 @@
                             <li><strong>Client-side encryption</strong> - Content encrypted in your browser before transmission</li>
                             <li><strong>Zero-knowledge architecture</strong> - We literally cannot read your content</li>
                             <li><strong>Multi-part file uploads</strong> - Large files uploaded in secure chunks</li>
-                            <li><strong>Quick Share mode</strong> - 4-character codes for ultra-fast sharing</li>
+                            <li><strong>Quick Share mode</strong> - 6-character codes for ultra-fast sharing</li>
                             <li><strong>Enhanced security mode</strong> - 10-character codes with URL secrets</li>
                             <li><strong>Mobile-optimized</strong> - QR codes and responsive design</li>
                             <li><strong>No registration</strong> - Instant sharing, completely anonymous</li>
@@ -278,7 +277,7 @@
                         <p>Simple and powerful:</p>
                         <ol>
                             <li><strong>Paste your text or select your file</strong> - Enter up to 100,000 characters or upload files up to 100MB</li>
-                            <li><strong>Choose mode</strong> - Quick Share (4-digit, 5min) or Enhanced Security (10-digit, flexible expiry)</li>
+                            <li><strong>Choose mode</strong> - Quick Share (6-digit, 5min) or Enhanced Security (10-digit, flexible expiry)</li>
                             <li><strong>Set expiration</strong> - From 5 minutes to 24 hours</li>
                             <li><strong>Add protection</strong> - Optional access code and one-time access</li>
                             <li><strong>Get your link</strong> - Share the generated URL with QR code</li>
@@ -288,7 +287,7 @@
                         </ol>
                         <p><strong>Two sharing modes:</strong></p>
                         <ul>
-                            <li><strong>Quick Share</strong> - 4-character codes, 5-minute expiry, simplified sharing</li>
+                            <li><strong>Quick Share</strong> - 6-character codes, 5-minute expiry, simplified sharing</li>
                             <li><strong>Enhanced Security</strong> - 10-character codes, URL secrets, flexible expiry</li>
                         </ul>
                     </div>
@@ -409,7 +408,7 @@
                             <li><strong>Rate limiting</strong> - Multi-layered strategy with burst protection, API limits, and content-specific restrictions</li>
                             <li><strong>Temporary IP processing</strong> - IP addresses are only processed in memory for rate limiting, not stored permanently</li>
                             <li><strong>Access code length</strong> - Maximum 128 characters</li>
-                            <li><strong>Clip ID</strong> - 10 characters (Enhanced Security) or 4 characters (Quick Share)</li>
+                            <li><strong>Clip ID</strong> - 10 characters (Enhanced Security) or 6 characters (Quick Share)</li>
                         </ul>
                         <p>These limits help us maintain service quality and prevent abuse while ensuring fair usage for all users.</p>
                     </div>
@@ -497,7 +496,7 @@
                             <li><strong>expiration</strong> - "5min", "15min", "30min", "1hr", "6hr", "24hr"</li>
                             <li><strong>oneTime</strong> - Boolean, deletes clip after first access</li>
                             <li><strong>hasPassword</strong> - Boolean, indicates if content is access code-protected</li>
-                            <li><strong>quickShare</strong> - Boolean, enables Quick Share mode (4-digit ID, 5min expiry)</li>
+                            <li><strong>quickShare</strong> - Boolean, enables Quick Share mode (6-digit ID, 5min expiry)</li>
                         </ul>
                         
                         <h4>Response Format:</h4>
@@ -594,7 +593,7 @@
                             <li><strong>Simplified workflow</strong> - Share text without registration</li>
                             <li><strong>Enterprise-grade encryption</strong> - Client-side AES-256-GCM encryption</li>  
                             <li><strong>Zero-knowledge architecture</strong> - Server cannot access plain text content</li>
-                            <li><strong>Quick Share mode</strong> - 4-character codes for simplified sharing</li>
+                            <li><strong>Quick Share mode</strong> - 6-character codes for simplified sharing</li>
                             <li><strong>Enhanced security</strong> - 10-character codes with URL secrets for sensitive content</li>
                             <li><strong>Mobile-optimized</strong> - QR codes and responsive design</li>
                             <li><strong>Ad-free interface</strong> - No advertisements or tracking</li>

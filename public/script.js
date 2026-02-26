@@ -223,8 +223,8 @@ class ClipboardApp {
             if (path.startsWith('/clip/') && path.length === 16) {
                 clipId = path.substring(6);
             }
-            // Check for /clip/ABC1 pattern (4-char Quick Share ID)
-            else if (path.startsWith('/clip/') && path.length === 10) {
+            // Check for /clip/ABC1XY pattern (6-char Quick Share ID)
+            else if (path.startsWith('/clip/') && path.length === 12) {
                 clipId = path.substring(6);
             }
             // Check for /file/ABC123 pattern (10-char file ID)
@@ -233,8 +233,8 @@ class ClipboardApp {
                 // Mark this as a file request
                 this.isFileRequest = true;
             }
-            // Check for /file/ABC1 pattern (4-char file ID)
-            else if (path.startsWith('/file/') && path.length === 10) {
+            // Check for /file/ABC1XY pattern (6-char file ID)
+            else if (path.startsWith('/file/') && path.length === 12) {
                 clipId = path.substring(6);
                 // Mark this as a file request
                 this.isFileRequest = true;
@@ -243,14 +243,14 @@ class ClipboardApp {
             else if (path.length === 11 && path.startsWith('/') && /^[A-Z0-9]{10}$/.test(path.substring(1))) {
                 clipId = path.substring(1);
             }
-            // Check for /ABC1 pattern (direct 4-char Quick Share ID)
-            else if (path.length === 5 && path.startsWith('/') && /^[A-Z0-9]{4}$/.test(path.substring(1))) {
+            // Check for /ABC1XY pattern (direct 6-char Quick Share ID)
+            else if (path.length === 7 && path.startsWith('/') && /^[A-Z0-9]{6}$/.test(path.substring(1))) {
                 clipId = path.substring(1);
             }
             
             if (clipId) {
                 // Validate clip ID format
-                if (/^[A-Z0-9]{4}$|^[A-Z0-9]{10}$/.test(clipId)) {
+                if (/^[A-Z0-9]{6}$|^[A-Z0-9]{10}$/.test(clipId)) {
                     this.switchTab('retrieve');
                     document.getElementById('clip-id-input').value = clipId;
                     this.autoRetrieveClip(clipId);
@@ -288,7 +288,7 @@ class ClipboardApp {
             });
             
             if (isQuickShare) {
-                // Quick Share (4-digit): no download token needed
+                // Quick Share (6-digit): no download token needed
                 console.log('⚡ Quick Share auto-retrieve - no download token needed:', clipId);
                 
                 // First, get clip info to check if it has password
@@ -825,7 +825,7 @@ class ClipboardApp {
                     }
                     console.log('🔐 Using Zero-Knowledge system for normal clip checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
                 } else {
-                    // Quick Share (4-digit): no download token needed
+                    // Quick Share (6-digit): no download token needed
                     console.log('⚡ Quick Share checkClipId - no download token needed:', clipId);
                     const response = await fetch(`/api/clip/${clipId}/info`);
                 }
@@ -1299,10 +1299,10 @@ class ClipboardApp {
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // Generate clip ID (4 characters for Quick Share, 10 for normal)
+    // Generate clip ID (6 characters for Quick Share, 10 for normal)
     generateClipId(quickShare = false) {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        const length = quickShare ? 4 : 10;
+        const length = quickShare ? 6 : 10;
         let result = '';
         for (let i = 0; i < length; i++) {
             result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -1407,7 +1407,7 @@ class ClipboardApp {
                 console.log('🔐 Normal clip without password - URL secret only (Zero-Knowledge):', clipId);
                 // Stay with GET request, no authentication needed
             } else {
-                // Quick Share (4-digit): no authentication needed
+                // Quick Share (6-digit): no authentication needed
                 console.log('⚡ Quick Share - no authentication needed:', clipId);
             }
             
@@ -1904,7 +1904,7 @@ class ClipboardApp {
                 // Normal clip without password: No authentication needed (URL secret is client-side)
                 console.log('🔐 No authentication needed - URL secret only (Zero-Knowledge)');
             } else {
-                // Quick Share (4-digit): No authentication needed
+                // Quick Share (6-digit): No authentication needed
                 console.log('⚡ Quick Share - no authentication needed');
             }
             
@@ -2906,7 +2906,7 @@ class ClipboardApp {
                 // Normal clip without password: No authentication needed (URL secret is client-side)
                 console.log('🔐 No authentication needed - URL secret only (Zero-Knowledge)');
             } else {
-                // Quick Share (4-digit): No authentication needed
+                // Quick Share (6-digit): No authentication needed
                 console.log('⚡ Quick Share - no authentication needed');
             }
             console.log('📥 Request body:', requestBody);

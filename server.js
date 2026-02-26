@@ -1760,8 +1760,8 @@ app.delete('/api/upload/:uploadId', [
 // Get file info
 app.get('/api/file/:clipId/info', [
     param('clipId').custom((value) => {
-        if (value.length !== 4 && value.length !== 10) {
-            throw new Error('Clip ID must be 4 or 10 characters');
+        if (value.length !== 6 && value.length !== 10) {
+            throw new Error('Clip ID must be 6 or 10 characters');
         }
         if (!/^[A-Z0-9]+$/.test(value)) {
             throw new Error('Clip ID must contain only uppercase letters and numbers');
@@ -1817,8 +1817,8 @@ app.get('/api/file/:clipId/info', [
 // File page route (serves the main app for file URLs with hash)
 app.get('/file/:clipId', [
     param('clipId').custom((value) => {
-        if (value.length !== 4 && value.length !== 10) {
-            throw new Error('Clip ID must be 4 or 10 characters');
+        if (value.length !== 6 && value.length !== 10) {
+            throw new Error('Clip ID must be 6 or 10 characters');
         }
         if (!/^[A-Z0-9]+$/.test(value)) {
             throw new Error('Clip ID must contain only uppercase letters and numbers');
@@ -1834,8 +1834,8 @@ app.get('/file/:clipId', [
 // Authenticated file download API (POST with token) - Refactored with services
 app.post('/api/file/:clipId', [
     param('clipId').custom((value) => {
-        if (value.length !== 4 && value.length !== 10) {
-            throw new Error('Clip ID must be 4 or 10 characters');
+        if (value.length !== 6 && value.length !== 10) {
+            throw new Error('Clip ID must be 6 or 10 characters');
         }
         if (!/^[A-Z0-9]+$/.test(value)) {
             throw new Error('Clip ID must contain only uppercase letters and numbers');
@@ -1914,8 +1914,8 @@ app.post('/api/file/:clipId', [
 // Legacy file download API (GET) - kept for backwards compatibility but returns 410 Gone
 app.get('/api/file/:clipId', [
     param('clipId').custom((value) => {
-        if (value.length !== 4 && value.length !== 10) {
-            throw new Error('Clip ID must be 4 or 10 characters');
+        if (value.length !== 6 && value.length !== 10) {
+            throw new Error('Clip ID must be 6 or 10 characters');
         }
         if (!/^[A-Z0-9]+$/.test(value)) {
             throw new Error('Clip ID must contain only uppercase letters and numbers');
@@ -1946,9 +1946,9 @@ app.get('/api/file/:clipId', [
 // Get clip info
 app.get('/api/clip/:clipId/info', [
   param('clipId').custom((value) => {
-    // Support both 4-character (Quick Share) and 10-character (normal) IDs
-    if (value.length !== 4 && value.length !== 10) {
-      throw new Error('Clip ID must be 4 or 10 characters');
+    // Support both 6-character (Quick Share) and 10-character (normal) IDs
+    if (value.length !== 6 && value.length !== 10) {
+      throw new Error('Clip ID must be 6 or 10 characters');
     }
     if (!/^[A-Z0-9]+$/.test(value)) {
       throw new Error('Clip ID must contain only uppercase letters and numbers');
@@ -2017,7 +2017,7 @@ app.get('/api/clip/:clipId/info', [
         hasPassword
       });
     } else {
-      // For Quick Share clips (4-digit), never have passwords
+      // For Quick Share clips (6-digit), never have passwords
       hasPassword = false;
     }
 
@@ -2042,9 +2042,9 @@ app.get('/api/clip/:clipId/info', [
 // POST clip with access code authentication (Zero-Knowledge system)
 app.post('/api/clip/:clipId', [
   param('clipId').custom((value) => {
-    // Support both 4-character (Quick Share) and 10-character (normal) IDs
-    if (value.length !== 4 && value.length !== 10) {
-      throw new Error('Clip ID must be 4 or 10 characters');
+    // Support both 6-character (Quick Share) and 10-character (normal) IDs
+    if (value.length !== 6 && value.length !== 10) {
+      throw new Error('Clip ID must be 6 or 10 characters');
     }
     if (!/^[A-Z0-9]+$/.test(value)) {
       throw new Error('Clip ID must contain only uppercase letters and numbers');
@@ -2176,9 +2176,9 @@ app.post('/api/clip/:clipId', [
 // Get clip (Zero-Knowledge system - no authentication for URL-secret-only clips)
 app.get('/api/clip/:clipId', [
   param('clipId').custom((value) => {
-    // Support both 4-character (Quick Share) and 10-character (normal) IDs
-    if (value.length !== 4 && value.length !== 10) {
-      throw new Error('Clip ID must be 4 or 10 characters');
+    // Support both 6-character (Quick Share) and 10-character (normal) IDs
+    if (value.length !== 6 && value.length !== 10) {
+      throw new Error('Clip ID must be 6 or 10 characters');
     }
     if (!/^[A-Z0-9]+$/.test(value)) {
       throw new Error('Clip ID must contain only uppercase letters and numbers');
@@ -2420,8 +2420,8 @@ app.get('/api/admin/system', requireAdminAuth, async (req, res) => {
 });
 
 // Route for direct clip access (must come after static files)
-app.get('/clip/:clipId([A-Z0-9]{4}|[A-Z0-9]{10})$', (req, res) => {
-  // This route matches exact 4-character (Quick Share) or 10-character (normal) alphanumeric clip IDs
+app.get('/clip/:clipId([A-Z0-9]{6}|[A-Z0-9]{10})$', (req, res) => {
+  // This route matches exact 6-character (Quick Share) or 10-character (normal) alphanumeric clip IDs
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

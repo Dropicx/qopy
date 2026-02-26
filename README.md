@@ -297,7 +297,7 @@ This project is dual-licensed:
 
 2. **Commercial License**
    - For proprietary/commercial use
-   - Contact: qopy@lit.services
+   - Contact: [GitHub Issues](https://github.com/Dropicx/qopy/issues)
 
 ## Contributing
 
@@ -307,14 +307,13 @@ This project is dual-licensed:
 4. Add tests if applicable
 5. Submit a pull request
 
-## Company Information
+## Contact
 
-**LIT Services**
-- **Website**: https://lit.services
-- **Contact**: qopy@lit.services
+**Achim Lenz**
+- **Contact**: [GitHub Issues](https://github.com/Dropicx/qopy/issues)
 
 ---
 
-**Qopy** - Secure, private, temporary text sharing. Developed by [LIT Services](https://lit.services).
+**Qopy** - Secure, private, temporary text sharing. Developed by Achim Lenz.
 
 *Version: minimal-1.0.0 | Last Updated: August 2025*
