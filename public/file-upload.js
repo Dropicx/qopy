@@ -1817,7 +1817,10 @@ class FileUploadManager {
     }
 
     // Generate access code hash on client side (same as server)
-    async generateAccessCodeHash(password, salt = 'qopy-access-salt-v1') {
+    async generateAccessCodeHash(password, salt) {
+        if (!salt) {
+            salt = await this._getPbkdf2Salt();
+        }
         const encoder = new TextEncoder();
         const keyMaterial = await window.crypto.subtle.importKey(
             'raw',
@@ -1841,6 +1844,19 @@ class FileUploadManager {
         return Array.from(new Uint8Array(derivedBits), byte => 
             byte.toString(16).padStart(2, '0')
         ).join('');
+    }
+
+    // Fetch PBKDF2 salt from server config (cached)
+    async _getPbkdf2Salt() {
+        if (this._pbkdf2Salt) return this._pbkdf2Salt;
+        try {
+            const res = await fetch('/api/config');
+            const cfg = await res.json();
+            this._pbkdf2Salt = cfg.pbkdf2Salt || 'qopy-access-salt-v1';
+        } catch {
+            this._pbkdf2Salt = 'qopy-access-salt-v1';
+        }
+        return this._pbkdf2Salt;
     }
 
     // Toast Notifications

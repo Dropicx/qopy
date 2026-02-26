@@ -39,12 +39,22 @@ class AccessValidator {
      */
     async validateAccess(clipId, accessCode) {
         try {
-            // Quick Share (4-digit) doesn't need authentication
-            const isQuickShare = clipId.length === 4;
-            
-            if (isQuickShare) {
-                console.log(`⚡ Quick Share download - no authentication needed for clipId: ${clipId}`);
-                return { valid: true, isQuickShare: true };
+            // Check if 4-char clip ID is actually a quick share in the database
+            if (clipId.length === 4) {
+                const qsResult = await this.pool.query(
+                    'SELECT quick_share FROM clips WHERE clip_id = $1 AND is_expired = false AND expiration_time > $2',
+                    [clipId, Date.now()]
+                );
+
+                if (qsResult.rows.length === 0) {
+                    return { valid: false, error: 'Clip not found', statusCode: 404 };
+                }
+
+                if (qsResult.rows[0].quick_share) {
+                    console.log(`⚡ Quick Share download - no authentication needed for clipId: ${clipId}`);
+                    return { valid: true, isQuickShare: true };
+                }
+                // Not a quick share — fall through to normal access code validation
             }
 
             console.log(`🔐 Normal clip download - checking access code for clipId: ${clipId}`);

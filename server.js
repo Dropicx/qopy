@@ -505,7 +505,7 @@ const generalLimiter = rateLimit({
   skip: (req) => {
     // Skip rate limiting for health checks, admin routes, and chunk uploads
     // Chunk uploads are already protected by the upload session initiation limiter
-    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/') || req.path.match(/^\/api\/upload\/chunk\//);
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.match(/^\/api\/upload\/chunk\//);
   }
 });
 
@@ -549,9 +549,21 @@ const burstLimiter = rateLimit({
   skip: (req) => {
     // Skip burst limiting for health checks, admin routes, and chunk uploads
     // Chunk uploads are already protected by the upload session initiation limiter
-    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/') || req.path.match(/^\/api\/upload\/chunk\//);
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.match(/^\/api\/upload\/chunk\//);
   }
 });
+
+// Admin authentication rate limiting (strict)
+const adminAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Too many authentication attempts', message: 'Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIP
+});
+
+app.use('/api/admin/auth', adminAuthLimiter);
 
 // Apply rate limiting (order matters - most specific first)
 app.use('/api/', logRateLimitEvent); // Logging first
@@ -559,6 +571,11 @@ app.use('/api/', burstLimiter); // Burst protection
 app.use('/api/', generalLimiter); // General protection
 app.use('/api/share', shareLimiter); // Share-specific protection
 app.use('/api/clip/', retrieveLimiter); // Retrieval-specific protection
+
+// Public config endpoint (non-sensitive settings for client)
+app.get('/api/config', (req, res) => {
+    res.json({ pbkdf2Salt: process.env.PBKDF2_SALT || 'qopy-access-salt-v1' });
+});
 
 // Serve static files (before API routes)
 app.use(express.static('public'));
@@ -972,18 +989,10 @@ async function getUploadSession(uploadId) {
                 console.log(`✅ Found session in Redis: ${uploadId}`);
                 try {
                     const parsed = JSON.parse(cached);
-                    console.log(`🔍 Redis session keys:`, Object.keys(parsed));
-                    console.log(`🔍 Redis session sample values:`, {
-                        upload_id: parsed.upload_id,
-                        filename: parsed.filename,
-                        total_chunks: parsed.total_chunks,
-                        uploaded_chunks: parsed.uploaded_chunks,
-                        is_text_content: parsed.is_text_content
-                    });
+                    console.log('✅ Parsed session from Redis:', uploadId);
                     return parsed;
                 } catch (error) {
                     console.error(`❌ Error parsing Redis session:`, error);
-                    console.log(`🔍 Raw Redis data:`, cached);
                     // Fall through to database lookup
                 }
             } else {
@@ -1217,14 +1226,13 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
         if (error instanceof UploadCompletionError) {
             return res.status(error.statusCode).json({
                 error: error.message.includes('not found') ? 'Upload session not found' : 'Upload incomplete',
-                message: error.message
+                message: 'Upload could not be completed'
             });
         }
-        
+
         res.status(500).json({
             error: 'Internal server error',
-            message: 'Failed to complete upload',
-            details: error.message
+            message: 'Failed to complete upload'
         });
     }
 });
@@ -2115,7 +2123,7 @@ app.post('/api/clip/:clipId', [
            // Inline hash generation to avoid reference errors
            const crypto = require('crypto');
            providedHash = await new Promise((resolve, reject) => {
-             crypto.pbkdf2(accessCode, 'qopy-access-salt-v1', 100000, 64, 'sha512', (err, derivedKey) => {
+             crypto.pbkdf2(accessCode, process.env.PBKDF2_SALT || 'qopy-access-salt-v1', 100000, 64, 'sha512', (err, derivedKey) => {
                if (err) reject(err);
                else resolve(derivedKey.toString('hex'));
              });
@@ -2145,11 +2153,12 @@ app.post('/api/clip/:clipId', [
     return await handleClipRetrieval(req, res, clip, clipId);
   } catch (error) {
     console.error('❌ Error in POST /api/clip/:clipId:', error);
-    console.error('❌ Error stack:', error.stack);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('❌ Error stack:', error.stack);
+    }
     res.status(500).json({
       error: 'Internal server error',
-      message: 'Failed to retrieve clip',
-      details: error.message
+      message: 'Failed to retrieve clip'
     });
   }
 });
@@ -2242,7 +2251,9 @@ function requireAdminAuth(req, res, next) {
   // For API requests, check Authorization header
   if (req.path.startsWith('/api/admin/')) {
     const authHeader = req.headers.authorization;
-    if (!authHeader || authHeader !== `Bearer ${adminToken}`) {
+    const expected = `Bearer ${adminToken}`;
+    if (!authHeader || authHeader.length !== expected.length ||
+        !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid admin token'
@@ -2277,7 +2288,9 @@ app.post('/api/admin/auth', [
       });
     }
     
-    if (password === adminToken) {
+    const pwBuf = Buffer.from(String(password));
+    const tkBuf = Buffer.from(String(adminToken));
+    if (pwBuf.length === tkBuf.length && crypto.timingSafeEqual(pwBuf, tkBuf)) {
       res.json({
         success: true,
         message: 'Authentication successful'

@@ -5,7 +5,7 @@ const crypto = require('crypto');
  */
 class TokenService {
     constructor() {
-        this.salt = 'qopy-access-salt-v1';
+        this.salt = process.env.PBKDF2_SALT || 'qopy-access-salt-v1';
         this.iterations = 100000;
         this.keyLength = 64;
         this.algorithm = 'sha512';
@@ -45,14 +45,20 @@ class TokenService {
             let providedHash;
             
             if (this.isAlreadyHashed(providedCode)) {
-                console.log('🔐 Using client-side hashed access code for file validation');
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('🔐 Using client-side hashed access code for file validation');
+                }
                 providedHash = providedCode;
             } else {
-                console.log('🔐 Generating server-side access code hash for file validation');
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('🔐 Generating server-side access code hash for file validation');
+                }
                 providedHash = await this.generateHash(providedCode);
             }
-            
-            return providedHash === storedHash;
+
+            const a = Buffer.from(providedHash);
+            const b = Buffer.from(storedHash);
+            return a.length === b.length && crypto.timingSafeEqual(a, b);
         } catch (error) {
             console.error('❌ Error validating access code:', error);
             return false;

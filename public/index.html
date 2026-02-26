@@ -322,19 +322,76 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-data-privacy">
-                        <p><strong>Privacy is our top priority:</strong></p>
+                        <h4>What the server NEVER sees</h4>
                         <ul>
-                            <li><strong>Client-side encryption</strong> - Content is encrypted in your browser before transmission</li>
-                            <li><strong>Zero-knowledge</strong> - Server cannot access plain text content under any circumstances</li>
-                            <li><strong>Binary database storage</strong> - Only encrypted data is stored as BYTEA, never plain text</li>
-                            <li><strong>No user accounts</strong> - Anonymous usage without registration</li>
-                            <li><strong>No content logging</strong> - Content is not analyzed or processed beyond encryption</li>
-                            <li><strong>Automatic deletion</strong> - Encrypted content deleted after expiration</li>
-                            <li><strong>GDPR compliant</strong> - Follows European privacy standards</li>
-                            <li><strong>Temporary IP processing</strong> - IP addresses processed only for rate limiting, not stored permanently</li>
-                            <li><strong>Client-side QR generation</strong> - QR codes generated locally, no external API calls</li>
+                            <li><strong>Plaintext content</strong> - Encrypted client-side before upload; server only stores ciphertext</li>
+                            <li><strong>Real filenames</strong> - Replaced with a random hash (e.g. <code>a7f3b2c9</code>) on the client before upload</li>
+                            <li><strong>Real MIME types</strong> - Encrypted inside the file payload; server only sees <code>application/octet-stream</code> or <code>text/plain</code></li>
+                            <li><strong>Passwords / access codes</strong> - Only a bcrypt hash is stored, never the plaintext password</li>
+                            <li><strong>URL secrets</strong> - Kept in the URL fragment (<code>#</code>), which is never transmitted to the server</li>
+                            <li><strong>Decryption keys</strong> - Generated and used only in your browser</li>
+                            <li><strong>IP addresses</strong> - Processed in-memory for rate limiting only, never stored in the database</li>
                         </ul>
-                        <p>Content is encrypted end-to-end. Server compromise would not expose plain text data.</p>
+
+                        <h4>What the server DOES store</h4>
+                        <p>All stored data auto-deletes when your chosen expiration time is reached.</p>
+                        <table style="width:100%; border-collapse:collapse; margin:0.5rem 0; font-size:0.9em;">
+                            <thead>
+                                <tr style="border-bottom:2px solid var(--border-color); text-align:left;">
+                                    <th style="padding:0.4rem 0.6rem;">Data</th>
+                                    <th style="padding:0.4rem 0.6rem;">Actual value stored</th>
+                                    <th style="padding:0.4rem 0.6rem;">Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:0.4rem 0.6rem;">Encrypted content</td>
+                                    <td style="padding:0.4rem 0.6rem;">Binary blob (BYTEA)</td>
+                                    <td style="padding:0.4rem 0.6rem;">Core functionality</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:0.4rem 0.6rem;">Filename</td>
+                                    <td style="padding:0.4rem 0.6rem;">Random hash</td>
+                                    <td style="padding:0.4rem 0.6rem;">File reference</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:0.4rem 0.6rem;">Content type</td>
+                                    <td style="padding:0.4rem 0.6rem;"><code>text</code> or <code>file</code></td>
+                                    <td style="padding:0.4rem 0.6rem;">Routing logic</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:0.4rem 0.6rem;">MIME type</td>
+                                    <td style="padding:0.4rem 0.6rem;"><code>application/octet-stream</code> or <code>text/plain</code></td>
+                                    <td style="padding:0.4rem 0.6rem;">Response headers</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:0.4rem 0.6rem;">File size</td>
+                                    <td style="padding:0.4rem 0.6rem;">Padded size (not original)</td>
+                                    <td style="padding:0.4rem 0.6rem;">Chunk assembly</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:0.4rem 0.6rem;">Expiration time</td>
+                                    <td style="padding:0.4rem 0.6rem;">Unix timestamp</td>
+                                    <td style="padding:0.4rem 0.6rem;">Auto-deletion</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:0.4rem 0.6rem;">Access code hash</td>
+                                    <td style="padding:0.4rem 0.6rem;">Bcrypt hash</td>
+                                    <td style="padding:0.4rem 0.6rem;">Authentication</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:0.4rem 0.6rem;">Feature flags</td>
+                                    <td style="padding:0.4rem 0.6rem;">one_time, quick_share, has_password</td>
+                                    <td style="padding:0.4rem 0.6rem;">Feature logic</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:0.4rem 0.6rem;">Aggregate statistics</td>
+                                    <td style="padding:0.4rem 0.6rem;">Total clips, total accesses (no per-user data)</td>
+                                    <td style="padding:0.4rem 0.6rem;">Admin dashboard (permanent)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p>No user accounts, no cookies, no tracking. GDPR compliant. Content is encrypted end-to-end — a server compromise would not expose plaintext data.</p>
                     </div>
                 </div>
 

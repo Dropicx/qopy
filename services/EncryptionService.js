@@ -22,16 +22,7 @@ class EncryptionService {
         let shouldRequireAccessCode = false;
         
         try {
-            console.log('🔐 Zero-Knowledge Access Code Analysis:', {
-                uploadId: session.upload_id,
-                sessionHasPassword: session.has_password,
-                isQuickShare: session.quick_share,
-                hasQuickShareSecret: !!quickShareSecret,
-                hasClientAccessCodeHash: !!clientAccessCodeHash,
-                clientAccessCodeHashLength: clientAccessCodeHash ? clientAccessCodeHash.length : 0,
-                requiresAccessCode: requiresAccessCode,
-                requiresAccessCodeType: typeof requiresAccessCode
-            });
+            console.log('🔐 Processing access code for upload:', session.upload_id);
         } catch (error) {
             console.error('❌ Error in Zero-Knowledge Access Code Analysis:', error);
         }
@@ -39,7 +30,7 @@ class EncryptionService {
         try {
             if (session.quick_share && quickShareSecret) {
                 // Quick Share: Store secret in password_hash field (legacy compatibility)
-                console.log('🔑 Setting Quick Share secret for upload:', session.upload_id, 'secret:', quickShareSecret);
+                console.log('🔑 Setting Quick Share secret for upload:', session.upload_id);
                 passwordHash = quickShareSecret;
                 accessCodeHash = null;
                 shouldRequireAccessCode = false;
@@ -49,19 +40,9 @@ class EncryptionService {
                 accessCodeHash = clientAccessCodeHash;
                 shouldRequireAccessCode = true; // FORCE TRUE
                 passwordHash = 'client-encrypted'; // Mark as client-encrypted for legacy compatibility
-                console.log('🔐 Zero-Knowledge Access Code Hash stored:', {
-                    accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-                    requiresAccessCode: shouldRequireAccessCode,
-                    passwordHash: 'client-encrypted'
-                });
+                console.log('🔐 Access code hash stored for upload:', session.upload_id);
             } else {
-                console.log('🔐 Condition check failed:', {
-                    requiresAccessCode: requiresAccessCode,
-                    hasClientAccessCodeHash: !!clientAccessCodeHash,
-                    condition: requiresAccessCode && clientAccessCodeHash
-                });
-                // Normal Share without Password: Only URL secret protection (client-side only)
-                console.log('🔐 URL secret only protection (Zero-Knowledge):', session.upload_id);
+                console.log('🔐 No access code provided for upload:', session.upload_id);
                 passwordHash = null;
                 accessCodeHash = null;
                 shouldRequireAccessCode = false;
@@ -73,7 +54,7 @@ class EncryptionService {
 
         // NEW: Zero-Knowledge File System - No download tokens needed
         // All authentication happens via access codes, URL secrets remain client-side
-        console.log('🔐 Zero-Knowledge File System: No download tokens generated - client handles all encryption and URL secrets');
+        console.log('🔐 Zero-Knowledge File System: No download tokens needed');
 
         // FORCE requiresAccessCode to boolean
         if (requiresAccessCode && isValidAccessCodeHash) {
@@ -104,7 +85,7 @@ class EncryptionService {
             zeroKnowledge: true
         };
 
-        console.log('📝 Storing file_metadata:', fileMetadata);
+        console.log('📝 File metadata created for upload:', uploadId);
         return fileMetadata;
     }
 }

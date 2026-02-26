@@ -61,6 +61,22 @@
             margin: 1rem 0;
             border-radius: 0.5rem;
         }
+        .legal-page table {
+            font-size: 0.95rem;
+        }
+        .legal-page th {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .legal-page td {
+            color: var(--text-secondary);
+        }
+        .legal-page code {
+            background: var(--bg-tertiary, rgba(0,0,0,0.1));
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
         .date-info {
             background: var(--bg-secondary);
             padding: 1rem;
@@ -84,7 +100,7 @@
             
             <div class="date-info">
                 <strong>Effective Date:</strong> August 2025<br>
-                <strong>Last Updated:</strong> August 2025
+                <strong>Last Updated:</strong> February 2026
             </div>
 
             <h2>1. Introduction</h2>
@@ -110,11 +126,17 @@
                 <li><strong>Error reporting:</strong> In the event of service errors, anonymous diagnostic information may be collected to help resolve issues.</li>
             </ul>
 
-            <h3>2.3 Technical Information</h3>
+            <h3>2.3 What the Server Never Sees</h3>
+            <p>Due to Qopy's zero-knowledge architecture, the following data never reaches the server:</p>
             <ul>
-                <li><strong>Browser information:</strong> Basic browser type and version to ensure compatibility and optimize performance.</li>
-                <li><strong>Service version:</strong> The version of Qopy service you are using to provide updates and support.</li>
-                <li><strong>Encryption support:</strong> Information about your browser's encryption capabilities to ensure secure content sharing.</li>
+                <li><strong>Plaintext content:</strong> All content is encrypted client-side before upload. The server only stores ciphertext.</li>
+                <li><strong>Real filenames:</strong> Replaced with a random hash (e.g. <code>a7f3b2c9</code>) on the client before upload.</li>
+                <li><strong>Real MIME types:</strong> Encrypted inside the file payload. The server only sees <code>application/octet-stream</code> or <code>text/plain</code>.</li>
+                <li><strong>Passwords or access codes:</strong> Only a bcrypt hash is stored; the plaintext password never reaches the server.</li>
+                <li><strong>URL secrets:</strong> Kept in the URL fragment (<code>#</code>), which browsers never transmit to the server.</li>
+                <li><strong>Decryption keys:</strong> Generated and used exclusively in your browser.</li>
+                <li><strong>IP addresses:</strong> Processed in-memory for rate limiting only. Never stored in the database.</li>
+                <li><strong>Browser information:</strong> Not collected or stored. No user-agent logging.</li>
             </ul>
 
             <h2>3. How We Use Your Information</h2>
@@ -160,7 +182,7 @@
                 <li><strong>Binary storage:</strong> Encrypted content stored as BYTEA for efficiency and security.</li>
                 <li><strong>HTTPS transmission:</strong> All data is transmitted over encrypted HTTPS connections.</li>
                 <li><strong>Rate limiting:</strong> Multi-layered IP-based rate limiting system to prevent abuse and ensure fair usage for all users.</li>
-                <li><strong>Temporary IP processing:</strong> IP addresses are temporarily processed for rate limiting but are not permanently stored or used for tracking.</li>
+                <li><strong>In-memory IP processing:</strong> IP addresses are processed in-memory only for rate limiting. They are never written to the database or any persistent storage.</li>
                 <li><strong>Browser extension blocking:</strong> Chrome extensions and other potentially malicious origins are blocked.</li>
             </ul>
 
@@ -179,9 +201,8 @@
 
             <h3>5.2 Service Providers</h3>
             <ul>
-                <li><strong>Hosting services:</strong> If you enable cloud synchronization, your data may be stored on secure cloud hosting services.</li>
-                <li><strong>Analytics providers:</strong> Anonymous usage statistics may be shared with analytics providers to improve the application.</li>
-                <li><strong>Support services:</strong> In the event of support requests, limited technical information may be shared with support service providers.</li>
+                <li><strong>Hosting services:</strong> Your encrypted data is stored on Railway.app infrastructure (EU West — Amsterdam). The hosting provider cannot decrypt your content due to our zero-knowledge architecture.</li>
+                <li><strong>No analytics providers:</strong> We do not share data with any third-party analytics providers.</li>
             </ul>
 
             <h3>5.3 Legal Requirements</h3>
@@ -192,33 +213,29 @@
             </ul>
 
             <h2>6. Your Rights and Choices</h2>
-            
-            <h3>6.1 Access and Control</h3>
+
+            <h3>6.1 Control Over Your Data</h3>
+            <p>Qopy has no user accounts. You control your data through the following mechanisms:</p>
             <ul>
-                <li><strong>View your data:</strong> You can view all stored clipboard data through the application interface.</li>
-                <li><strong>Export data:</strong> You can export your clipboard history in various formats for backup or transfer purposes.</li>
-                <li><strong>Delete data:</strong> You can delete individual entries or clear all clipboard history at any time.</li>
+                <li><strong>Expiration time:</strong> Choose when your content is automatically deleted (5 minutes to 24 hours).</li>
+                <li><strong>One-time access:</strong> Set content to self-destruct after a single read.</li>
+                <li><strong>Password protection:</strong> Add an access code for an additional layer of security.</li>
+                <li><strong>Quick Share mode:</strong> Use simplified 5-minute shares for non-sensitive content.</li>
             </ul>
 
-            <h3>6.2 Privacy Settings</h3>
+            <h3>6.2 Data Minimization by Design</h3>
             <ul>
-                <li><strong>Data collection preferences:</strong> You can control what types of data are collected and how they are used.</li>
-                <li><strong>Analytics opt-out:</strong> You can opt out of anonymous usage analytics collection.</li>
-                <li><strong>Notification preferences:</strong> You can control what types of notifications you receive from the application.</li>
-            </ul>
-
-            <h3>6.3 Account Management</h3>
-            <ul>
-                <li><strong>Account deletion:</strong> You can delete your account and all associated data at any time.</li>
-                <li><strong>Data portability:</strong> You can request a copy of all your data in a portable format.</li>
-                <li><strong>Correction rights:</strong> You can request correction of any inaccurate personal information.</li>
+                <li><strong>No accounts:</strong> No registration, login, or profile data is collected.</li>
+                <li><strong>No tracking:</strong> No cookies, analytics scripts, or tracking pixels are used.</li>
+                <li><strong>Automatic deletion:</strong> All content is permanently deleted after expiration. There is no way to recover expired content.</li>
+                <li><strong>No manual deletion needed:</strong> Since there are no accounts and all data auto-expires, there is nothing to manually delete.</li>
             </ul>
 
             <h2>7. Children's Privacy</h2>
             <p>Qopy is not intended for use by children under the age of 13. We do not knowingly collect personal information from children under 13. If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately.</p>
 
             <h2>8. International Data Transfers</h2>
-            <p>Qopy is designed to store data locally on your device. However, if you enable cloud synchronization features, your data may be transferred to and stored on servers located in different countries. We ensure that such transfers comply with applicable data protection laws and implement appropriate safeguards.</p>
+            <p>Qopy stores encrypted data on Railway.app infrastructure located in EU West (Amsterdam, Netherlands). If you access the service from outside the EU, your encrypted content is transferred to and stored on these servers. Due to our zero-knowledge architecture, the stored data cannot be decrypted by anyone without the encryption keys, which never leave your browser.</p>
 
             <h2>9. Data Breach Notification</h2>
             <p>In the unlikely event of a data breach that affects your personal information, we will notify you promptly in accordance with applicable laws. We will provide information about the nature of the breach, the data affected, and the steps we are taking to address the situation.</p>
@@ -288,7 +305,7 @@
             <p>When rate limits are exceeded, the service returns a 429 "Too Many Requests" status code with information about the limits and when they reset. This helps users understand and adjust their usage patterns.</p>
 
             <h2>15. Cookies and Tracking Technologies</h2>
-            <p>Qopy is a desktop application and does not use cookies or web-based tracking technologies. However, if you access our website or use web-based features, we may use cookies and similar technologies as described in our website privacy policy.</p>
+            <p>Qopy is a web application that does not use cookies, local storage for tracking, analytics scripts, tracking pixels, or any other tracking technologies. No third-party scripts are loaded. QR codes are generated locally in your browser without external API calls.</p>
 
             <h2>16. Third-Party Services</h2>
             <p>Qopy may integrate with third-party services for specific functionality. These services have their own privacy policies, and we encourage you to review them. We are not responsible for the privacy practices of third-party services.</p>
@@ -316,10 +333,122 @@
             <h2>21. Complaints and Dispute Resolution</h2>
             <p>If you have concerns about our data practices, we encourage you to contact us first. If you are not satisfied with our response, you may have the right to lodge a complaint with your local data protection authority.</p>
 
-            <h2>22. Conclusion</h2>
+            <h2>22. Data Transparency</h2>
+            <p>In the interest of full transparency, the following table lists every piece of data the server stores for each shared clip. This information can be independently verified by reviewing our <a href="https://github.com/Dropicx/qopy.git" target="_blank" rel="noopener">open-source code</a>.</p>
+
+            <h3>22.1 Server-Side Stored Metadata</h3>
+            <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-color); text-align:left;">
+                        <th style="padding:0.6rem;">Data</th>
+                        <th style="padding:0.6rem;">Actual value stored</th>
+                        <th style="padding:0.6rem;">Purpose</th>
+                        <th style="padding:0.6rem;">Lifetime</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Encrypted content</td>
+                        <td style="padding:0.6rem;">Binary blob (BYTEA)</td>
+                        <td style="padding:0.6rem;">Core functionality</td>
+                        <td style="padding:0.6rem;">Until expiration</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Anonymous filename</td>
+                        <td style="padding:0.6rem;">Random hash (e.g. <code>a7f3b2c9</code>)</td>
+                        <td style="padding:0.6rem;">File reference</td>
+                        <td style="padding:0.6rem;">Until expiration</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Generic content type</td>
+                        <td style="padding:0.6rem;"><code>text</code> or <code>file</code></td>
+                        <td style="padding:0.6rem;">Routing logic</td>
+                        <td style="padding:0.6rem;">Until expiration</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Generic MIME type</td>
+                        <td style="padding:0.6rem;"><code>application/octet-stream</code> or <code>text/plain</code></td>
+                        <td style="padding:0.6rem;">Response headers</td>
+                        <td style="padding:0.6rem;">Until expiration</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Padded file size</td>
+                        <td style="padding:0.6rem;">Size after padding (not original)</td>
+                        <td style="padding:0.6rem;">Chunk assembly</td>
+                        <td style="padding:0.6rem;">Until expiration</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Expiration time</td>
+                        <td style="padding:0.6rem;">Unix timestamp</td>
+                        <td style="padding:0.6rem;">Auto-deletion</td>
+                        <td style="padding:0.6rem;">Until expiration</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Access code hash</td>
+                        <td style="padding:0.6rem;">Bcrypt hash</td>
+                        <td style="padding:0.6rem;">Authentication</td>
+                        <td style="padding:0.6rem;">Until expiration</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Feature flags</td>
+                        <td style="padding:0.6rem;">one_time, quick_share, has_password</td>
+                        <td style="padding:0.6rem;">Feature logic</td>
+                        <td style="padding:0.6rem;">Until expiration</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0.6rem;">Aggregate statistics</td>
+                        <td style="padding:0.6rem;">Total clips, total accesses (no per-user data)</td>
+                        <td style="padding:0.6rem;">Admin dashboard</td>
+                        <td style="padding:0.6rem;">Permanent</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>22.2 Data the Server Never Sees</h3>
+            <p>The following data is protected by Qopy's zero-knowledge architecture and never reaches the server:</p>
+            <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-color); text-align:left;">
+                        <th style="padding:0.6rem;">Data</th>
+                        <th style="padding:0.6rem;">How it's protected</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Plaintext content</td>
+                        <td style="padding:0.6rem;">Encrypted client-side before upload</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Real filename</td>
+                        <td style="padding:0.6rem;">Replaced with random hash on client</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Real MIME type</td>
+                        <td style="padding:0.6rem;">Encrypted inside file payload; server only sees generic type</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Passwords / access codes</td>
+                        <td style="padding:0.6rem;">Only bcrypt hash stored, never plaintext</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">URL secrets</td>
+                        <td style="padding:0.6rem;">In URL fragment (<code>#</code>), never transmitted to server</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:0.6rem;">Decryption keys</td>
+                        <td style="padding:0.6rem;">Generated and used only in browser</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0.6rem;">IP addresses</td>
+                        <td style="padding:0.6rem;">Processed in-memory for rate limiting only, never stored in database</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>23. Conclusion</h2>
             <p>At Qopy, we are committed to protecting your privacy and ensuring the security of your data. This Privacy Policy reflects our commitment to transparency and user control. We believe that privacy is a fundamental right, and we design our products with this principle in mind.</p>
 
-            <p><small>Last Updated: August 2025</small></p>
+            <p><small>Last Updated: February 2026</small></p>
         </div>
     </div>
 

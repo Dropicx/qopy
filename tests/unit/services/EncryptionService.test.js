@@ -1,16 +1,16 @@
 /*
  * Copyright (C) 2025 Qopy App
- * 
+ *
  * This file is part of Qopy.
- * 
+ *
  * Qopy is dual-licensed:
- * 
+ *
  * 1. GNU Affero General Public License v3.0 (AGPL-3.0)
  *    For open source use. See LICENSE-AGPL for details.
- * 
+ *
  * 2. Commercial License
  *    For proprietary/commercial use. Contact qopy@lit.services
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -56,17 +56,11 @@ describe('EncryptionService', () => {
 
         expect(result).toBeDefined();
         expect(typeof result).toBe('object');
-        
-        // Verify logging occurred
+
+        // Verify simplified logging occurred (no sensitive data)
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-          expect.objectContaining({
-            uploadId: 'upload-123',
-            sessionHasPassword: false,
-            isQuickShare: true,
-            hasQuickShareSecret: true,
-            hasClientAccessCodeHash: true
-          })
+          expect.stringContaining('Processing access code for upload:'),
+          'upload-123'
         );
       });
 
@@ -86,13 +80,8 @@ describe('EncryptionService', () => {
 
         expect(result).toBeDefined();
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-          expect.objectContaining({
-            isQuickShare: true,
-            hasQuickShareSecret: true,
-            hasClientAccessCodeHash: false,
-            requiresAccessCode: false
-          })
+          expect.stringContaining('Processing access code for upload:'),
+          'upload-456'
         );
       });
 
@@ -112,10 +101,8 @@ describe('EncryptionService', () => {
 
         expect(result).toBeDefined();
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-          expect.objectContaining({
-            hasQuickShareSecret: false // Empty string should be falsy
-          })
+          expect.stringContaining('Processing access code for upload:'),
+          'upload-789'
         );
       });
     });
@@ -137,14 +124,8 @@ describe('EncryptionService', () => {
 
         expect(result).toBeDefined();
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-          expect.objectContaining({
-            sessionHasPassword: true,
-            isQuickShare: false,
-            hasQuickShareSecret: false,
-            hasClientAccessCodeHash: true,
-            requiresAccessCode: true
-          })
+          expect.stringContaining('Processing access code for upload:'),
+          'regular-123'
         );
       });
 
@@ -163,18 +144,14 @@ describe('EncryptionService', () => {
 
         expect(result).toBeDefined();
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-          expect.objectContaining({
-            sessionHasPassword: false,
-            isQuickShare: false,
-            requiresAccessCode: false
-          })
+          expect.stringContaining('Processing access code for upload:'),
+          'regular-456'
         );
       });
     });
 
     describe('Access Code Hash Analysis', () => {
-      test('should log access code hash length when present', () => {
+      test('should not log access code hash details (security)', () => {
         const session = {
           upload_id: 'hash-test-123',
           has_password: false,
@@ -188,11 +165,15 @@ describe('EncryptionService', () => {
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
-        expect(mockConsole.log).toHaveBeenCalledWith(
+        // Should NOT log sensitive hash details
+        expect(mockConsole.log).not.toHaveBeenCalledWith(
           expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-          expect.objectContaining({
-            clientAccessCodeHashLength: 'a-very-long-hash-string-for-testing'.length
-          })
+          expect.any(Object)
+        );
+        // Should log simplified message instead
+        expect(mockConsole.log).toHaveBeenCalledWith(
+          expect.stringContaining('Processing access code for upload:'),
+          'hash-test-123'
         );
       });
 
@@ -220,46 +201,32 @@ describe('EncryptionService', () => {
           const result = EncryptionService.processAccessCode(session, requestData);
 
           expect(result).toBeDefined();
-          if (hash.length > 0) {
-            expect(mockConsole.log).toHaveBeenCalledWith(
-              expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-              expect.objectContaining({
-                clientAccessCodeHashLength: hash.length
-              })
-            );
-          }
         });
       });
     });
 
     describe('requiresAccessCode Type Analysis', () => {
-      test('should log correct type for boolean true', () => {
+      test('should log correct upload id for boolean true', () => {
         const session = { upload_id: 'type-test-1', has_password: false, quick_share: false };
         const requestData = { requiresAccessCode: true };
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-          expect.objectContaining({
-            requiresAccessCode: true,
-            requiresAccessCodeType: 'boolean'
-          })
+          expect.stringContaining('Processing access code for upload:'),
+          'type-test-1'
         );
       });
 
-      test('should log correct type for boolean false', () => {
+      test('should log correct upload id for boolean false', () => {
         const session = { upload_id: 'type-test-2', has_password: false, quick_share: false };
         const requestData = { requiresAccessCode: false };
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-          expect.objectContaining({
-            requiresAccessCode: false,
-            requiresAccessCodeType: 'boolean'
-          })
+          expect.stringContaining('Processing access code for upload:'),
+          'type-test-2'
         );
       });
 
@@ -274,23 +241,16 @@ describe('EncryptionService', () => {
         ];
 
         testCases.forEach(({ value, type }, index) => {
-          const session = { 
-            upload_id: `type-test-${index + 3}`, 
-            has_password: false, 
-            quick_share: false 
+          const session = {
+            upload_id: `type-test-${index + 3}`,
+            has_password: false,
+            quick_share: false
           };
           const requestData = { requiresAccessCode: value };
 
           const result = EncryptionService.processAccessCode(session, requestData);
 
           expect(result).toBeDefined();
-          expect(mockConsole.log).toHaveBeenCalledWith(
-            expect.stringContaining('Zero-Knowledge Access Code Analysis'),
-            expect.objectContaining({
-              requiresAccessCode: value,
-              requiresAccessCodeType: type
-            })
-          );
         });
       });
     });
@@ -351,8 +311,7 @@ describe('EncryptionService', () => {
         };
 
         // Mock console.log to throw an error
-        const originalLog = mockConsole.log;
-        mockConsole.log.mockImplementation(() => {
+        mockConsole.log.mockImplementationOnce(() => {
           throw new Error('Logging error');
         });
 
@@ -373,9 +332,6 @@ describe('EncryptionService', () => {
           expect.stringContaining('Error in Zero-Knowledge Access Code Analysis'),
           expect.any(Error)
         );
-
-        // Restore original mock
-        mockConsole.log = originalLog;
       });
 
       test('should handle circular references in session or requestData', () => {
