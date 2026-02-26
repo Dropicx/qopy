@@ -27,6 +27,8 @@ class RedisManager {
         // Track event listeners to prevent memory leaks
         this.eventListeners = new Map();
         this.isShuttingDown = false;
+        this.lastErrorLogTime = 0;
+        this.errorLogThrottleMs = 15000; // Log same-type errors at most every 15s
     }
 
     async connect() {
@@ -42,7 +44,9 @@ class RedisManager {
                         connectTimeout: 5000, // 5 second connection timeout
                         reconnectStrategy: (retries) => {
                             if (retries > this.maxRetries) {
-                                console.warn('⚠️ Redis max retries reached - continuing without cache');
+                                if (Date.now() - this.lastErrorLogTime >= this.errorLogThrottleMs) {
+                                    console.warn('⚠️ Redis max retries reached - continuing without cache');
+                                }
                                 return false; // Stop reconnecting
                             }
                             return Math.min(retries * 100, 3000);
@@ -52,8 +56,12 @@ class RedisManager {
 
                 // Track and attach event listeners with cleanup capability
                 const errorHandler = (err) => {
-                    console.warn('⚠️ Redis Client Error:', err.message || err);
                     this.connected = false;
+                    const now = Date.now();
+                    if (now - this.lastErrorLogTime >= this.errorLogThrottleMs) {
+                        this.lastErrorLogTime = now;
+                        console.warn('⚠️ Redis Client Error:', err.message || err);
+                    }
                     // Don't cleanup or exit - just mark as disconnected
                     // The app can continue without Redis cache
                 };
@@ -100,6 +108,16 @@ class RedisManager {
         } catch (error) {
             console.warn(`⚠️ Redis connection failed: ${error.message} - continuing without cache`);
             this.connected = false;
+            if (this.client) {
+                try {
+                    for (const [event, handler] of this.eventListeners) {
+                        this.client.removeListener(event, handler);
+                    }
+                    this.eventListeners.clear();
+                    await this.client.disconnect();
+                } catch (_) { /* ignore */ }
+                this.client = null;
+            }
             // Don't retry - just run without Redis
             // The app should work fine without caching
         }

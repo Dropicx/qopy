@@ -75,7 +75,11 @@ const redisManager = require('./config/redis');
 (async () => {
     try {
         await redisManager.connect();
-        console.log('🔗 Using centralized Redis manager');
+        if (redisManager.isConnected()) {
+            console.log('🔗 Using centralized Redis manager');
+        } else {
+            console.warn('⚠️ Redis not available, using in-memory cache');
+        }
     } catch (error) {
         console.warn('⚠️ Redis not available, using in-memory cache');
     }
@@ -485,8 +489,9 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: getClientIP,
   skip: (req) => {
-    // Skip rate limiting for health checks and admin routes
-    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/');
+    // Skip rate limiting for health checks, admin routes, and chunk uploads
+    // Chunk uploads are already protected by the upload session initiation limiter
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/') || req.path.match(/^\/api\/upload\/chunk\//);
   }
 });
 
@@ -528,8 +533,9 @@ const burstLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: getClientIP,
   skip: (req) => {
-    // Skip burst limiting for health checks and admin routes
-    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/');
+    // Skip burst limiting for health checks, admin routes, and chunk uploads
+    // Chunk uploads are already protected by the upload session initiation limiter
+    return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.startsWith('/api/admin/') || req.path.match(/^\/api\/upload\/chunk\//);
   }
 });
 
@@ -1300,7 +1306,7 @@ async function getCache(key) {
     return null;
 }
 
-// Upload rate limiting
+// Upload rate limiting - only limit session initiation, not individual chunks
 const uploadLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 10, // 10 upload sessions per IP
@@ -1313,8 +1319,8 @@ const uploadLimiter = rateLimit({
     keyGenerator: getClientIP
 });
 
-// Apply upload rate limiting
-app.use('/api/upload', uploadLimiter);
+// Apply upload rate limiting only to session initiation (not chunks/completion)
+app.use('/api/upload/initiate', uploadLimiter);
 
 // ==========================================
 // UPLOAD ENDPOINTS
