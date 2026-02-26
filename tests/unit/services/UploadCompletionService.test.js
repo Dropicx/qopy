@@ -185,7 +185,6 @@ describe('UploadCompletionService', () => {
                 clipId: 'clip-123',
                 url: 'https://example.com/file/clip-123',
                 filename: 'test.pdf',
-                filesize: 1024,
                 expiresAt: '2023-12-31',
                 quickShare: false,
                 oneTime: false,

@@ -927,7 +927,7 @@ class ClipboardApp {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     filename: file.name,
-                    filesize: file.size,
+                    totalChunks: Math.ceil(file.size / (5 * 1024 * 1024)),
                     expiration: expiration,
                     oneTime: oneTime,
                     hasPassword: !!password,

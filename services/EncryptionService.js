@@ -65,7 +65,6 @@ class EncryptionService {
         return {
             uploadId,
             originalUploadSession: true,
-            originalFileSize: Number(session?.filesize ?? session?.file_size ?? actualFilesize),
             actualFileSize: actualFilesize,
             zeroKnowledge: true
         };

@@ -314,7 +314,7 @@ describe('Chunk Upload Basic Tests', () => {
 
       expect(metadata.uploadId).toBe(uploadId);
       expect(metadata.originalUploadSession).toBe(true);
-      expect(metadata.originalFileSize).toBe(session.filesize);
+      expect(metadata.originalFileSize).toBeUndefined();
       expect(metadata.actualFileSize).toBe(actualFilesize);
       expect(metadata.zeroKnowledge).toBe(true);
     });

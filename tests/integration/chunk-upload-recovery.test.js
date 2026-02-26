@@ -149,7 +149,7 @@ describe('Chunk Upload Recovery and Edge Cases', () => {
       // Test encryption with zero-byte file
       const metadata = EncryptionService.createFileMetadata(uploadId, session, fileSize);
       expect(metadata.actualFileSize).toBe(0);
-      expect(metadata.originalFileSize).toBe(0);
+      expect(metadata.originalFileSize).toBeUndefined();
     });
 
     test('should handle single-byte files', async () => {

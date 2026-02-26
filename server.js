@@ -1257,7 +1257,8 @@ app.use('/api/upload/initiate', uploadLimiter);
 // Initiate upload
 app.post('/api/upload/initiate', [
     body('filename').isString().isLength({ min: 1, max: 255 }).withMessage('Valid filename required'),
-    body('filesize').isInt({ min: 1, max: MAX_FILE_SIZE }).withMessage(`File size must be between 1 byte and ${MAX_FILE_SIZE} bytes`),
+    body('totalChunks').optional().isInt({ min: 1, max: 20 }).withMessage('totalChunks must be between 1 and 20'),
+    body('filesize').optional().isInt({ min: 1, max: MAX_FILE_SIZE }).withMessage(`File size must be between 1 byte and ${MAX_FILE_SIZE} bytes`),
     body('mimeType').optional().isString().isLength({ min: 1, max: 100 }).withMessage('Valid MIME type required'),
     body('expiration').optional().isIn(['5min', '15min', '30min', '1hr', '6hr', '24hr']).withMessage('Invalid expiration time'),
     body('hasPassword').optional().isBoolean().withMessage('hasPassword must be a boolean'),
@@ -1275,8 +1276,8 @@ app.post('/api/upload/initiate', [
             });
         }
 
-        const { filename, filesize, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
-        
+        const { filename, filesize, totalChunks: clientTotalChunks, mimeType, expiration = '24hr', hasPassword = false, oneTime = false, quickShare = false, contentType = 'text', isTextContent = false } = req.body;
+
         // Set appropriate MIME type based on content type
         let finalMimeType = mimeType;
         if (isTextContent || contentType === 'text') {
@@ -1284,9 +1285,16 @@ app.post('/api/upload/initiate', [
         } else if (!mimeType) {
             finalMimeType = 'application/octet-stream';
         }
-        
-        // Calculate chunks
-        const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
+
+        // Use client-provided totalChunks, fall back to calculating from filesize for backward compatibility
+        const totalChunks = clientTotalChunks || (filesize ? Math.ceil(filesize / CHUNK_SIZE) : 1);
+
+        if (totalChunks < 1 || totalChunks > 20) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                message: 'totalChunks must be between 1 and 20'
+            });
+        }
         
         // Generate upload ID
         const uploadId = generateUploadId();
@@ -1312,7 +1320,7 @@ app.post('/api/upload/initiate', [
                 is_text_content
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         `, [
-            uploadId, filename, filename, filesize, finalMimeType,
+            uploadId, filename, filename, 0, finalMimeType,
             CHUNK_SIZE, totalChunks, expirationTime, hasPassword,
             oneTime, quickShare, Date.now(), Date.now(),
             isTextContent || contentType === 'text'
@@ -1323,7 +1331,7 @@ app.post('/api/upload/initiate', [
             uploadId, 
             filename, 
             original_filename: filename,
-            filesize, 
+            filesize: 0,
             mime_type: finalMimeType, 
             chunk_size: CHUNK_SIZE,
             total_chunks: totalChunks, 

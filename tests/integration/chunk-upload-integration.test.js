@@ -176,7 +176,7 @@ describe('Chunk Upload Integration Tests', () => {
       // Verify encryption metadata can be created
       const metadata = EncryptionService.createFileMetadata(uploadId, session, fileSize);
       expect(metadata.actualFileSize).toBe(fileSize);
-      expect(metadata.originalFileSize).toBe(fileSize);
+      expect(metadata.originalFileSize).toBeUndefined();
     });
 
     test('should handle 5MB file (exactly at threshold)', async () => {

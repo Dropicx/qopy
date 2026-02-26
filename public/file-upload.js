@@ -953,9 +953,10 @@ class FileUploadManager {
                 }
             });
             
+            const totalChunks = Math.ceil(fileWithMetadata.length / this.chunkSize);
             const requestBody = {
                 filename: anonymousFilename,
-                filesize: fileWithMetadata.length,
+                totalChunks,
                 expiration: options.expiration || '24hr',
                 hasPassword: options.hasPassword || false,
                 oneTime: options.oneTime || false,

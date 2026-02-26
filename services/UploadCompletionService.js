@@ -98,7 +98,6 @@ class UploadCompletionService {
             clipId,
             url,
             filename: session.original_filename,
-            filesize: session.filesize,
             expiresAt: session.expiration_time,
             quickShare: session.quick_share,
             oneTime: session.one_time,
