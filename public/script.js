@@ -115,6 +115,13 @@ class ClipboardApp {
             this.copyToClipboard(document.getElementById('clip-id').value, 'Clip ID copied!');
         });
 
+        const copyVerbalBtn = document.getElementById('copy-verbal-button');
+        if (copyVerbalBtn) {
+            copyVerbalBtn.addEventListener('click', () => {
+                this.copyToClipboard(document.getElementById('verbal-code-display').textContent, 'Verbal code copied!');
+            });
+        }
+
         document.getElementById('copy-content-button').addEventListener('click', () => {
             this.copyToClipboard(document.getElementById('retrieved-content').textContent, 'Content copied!');
         });
@@ -288,32 +295,38 @@ class ClipboardApp {
             });
             
             if (isQuickShare) {
-                // Quick Share (6-digit): no download token needed
-                console.log('⚡ Quick Share auto-retrieve - no download token needed:', clipId);
-                
-                // First, get clip info to check if it has password
+                // Quick Share (6-digit): zero-knowledge, uses URL fragment secret
+                console.log('⚡ Quick Share auto-retrieve (zero-knowledge):', clipId);
+
+                if (!urlSecret) {
+                    // No URL fragment — show secret input for verbal sharing case
+                    console.log('⚡ No URL fragment for Quick Share, showing secret input');
+                    this.hideLoading('retrieve-loading');
+                    const secretSection = document.getElementById('quick-share-secret-section');
+                    if (secretSection) secretSection.classList.remove('hidden');
+                    return;
+                }
+
+                // First, get clip info to check existence
                 const infoResponse = await fetch(`/api/clip/${clipId}/info`);
-                const infoData = await infoResponse.json();
-                
                 if (!infoResponse.ok) {
-                    // Clip not found or expired, don't try to decrypt
                     this.hideLoading('retrieve-loading');
                     return;
                 }
-                
-                // Quick Share never has passwords, proceed with retrieval
+
+                // Retrieve encrypted content (server has no secret)
                 const response = await fetch(`/api/clip/${clipId}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
                     }
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     await this.showRetrieveResult(data);
                 }
-                
+
             } else if (isFileUrl && !isQuickShare) {
                 // File URL (not Quick Share): requires authentication, check URL secret first
                 console.log('📁 File URL detected - checking credentials before API call:', clipId);
@@ -825,8 +838,13 @@ class ClipboardApp {
                     }
                     console.log('🔐 Using Zero-Knowledge system for normal clip checkClipId:', clipId, 'hasUrlSecret:', !!urlSecret, 'hasPassword:', !!password);
                 } else {
-                    // Quick Share (6-digit): no download token needed
-                    console.log('⚡ Quick Share checkClipId - no download token needed:', clipId);
+                    // Quick Share (6-digit): zero-knowledge, check if secret input needed
+                    console.log('⚡ Quick Share checkClipId (zero-knowledge):', clipId);
+                    const qsSecret = urlSecret || (document.getElementById('quick-share-secret-input') ? document.getElementById('quick-share-secret-input').value.trim().toUpperCase() : '');
+                    const secretSection = document.getElementById('quick-share-secret-section');
+                    if (!qsSecret && secretSection) {
+                        secretSection.classList.remove('hidden');
+                    }
                     const response = await fetch(`/api/clip/${clipId}/info`);
                 }
                 const data = await response.json();
@@ -944,16 +962,13 @@ class ClipboardApp {
     async uploadTextAsFile(file, originalContent, password, expiration, oneTime, quickShare) {
         try {
             let urlSecret = null;
-            let quickShareSecret = null;
-            
+
             // Determine encryption method based on mode
             if (quickShare) {
-                quickShareSecret = this.generateRandomSecret();
-                urlSecret = null;
-                console.log('🚀 [QuickShare] Mode enabled:', {
-                    quickShareSecretLength: quickShareSecret.length,
-                    quickShareSecretFormat: /^[0-9a-f]{32}$/.test(quickShareSecret) ? 'VALID_HEX' : 'INVALID',
-                    urlSecret: 'null (Quick Share mode)'
+                urlSecret = this.generateQuickShareSecret();
+                console.log('🚀 [QuickShare] Zero-knowledge mode enabled:', {
+                    urlSecretLength: urlSecret.length,
+                    urlSecretFormat: /^[A-Z0-9]{6}$/.test(urlSecret) ? 'VALID' : 'INVALID',
                 });
             } else if (!password) {
                 urlSecret = this.generateUrlSecret();
@@ -1017,12 +1032,12 @@ class ClipboardApp {
                 // Encrypt chunk based on mode
                 let encryptedChunk;
                 if (quickShare) {
-                    console.log(`🚀 [QuickShare] Encrypting chunk ${i} with quickShareSecret:`, {
-                        hasQuickShareSecret: !!quickShareSecret,
-                        quickShareSecretLength: quickShareSecret ? quickShareSecret.length : 0,
+                    console.log(`🚀 [QuickShare] Encrypting chunk ${i} with urlSecret:`, {
+                        hasUrlSecret: !!urlSecret,
+                        urlSecretLength: urlSecret ? urlSecret.length : 0,
                         chunkSize: chunk.size
                     });
-                    encryptedChunk = await this.encryptFileChunk(chunk, null, quickShareSecret);
+                    encryptedChunk = await this.encryptFileChunk(chunk, null, urlSecret);
                 } else if (!password) {
                     encryptedChunk = await this.encryptFileChunk(chunk, null, urlSecret);
                 } else {
@@ -1056,11 +1071,10 @@ class ClipboardApp {
             // Complete upload
             console.log(`[TextUpload] Completing upload for uploadId=${uploadId}`);
             const completePayload = {
-                quickShareSecret: quickShareSecret,
                 isTextUpload: true, // Flag to indicate this is a text upload, not a file
                 contentType: 'text'
             };
-            
+
             // NEW: Access Code System - only send hashed password for access control
             // URL Secret and password remain client-side for encryption
             if (!quickShare && password) {
@@ -1086,10 +1100,11 @@ class ClipboardApp {
                 throw new Error(completeData.message || 'Failed to complete upload');
             }
 
-            // Add URL secret to share URL for normal clips
-            const shareUrl = (!quickShare) ? `${completeData.url}#${urlSecret}` : completeData.url;
+            // Add URL secret to share URL (both normal clips and Quick Shares use fragments now)
+            const shareUrl = `${completeData.url}#${urlSecret}`;
             completeData.url = shareUrl;
-            
+            completeData.quickShareUrlSecret = quickShare ? urlSecret : null;
+
             this.showShareResult(completeData);
 
         } catch (error) {
@@ -1224,6 +1239,22 @@ class ClipboardApp {
         console.log('🎲 [QuickShare] Generated secret:', {
             secretLength: secret.length,
             secretPreview: secret.substring(0, 8) + '...'
+        });
+        return secret;
+    }
+
+    // Generate 6-character alphanumeric secret for Quick Share (zero-knowledge)
+    generateQuickShareSecret() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const array = new Uint8Array(6);
+        window.crypto.getRandomValues(array);
+        let secret = '';
+        for (let i = 0; i < 6; i++) {
+            secret += chars[array[i] % chars.length];
+        }
+        console.log('🎲 [QuickShare] Generated URL secret:', {
+            secretLength: secret.length,
+            format: 'A-Z0-9 (6 chars)'
         });
         return secret;
     }
@@ -1424,7 +1455,6 @@ class ClipboardApp {
                 hasRedirectTo: !!data.redirectTo,
                 expiresAt: data.expiresAt,
                 oneTime: data.oneTime,
-                quickShareSecret: data.quickShareSecret,
                 keys: Object.keys(data)
             });
             console.log('📡 Full API response:', data);
@@ -1463,13 +1493,13 @@ class ClipboardApp {
                     
                     // Check if this is a Quick Share (short ID) or normal clip
                     if (clipId.length <= 6) {
-                        console.log('🔐 Processing Quick Share clip');
-                        // Quick Share: Use the secret from server response
-                        const quickShareSecret = data.quickShareSecret || data.password_hash;
-                        if (!quickShareSecret) {
-                            throw new Error('Quick Share secret not found');
+                        console.log('🔐 Processing Quick Share clip (zero-knowledge)');
+                        // Quick Share: Use URL secret from fragment or manual input
+                        const qsUrlSecret = urlSecret || (document.getElementById('quick-share-secret-input') ? document.getElementById('quick-share-secret-input').value.trim().toUpperCase() : '');
+                        if (!qsUrlSecret) {
+                            throw new Error('Quick Share secret not provided. Enter the 6-character secret to decrypt.');
                         }
-                        decryptedContent = await this.decryptContent(data.content, null, quickShareSecret);
+                        decryptedContent = await this.decryptContent(data.content, null, qsUrlSecret);
                     } else {
                         console.log('🔐 Processing normal clip');
                         // Normal mode: Decrypt the content
@@ -1542,9 +1572,21 @@ class ClipboardApp {
             clipIdSection.style.display = 'none';
         }
         
+        // Show verbal code for Quick Share
+        const verbalCodeSection = document.getElementById('verbal-code-section');
+        if (verbalCodeSection) {
+            if (data.quickShare && data.quickShareUrlSecret) {
+                const verbalCode = `${data.clipId} · ${data.quickShareUrlSecret}`;
+                document.getElementById('verbal-code-display').textContent = verbalCode;
+                verbalCodeSection.style.display = 'block';
+            } else {
+                verbalCodeSection.style.display = 'none';
+            }
+        }
+
         // Generate QR code client-side
         this.generateQRCode(data.url);
-        
+
         // Format expiration time with robust error handling
         try {
             const expiresAt = data.expiresAt;
@@ -1696,7 +1738,6 @@ class ClipboardApp {
             hasContent: !!data.content,
             hasFile: !!data.file_path,
             hasRedirectTo: !!data.redirectTo,
-            hasQuickShareSecret: !!data.quickShareSecret,
             keys: Object.keys(data)
         });
 
@@ -1746,25 +1787,21 @@ class ClipboardApp {
         } else if (Array.isArray(data.content)) {
             // Binary content - could be encrypted text or binary data
             try {
-                // Extract decryption keys, prioritizing quickShareSecret for Quick Shares
-                let urlSecret = null;
-                let password = null;
-                
-                if (data.quickShareSecret) {
-                    // Quick Share: use the secret from server response
-                    console.log('⚡ Quick Share detected with server secret, using for decryption');
-                    urlSecret = data.quickShareSecret;
-                    password = null;
-                } else {
-                    // Normal clip: extract from URL and user input
-                    urlSecret = this.extractUrlSecret();
-                    password = this.getPasswordFromUser();
+                // Extract decryption keys - both Quick Share and normal clips use URL fragment
+                let urlSecret = this.extractUrlSecret();
+                let password = this.getPasswordFromUser();
+
+                // For Quick Share, also check manual secret input
+                if (!urlSecret) {
+                    const secretInput = document.getElementById('quick-share-secret-input');
+                    if (secretInput && secretInput.value.trim()) {
+                        urlSecret = secretInput.value.trim().toUpperCase();
+                    }
                 }
-                
+
                 console.log('🔑 Decryption keys:', {
                     hasUrlSecret: !!urlSecret,
                     hasPassword: !!password,
-                    isQuickShare: !!data.quickShareSecret
                 });
                 
                 if (urlSecret || password) {
@@ -1855,12 +1892,13 @@ class ClipboardApp {
         if (data.filename && data.filesize) {
             console.log('📝 Text content uploaded as file - setting file metadata');
             
-            if (data.quickShareSecret) {
-                console.log('⚡ Quick Share detected with server secret, using for decryption');
-                urlSecret = data.quickShareSecret;
-            } else {
-                // Extract URL secret for normal clips
-                urlSecret = this.extractUrlSecret();
+            // Extract URL secret from fragment or manual input (zero-knowledge)
+            urlSecret = this.extractUrlSecret();
+            if (!urlSecret) {
+                const secretInput = document.getElementById('quick-share-secret-input');
+                if (secretInput && secretInput.value.trim()) {
+                    urlSecret = secretInput.value.trim().toUpperCase();
+                }
             }
         }
     }
@@ -1874,17 +1912,21 @@ class ClipboardApp {
             let urlSecret = null;
             let password = null;
             
-            if (data.quickShareSecret) {
-                // Quick Share mode - use the secret from server response
-                urlSecret = data.quickShareSecret;
-                password = null;
-                console.log('🔑 Using Quick Share secret for decryption');
-            } else {
-                // Normal mode - extract from URL and user input
-                urlSecret = this.extractUrlSecret();
-                password = this.getPasswordFromUser();
-                console.log('🔑 Using URL secret and password for decryption');
+            // Extract decryption keys - Quick Share and normal clips both use URL fragment
+            urlSecret = this.extractUrlSecret();
+            password = this.getPasswordFromUser();
+
+            // For Quick Share, also check manual secret input if no URL fragment
+            if (!urlSecret && data.redirectTo) {
+                const clipId = data.redirectTo.split('/').pop();
+                if (clipId.length <= 6) {
+                    const secretInput = document.getElementById('quick-share-secret-input');
+                    if (secretInput && secretInput.value.trim()) {
+                        urlSecret = secretInput.value.trim().toUpperCase();
+                    }
+                }
             }
+            console.log('🔑 Using URL secret and password for decryption (zero-knowledge)');
 
             // Download the encrypted file using new authenticated method
             console.log('📥 Downloading encrypted file using authenticated method');
@@ -2884,10 +2926,18 @@ class ClipboardApp {
     async downloadFile(clipId, filename) {
         try {
             console.log('📥 downloadFile called with:', { clipId, filename });
-            
-            // Extract URL secret from current URL
-            const urlSecret = this.extractUrlSecret();
+
+            // Extract URL secret from current URL or manual input (Quick Share)
+            let urlSecret = this.extractUrlSecret();
             const password = this.getPasswordFromUser();
+
+            // For Quick Share, also check manual secret input
+            if (!urlSecret && clipId.length <= 6) {
+                const secretInput = document.getElementById('quick-share-secret-input');
+                if (secretInput && secretInput.value.trim()) {
+                    urlSecret = secretInput.value.trim().toUpperCase();
+                }
+            }
             
             console.log('📥 Encryption keys:', { 
                 hasUrlSecret: !!urlSecret, 
@@ -3305,6 +3355,7 @@ class ClipboardApp {
         const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
         const isEnhancedPassphrase = secret && secret.length >= 40;
         const isQuickShareSecret = secret && secret.length === 32 && /^[0-9a-f]{32}$/.test(secret);
+        const isQuickShareUrlSecret = secret && secret.length === 6 && /^[A-Z0-9]{6}$/.test(secret);
         
         let keyMaterial;
         let salt;
@@ -3392,7 +3443,7 @@ class ClipboardApp {
             } else if (isQuickShareSecret) {
                 mode = 'QUICKSHARE_SECRET_ONLY_IV';
                 console.log('🔐 Quick Share IV derivation (secret-only mode)');
-                
+
                 keyMaterial = await window.crypto.subtle.importKey(
                     'raw',
                     encoder.encode(secret),
@@ -3402,6 +3453,19 @@ class ClipboardApp {
                 );
                 salt = customSalt || 'qopy-quickshare-iv-salt-v1';
                 iterations = 100000;
+            } else if (isQuickShareUrlSecret) {
+                mode = 'QUICKSHARE_URL_SECRET_ONLY_IV';
+                console.log('🔐 Quick Share URL secret IV derivation (secret-only mode)');
+
+                keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(secret),
+                    'PBKDF2',
+                    false,
+                    ['deriveBits']
+                );
+                salt = customSalt || 'qopy-quickshare-zk-iv-salt-v1';
+                iterations = 250000;
             } else {
                 throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
             }

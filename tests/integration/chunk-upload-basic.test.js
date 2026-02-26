@@ -285,7 +285,7 @@ describe('Chunk Upload Basic Tests', () => {
       expect(encryptionConfig.passwordHash).toBe('client-encrypted');
     });
 
-    test('should handle Quick Share encryption configuration', async () => {
+    test('should handle Quick Share encryption configuration (zero-knowledge)', async () => {
       const uploadId = 'quickshare-test-basic';
       const session = {
         upload_id: uploadId,
@@ -293,12 +293,11 @@ describe('Chunk Upload Basic Tests', () => {
         quick_share: true
       };
 
-      const quickShareSecret = 'quick-secret-123456';
       const encryptionConfig = EncryptionService.processAccessCode(session, {
-        quickShareSecret
+        requiresAccessCode: false
       });
 
-      expect(encryptionConfig.passwordHash).toBe(quickShareSecret);
+      expect(encryptionConfig.passwordHash).toBeNull();
       expect(encryptionConfig.shouldRequireAccessCode).toBe(false);
       expect(encryptionConfig.accessCodeHash).toBeNull();
     });

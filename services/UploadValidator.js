@@ -10,15 +10,15 @@ class UploadValidator {
     static parseUploadRequest(requestBody) {
         console.log('🔍 Request body:', JSON.stringify(requestBody, null, 2));
         
-        let quickShareSecret, clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
+        let clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
         let password, urlSecret; // File upload system
-        
+
         try {
-            // Try new text upload system first - check for isTextUpload or quickShareSecret too
-            if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined || 
-                requestBody.isTextUpload || requestBody.quickShareSecret) {
+            // Try new text upload system first - check for isTextUpload
+            if (requestBody.accessCodeHash || requestBody.requiresAccessCode !== undefined ||
+                requestBody.isTextUpload) {
                 console.log('🔍 Using NEW text upload system');
-                ({ quickShareSecret, accessCodeHash: clientAccessCodeHash, requiresAccessCode, 
+                ({ accessCodeHash: clientAccessCodeHash, requiresAccessCode,
                    textContent, isTextUpload, contentType } = requestBody);
             } else {
                 console.log('🔍 Using OLD file upload system');
@@ -29,18 +29,16 @@ class UploadValidator {
                 requiresAccessCode = !!password;
                 clientAccessCodeHash = password; // Use password as access code hash for legacy
             }
-            
-            console.log('🔑 Upload complete request body:', { 
-                quickShareSecret: quickShareSecret,
+
+            console.log('🔑 Upload complete request body:', {
                 hasAccessCodeHash: !!clientAccessCodeHash,
                 requiresAccessCode: requiresAccessCode,
                 isTextUpload: isTextUpload,
                 contentType: contentType,
                 fullRequestBody: requestBody
             });
-            
+
             return {
-                quickShareSecret,
                 clientAccessCodeHash,
                 requiresAccessCode,
                 textContent,

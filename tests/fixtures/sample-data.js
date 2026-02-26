@@ -130,7 +130,6 @@ const sampleRequestBodies = {
     urlSecret: 'legacy-url-secret-789'
   },
   quickShare: {
-    quickShareSecret: 'quick-secret-abc123',
     textContent: 'Quick share text content',
     isTextUpload: true,
     contentType: 'text'

@@ -52,19 +52,18 @@ describe('UploadValidator', () => {
         const result = UploadValidator.parseUploadRequest(requestBody);
 
         expect(result).toMatchObject({
-          quickShareSecret: undefined,
           clientAccessCodeHash: 'hash123',
           requiresAccessCode: true,
           textContent: 'Sample text content',
           isTextUpload: true,
           contentType: 'text'
         });
+        expect(result.quickShareSecret).toBeUndefined();
         expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
       });
 
-      test('should parse new text upload system with quickShareSecret', () => {
+      test('should parse new text upload system for Quick Share (no quickShareSecret)', () => {
         const requestBody = {
-          quickShareSecret: 'secret123',
           textContent: 'Quick share content',
           isTextUpload: true,
           contentType: 'text'
@@ -73,11 +72,11 @@ describe('UploadValidator', () => {
         const result = UploadValidator.parseUploadRequest(requestBody);
 
         expect(result).toMatchObject({
-          quickShareSecret: 'secret123',
           textContent: 'Quick share content',
           isTextUpload: true,
           contentType: 'text'
         });
+        expect(result.quickShareSecret).toBeUndefined();
         expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
       });
 
@@ -113,20 +112,19 @@ describe('UploadValidator', () => {
         expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
       });
 
-      test('should handle new system with all fields', () => {
+      test('should handle new system with all fields (no quickShareSecret)', () => {
         const requestBody = {
           accessCodeHash: 'complete-hash',
           requiresAccessCode: true,
           textContent: 'Complete text content',
           isTextUpload: true,
           contentType: 'text',
-          quickShareSecret: 'complete-secret',
           customField: 'custom-value'
         };
 
         const result = UploadValidator.parseUploadRequest(requestBody);
 
-        expect(result.quickShareSecret).toBe('complete-secret');
+        expect(result.quickShareSecret).toBeUndefined();
         expect(result.clientAccessCodeHash).toBe('complete-hash');
         expect(result.requiresAccessCode).toBe(true);
         expect(result.textContent).toBe('Complete text content');
@@ -328,13 +326,6 @@ describe('UploadValidator', () => {
         expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
       });
 
-      test('quickShareSecret should trigger new system', () => {
-        const requestBody = { quickShareSecret: 'secret' };
-        const result = UploadValidator.parseUploadRequest(requestBody);
-        
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
-      });
-
       test('absence of new system indicators should use legacy system', () => {
         const requestBody = { 
           someOtherField: 'value',
@@ -351,8 +342,7 @@ describe('UploadValidator', () => {
           { requiresAccessCode: true },
           { requiresAccessCode: false },
           { isTextUpload: true },
-          { isTextUpload: false },
-          { quickShareSecret: 'secret' }
+          { isTextUpload: false }
         ];
 
         indicators.forEach(indicator => {
@@ -398,9 +388,8 @@ describe('UploadValidator', () => {
     });
 
     describe('Data Integrity', () => {
-      test('should preserve all fields from new system', () => {
+      test('should preserve all fields from new system (no quickShareSecret)', () => {
         const requestBody = {
-          quickShareSecret: 'secret',
           accessCodeHash: 'hash',
           requiresAccessCode: true,
           textContent: 'content',
@@ -411,7 +400,7 @@ describe('UploadValidator', () => {
 
         const result = UploadValidator.parseUploadRequest(requestBody);
 
-        expect(result.quickShareSecret).toBe('secret');
+        expect(result.quickShareSecret).toBeUndefined();
         expect(result.clientAccessCodeHash).toBe('hash');
         expect(result.requiresAccessCode).toBe(true);
         expect(result.textContent).toBe('content');

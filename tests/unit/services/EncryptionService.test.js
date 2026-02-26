@@ -39,7 +39,7 @@ describe('EncryptionService', () => {
 
   describe('processAccessCode', () => {
     describe('Quick Share Scenarios', () => {
-      test('should handle Quick Share with access code', () => {
+      test('should handle Quick Share with zero-knowledge (no secret sent to server)', () => {
         const session = {
           upload_id: 'upload-123',
           has_password: false,
@@ -47,15 +47,16 @@ describe('EncryptionService', () => {
         };
 
         const requestData = {
-          quickShareSecret: 'quick-secret-123',
-          clientAccessCodeHash: 'client-hash-456',
-          requiresAccessCode: true
+          requiresAccessCode: false
         };
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
         expect(result).toBeDefined();
         expect(typeof result).toBe('object');
+        expect(result.passwordHash).toBeNull();
+        expect(result.shouldRequireAccessCode).toBe(false);
+        expect(result.accessCodeHash).toBeNull();
 
         // Verify simplified logging occurred (no sensitive data)
         expect(mockConsole.log).toHaveBeenCalledWith(
@@ -72,20 +73,22 @@ describe('EncryptionService', () => {
         };
 
         const requestData = {
-          quickShareSecret: 'quick-secret-456',
           requiresAccessCode: false
         };
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
         expect(result).toBeDefined();
+        expect(result.passwordHash).toBeNull();
+        expect(result.shouldRequireAccessCode).toBe(false);
+        expect(result.accessCodeHash).toBeNull();
         expect(mockConsole.log).toHaveBeenCalledWith(
           expect.stringContaining('Processing access code for upload:'),
           'upload-456'
         );
       });
 
-      test('should handle Quick Share with empty secret', () => {
+      test('should handle Quick Share - server never receives secret', () => {
         const session = {
           upload_id: 'upload-789',
           has_password: false,
@@ -93,13 +96,15 @@ describe('EncryptionService', () => {
         };
 
         const requestData = {
-          quickShareSecret: '',
           requiresAccessCode: false
         };
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
         expect(result).toBeDefined();
+        expect(result.passwordHash).toBeNull();
+        expect(result.shouldRequireAccessCode).toBe(false);
+        expect(result.accessCodeHash).toBeNull();
         expect(mockConsole.log).toHaveBeenCalledWith(
           expect.stringContaining('Processing access code for upload:'),
           'upload-789'
@@ -268,7 +273,6 @@ describe('EncryptionService', () => {
 
         incompleteSessions.forEach((session, index) => {
           const requestData = {
-            quickShareSecret: 'test-secret',
             requiresAccessCode: false
           };
 
@@ -288,7 +292,6 @@ describe('EncryptionService', () => {
 
         const incompleteRequestData = [
           {},
-          { quickShareSecret: 'test' },
           { requiresAccessCode: true },
           null,
           undefined
@@ -316,7 +319,6 @@ describe('EncryptionService', () => {
         });
 
         const requestData = {
-          quickShareSecret: 'test-secret',
           clientAccessCodeHash: 'test-hash',
           requiresAccessCode: true
         };
@@ -384,7 +386,6 @@ describe('EncryptionService', () => {
         }));
 
         const requestDataArray = sessions.map((_, i) => ({
-          quickShareSecret: `secret-${i}`,
           clientAccessCodeHash: `hash-${i}`,
           requiresAccessCode: i % 2 === 0
         }));

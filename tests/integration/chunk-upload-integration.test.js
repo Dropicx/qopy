@@ -402,7 +402,7 @@ describe('Chunk Upload Integration Tests', () => {
       expect(metadata.actualFileSize).toBe(fileSize);
     });
 
-    test('should handle Quick Share with chunked files', async () => {
+    test('should handle Quick Share with chunked files (zero-knowledge)', async () => {
       const uploadId = 'test-quickshare-chunks';
       const fileSize = CRITICAL_SIZES.DOUBLE_THRESHOLD;
       const fileData = createTestFile(fileSize, 'Q'); // 'Q' for Quick
@@ -412,14 +412,13 @@ describe('Chunk Upload Integration Tests', () => {
       const session = await createUploadSession(uploadId, chunks.length, fileSize);
       session.quick_share = true; // Mark as quick share
 
-      // Test Quick Share encryption
-      const quickShareSecret = 'quick-secret-789';
+      // Test Quick Share encryption - zero-knowledge, no secret sent to server
       const encryptionConfig = EncryptionService.processAccessCode(
         session,
-        { quickShareSecret }
+        { requiresAccessCode: false }
       );
 
-      expect(encryptionConfig.passwordHash).toBe(quickShareSecret);
+      expect(encryptionConfig.passwordHash).toBeNull();
       expect(encryptionConfig.shouldRequireAccessCode).toBe(false);
 
       // Assemble file
@@ -427,9 +426,9 @@ describe('Chunk Upload Integration Tests', () => {
       cleanupPaths.push(outputPath);
 
       const assembledPath = await FileAssemblyService.assembleFile(
-        uploadId, 
-        session, 
-        testStoragePath, 
+        uploadId,
+        session,
+        testStoragePath,
         outputPath
       );
 

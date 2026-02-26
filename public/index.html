@@ -191,7 +191,7 @@
                         <label class="checkbox-label">
                             <input type="checkbox" id="quick-share-checkbox">
                             <span class="checkmark"></span>
-                            Quick Share Mode (6-digit code, 5min expiry, basic encryption, self-destruct optional)
+                            Quick Share Mode (6-digit code, 5min expiry, zero-knowledge encryption, self-destruct optional)
                         </label>
                     </div>
                 </div>
@@ -747,7 +747,7 @@
                     <input 
                         type="text" 
                         id="clip-id-input" 
-                        placeholder="Enter clip ID (4 or 10 characters, e.g. X8K2 or X8K2M9N4P7)"
+                        placeholder="Enter clip ID (6 or 10 characters, e.g. X8K2M9 or X8K2M9N4P7)"
                         maxlength="10"
                         style="text-transform: uppercase;"
                         pattern="[A-Z0-9]*"
@@ -760,11 +760,27 @@
 
                 <div id="password-section" class="input-group hidden">
                     <label for="retrieve-password-input" class="label">Access Code:</label>
-                    <input 
-                        type="password" 
-                        id="retrieve-password-input" 
+                    <input
+                        type="password"
+                        id="retrieve-password-input"
                         placeholder="Enter access code"
                         maxlength="128"
+                        class="input"
+                    >
+                </div>
+
+                <div id="quick-share-secret-section" class="input-group hidden">
+                    <label for="quick-share-secret-input" class="label">Quick Share Secret:</label>
+                    <input
+                        type="text"
+                        id="quick-share-secret-input"
+                        placeholder="Enter 6-character secret"
+                        maxlength="6"
+                        style="text-transform: uppercase;"
+                        pattern="[A-Z0-9]*"
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="characters"
                         class="input"
                     >
                 </div>
@@ -822,6 +838,14 @@
                         <div class="copy-container">
                             <input type="text" id="clip-id" readonly class="copy-input">
                             <button id="copy-id-button" class="copy-button">Copy</button>
+                        </div>
+                    </div>
+
+                    <div class="result-section" id="verbal-code-section" style="display: none;">
+                        <label class="label">Verbal Code (for sharing by voice):</label>
+                        <div class="copy-container">
+                            <span id="verbal-code-display" style="font-size: 1.4em; font-weight: bold; letter-spacing: 2px; font-family: monospace; padding: 8px 12px; display: inline-block;"></span>
+                            <button id="copy-verbal-button" class="copy-button">Copy</button>
                         </div>
                     </div>
 

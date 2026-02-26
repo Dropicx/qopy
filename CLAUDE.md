@@ -64,7 +64,7 @@ Services follow Single Responsibility Principle and are dependency-injectable:
 **Core Services**:
 - `FileService.js` - File retrieval, streaming, range requests, content-type detection
 - `EncryptionService.js` - Encryption validation, access code processing (75 test cases)
-- `QuickShareService.js` - Quick share mode with 4-char codes, 5-min expiration (45 test cases)
+- `QuickShareService.js` - Quick share mode with 6-char codes, 5-min expiration (45 test cases)
 - `StorageService.js` - Database operations, file storage abstraction (23 test cases)
 - `FileAssemblyService.js` - Multi-part file assembly, size validation (50 test cases)
 
@@ -96,7 +96,7 @@ PostgreSQL with two main tables:
 **clips table**:
 ```sql
 id SERIAL PRIMARY KEY
-clip_id VARCHAR(10) UNIQUE NOT NULL  -- 4-char (quick) or 10-char (enhanced)
+clip_id VARCHAR(10) UNIQUE NOT NULL  -- 6-char (quick) or 10-char (enhanced)
 content BYTEA NOT NULL                -- Binary encrypted content
 password_hash VARCHAR(60)             -- Bcrypt hash (if password-protected)
 expiration_time BIGINT NOT NULL       -- Unix timestamp
@@ -153,10 +153,10 @@ POST /api/upload/complete/:uploadId → assemble & validate
 5. Share URL: `/clip/{clipId}#{urlSecret}` (fragment never sent to server)
 
 **Quick Share Mode**:
-- 4-character clip IDs for fast sharing
+- 6-character clip IDs for fast sharing
 - 5-minute fixed expiration
-- Still encrypted but no URL secret
-- Simplified for non-sensitive content
+- URL secret in fragment (6-char, never sent to server)
+- Same zero-knowledge guarantees as Enhanced mode
 
 **Zero-Knowledge Guarantees**:
 - Server never sees plaintext content

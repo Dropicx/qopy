@@ -176,10 +176,9 @@ describe('Services Integration Tests', () => {
       expect(EncryptionService.processAccessCode).toHaveBeenCalled();
     });
 
-    test('should handle Quick Share workflow', async () => {
+    test('should handle Quick Share workflow (zero-knowledge)', async () => {
       UploadValidator.parseUploadRequest.mockReturnValue({
         isTextUpload: true,
-        quickShareSecret: 'quick-secret-123',
         requiresAccessCode: false
       });
 
@@ -190,11 +189,12 @@ describe('Services Integration Tests', () => {
       });
 
       EncryptionService.processAccessCode.mockReturnValue({
+        passwordHash: null,
+        accessCodeHash: null,
         shouldRequireAccessCode: false
       });
 
       const requestBody = {
-        quickShareSecret: 'quick-secret-123',
         textContent: 'Quick share content',
         isTextUpload: true
       };
@@ -203,9 +203,11 @@ describe('Services Integration Tests', () => {
       const quickShareSettings = QuickShareService.applyQuickShareSettings({ isQuickShare: true });
       const encryptionResult = EncryptionService.processAccessCode({}, parsedRequest);
 
-      expect(parsedRequest.quickShareSecret).toBe('quick-secret-123');
+      expect(parsedRequest.quickShareSecret).toBeUndefined();
       expect(quickShareSettings.maxViews).toBe(1);
       expect(encryptionResult.shouldRequireAccessCode).toBe(false);
+      expect(encryptionResult.passwordHash).toBeNull();
+      expect(encryptionResult.accessCodeHash).toBeNull();
     });
   });
 

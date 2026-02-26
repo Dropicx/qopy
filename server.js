@@ -743,12 +743,6 @@ async function handleClipRetrieval(req, res, clip, clipId) {
           isTextFile: true // Special flag to indicate this should be decrypted and shown as text
         };
         
-        // For Quick Share clips (short ID), include the secret for decryption
-        if (clipId.length <= 6 && clip.password_hash) {
-          console.log('🔑 Adding quickShareSecret for short clip:', clipId);
-          response.quickShareSecret = clip.password_hash;
-        }
-        
         return res.json(response);
       } else {
         // Regular file - redirect to file endpoint
@@ -808,11 +802,7 @@ async function handleClipRetrieval(req, res, clip, clipId) {
     if (clip.filesize) response.filesize = clip.filesize;
     if (clip.mime_type) response.mimeType = clip.mime_type;
 
-    // For Quick Share clips, include the secret for decryption
-    if (clipId.length <= 6 && clip.password_hash) {
-      console.log('🔑 Adding quickShareSecret for short clip (inline):', clipId);
-      response.quickShareSecret = clip.password_hash;
-    } else if (clipId.length > 6) {
+    if (clipId.length > 6) {
       response.hasPassword = clip.requires_access_code || false;
     }
     

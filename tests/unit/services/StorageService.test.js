@@ -138,10 +138,10 @@ describe('StorageService', () => {
       expect(result).toEqual({ passwordHash: null });
     });
 
-    test('should return quickShareSecret as hash for QuickShare', () => {
+    test('should return null hash for QuickShare (zero-knowledge)', () => {
       const secret = 'test-quick-share-secret';
       const result = storageService.determinePasswordHash(true, secret, false);
-      expect(result).toEqual({ passwordHash: secret });
+      expect(result).toEqual({ passwordHash: null });
     });
 
     test('should return client-encrypted for password protected', () => {
@@ -149,10 +149,10 @@ describe('StorageService', () => {
       expect(result).toEqual({ passwordHash: 'client-encrypted' });
     });
 
-    test('should prioritize quickShareSecret over hasPassword', () => {
+    test('should return null for quickShare even when hasPassword is true (zero-knowledge)', () => {
       const secret = 'priority-test-secret';
       const result = storageService.determinePasswordHash(true, secret, true);
-      expect(result).toEqual({ passwordHash: secret });
+      expect(result).toEqual({ passwordHash: null });
     });
 
     test('should handle empty quickShareSecret', () => {
@@ -160,21 +160,18 @@ describe('StorageService', () => {
       expect(result).toEqual({ passwordHash: null });
     });
 
-    test('should return error for long quickShareSecret', () => {
+    test('should return null for long quickShareSecret (zero-knowledge, secret ignored)', () => {
       const longSecret = 'a'.repeat(61);
-      console.error = jest.fn(); // Mock console.error
-      
+
       const result = storageService.determinePasswordHash(true, longSecret, false);
-      
-      expect(result.error).toBe('Secret too long');
-      expect(result.message).toBe('Generated secret is too long for storage');
-      expect(console.error).toHaveBeenCalledWith('❌ Quick Share secret too long:', 61);
+
+      expect(result).toEqual({ passwordHash: null });
     });
 
-    test('should handle exactly 60 character secret', () => {
+    test('should handle exactly 60 character secret (ignored for zero-knowledge)', () => {
       const secret60 = 'a'.repeat(60);
       const result = storageService.determinePasswordHash(true, secret60, false);
-      expect(result).toEqual({ passwordHash: secret60 });
+      expect(result).toEqual({ passwordHash: null });
     });
 
     test('should handle null quickShareSecret with quickShare true', () => {

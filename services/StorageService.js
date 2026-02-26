@@ -52,23 +52,16 @@ class StorageService {
     /**
      * Determine password hash based on clip type
      * @param {boolean} quickShare - Is quick share
-     * @param {string} quickShareSecret - Quick share secret
+     * @param {string} _quickShareSecret - Unused (zero-knowledge: secret never sent to server)
      * @param {boolean} hasPassword - Has password protection
      * @returns {Object} Password hash result
      */
-    determinePasswordHash(quickShare, quickShareSecret, hasPassword) {
+    determinePasswordHash(quickShare, _quickShareSecret, hasPassword) {
         let passwordHash = null;
-        
-        if (quickShare && quickShareSecret) {
-            // Quick Share: Store the secret in password_hash column
-            if (quickShareSecret.length > 60) {
-                console.error('❌ Quick Share secret too long:', quickShareSecret.length);
-                return {
-                    error: 'Secret too long',
-                    message: 'Generated secret is too long for storage'
-                };
-            }
-            passwordHash = quickShareSecret;
+
+        if (quickShare) {
+            // Quick Share: Zero-knowledge — no secret stored on server
+            passwordHash = null;
         } else if (hasPassword) {
             // Password-protected: Mark as client-encrypted
             passwordHash = 'client-encrypted';
