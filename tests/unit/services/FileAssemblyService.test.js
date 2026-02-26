@@ -1,16 +1,16 @@
 /*
  * Copyright (C) 2025 Qopy App
- * 
+ *
  * This file is part of Qopy.
- * 
+ *
  * Qopy is dual-licensed:
- * 
+ *
  * 1. GNU Affero General Public License v3.0 (AGPL-3.0)
  *    For open source use. See LICENSE-AGPL for details.
- * 
+ *
  * 2. Commercial License
  *    For proprietary/commercial use. Contact qopy.quiet156@passmail.net
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -19,23 +19,22 @@
 // Mock fs promises
 jest.mock('fs', () => ({
   promises: {
-    stat: jest.fn()
+    stat: jest.fn(),
+    access: jest.fn(),
+    readFile: jest.fn(),
+    writeFile: jest.fn(),
+    mkdir: jest.fn()
   }
 }));
 
-// Mock the server.js module
-jest.mock('../../../server.js', () => ({
-  assembleFile: jest.fn()
-}));
-
 const fs = require('fs').promises;
-const { assembleFile: mockAssembleFile } = require('../../../server.js');
 const FileAssemblyService = require('../../../services/FileAssemblyService');
 
 // Mock console methods to avoid spam during tests
 const mockConsole = {
   log: jest.fn(),
-  error: jest.fn()
+  error: jest.fn(),
+  warn: jest.fn()
 };
 
 beforeAll(() => {
@@ -51,8 +50,8 @@ describe('FileAssemblyService', () => {
     jest.clearAllMocks();
   });
 
-  describe('assembleFile', () => {
-    test('should assemble file successfully', async () => {
+  describe('assembleFileLegacy', () => {
+    test('should assemble file successfully via legacy wrapper', async () => {
       const uploadId = 'test-upload-123';
       const session = {
         upload_id: uploadId,
@@ -61,30 +60,25 @@ describe('FileAssemblyService', () => {
         chunk_count: 3
       };
       const expectedFilePath = '/path/to/assembled/file.txt';
+      const mockAssembleFileFn = jest.fn().mockResolvedValue(expectedFilePath);
 
-      mockAssembleFile.mockResolvedValue(expectedFilePath);
-
-      const result = await FileAssemblyService.assembleFile(uploadId, session);
+      const result = await FileAssemblyService.assembleFileLegacy(uploadId, session, mockAssembleFileFn);
 
       expect(result).toBe(expectedFilePath);
-      expect(mockAssembleFile).toHaveBeenCalledWith(uploadId, session);
-      expect(mockConsole.log).toHaveBeenCalledWith('📝 About to assemble file:', uploadId);
-      expect(mockConsole.log).toHaveBeenCalledWith('📝 File assembled successfully:', expectedFilePath);
+      expect(mockAssembleFileFn).toHaveBeenCalledWith(uploadId, session);
     });
 
     test('should handle assembly errors gracefully', async () => {
       const uploadId = 'error-upload-456';
       const session = { upload_id: uploadId };
       const assemblyError = new Error('Failed to assemble file chunks');
-
-      mockAssembleFile.mockRejectedValue(assemblyError);
+      const mockAssembleFileFn = jest.fn().mockRejectedValue(assemblyError);
 
       await expect(
-        FileAssemblyService.assembleFile(uploadId, session)
+        FileAssemblyService.assembleFileLegacy(uploadId, session, mockAssembleFileFn)
       ).rejects.toThrow('Failed to assemble file chunks');
 
-      expect(mockAssembleFile).toHaveBeenCalledWith(uploadId, session);
-      expect(mockConsole.log).toHaveBeenCalledWith('📝 About to assemble file:', uploadId);
+      expect(mockAssembleFileFn).toHaveBeenCalledWith(uploadId, session);
     });
 
     test('should handle various upload ID formats', async () => {
@@ -100,16 +94,13 @@ describe('FileAssemblyService', () => {
       for (const uploadId of uploadIds) {
         const session = { upload_id: uploadId };
         const expectedPath = `/path/to/${uploadId}.assembled`;
+        const mockAssembleFileFn = jest.fn().mockResolvedValue(expectedPath);
 
-        mockAssembleFile.mockResolvedValue(expectedPath);
-
-        const result = await FileAssemblyService.assembleFile(uploadId, session);
+        const result = await FileAssemblyService.assembleFileLegacy(uploadId, session, mockAssembleFileFn);
 
         expect(result).toBe(expectedPath);
-        expect(mockAssembleFile).toHaveBeenCalledWith(uploadId, session);
+        expect(mockAssembleFileFn).toHaveBeenCalledWith(uploadId, session);
       }
-
-      expect(mockAssembleFile).toHaveBeenCalledTimes(uploadIds.length);
     });
 
     test('should handle various session objects', async () => {
@@ -124,36 +115,115 @@ describe('FileAssemblyService', () => {
 
       for (const session of sessionVariations) {
         const expectedPath = `/assembled/${uploadId}`;
-        mockAssembleFile.mockResolvedValue(expectedPath);
+        const mockAssembleFileFn = jest.fn().mockResolvedValue(expectedPath);
 
-        const result = await FileAssemblyService.assembleFile(uploadId, session);
+        const result = await FileAssemblyService.assembleFileLegacy(uploadId, session, mockAssembleFileFn);
 
         expect(result).toBe(expectedPath);
-        expect(mockAssembleFile).toHaveBeenCalledWith(uploadId, session);
+        expect(mockAssembleFileFn).toHaveBeenCalledWith(uploadId, session);
       }
-
-      expect(mockAssembleFile).toHaveBeenCalledTimes(sessionVariations.length);
     });
 
-    test('should handle null or undefined parameters', async () => {
-      const testCases = [
-        { uploadId: null, session: {} },
-        { uploadId: undefined, session: {} },
-        { uploadId: 'valid-id', session: null },
-        { uploadId: 'valid-id', session: undefined },
-        { uploadId: null, session: null }
-      ];
+    test('should throw if assembleFile function not provided', async () => {
+      await expect(
+        FileAssemblyService.assembleFileLegacy('upload-123', {}, null)
+      ).rejects.toThrow('assembleFile function not provided');
 
-      for (const { uploadId, session } of testCases) {
-        mockAssembleFile.mockResolvedValue('/default/path');
+      await expect(
+        FileAssemblyService.assembleFileLegacy('upload-123', {}, undefined)
+      ).rejects.toThrow('assembleFile function not provided');
+    });
+  });
 
-        const result = await FileAssemblyService.assembleFile(uploadId, session);
+  describe('assembleFile', () => {
+    test('should reject invalid parameters', async () => {
+      await expect(
+        FileAssemblyService.assembleFile(null, {}, '/storage', '/output')
+      ).rejects.toThrow('Invalid parameters for file assembly');
 
-        expect(result).toBe('/default/path');
-        expect(mockAssembleFile).toHaveBeenCalledWith(uploadId, session);
-      }
+      await expect(
+        FileAssemblyService.assembleFile('id', null, '/storage', '/output')
+      ).rejects.toThrow('Invalid parameters for file assembly');
 
-      expect(mockAssembleFile).toHaveBeenCalledTimes(testCases.length);
+      await expect(
+        FileAssemblyService.assembleFile('id', {}, '/storage', '/output')
+      ).rejects.toThrow('Invalid parameters for file assembly');
+    });
+
+    test('should assemble single chunk file', async () => {
+      const chunkData = Buffer.from('hello world');
+      fs.access.mockResolvedValue();
+      fs.readFile.mockResolvedValue(chunkData);
+      fs.mkdir.mockResolvedValue();
+      fs.writeFile.mockResolvedValue();
+
+      const result = await FileAssemblyService.assembleFile(
+        'upload-1',
+        { total_chunks: 1 },
+        '/storage',
+        '/output/file.txt'
+      );
+
+      expect(result).toBe('/output/file.txt');
+      expect(fs.writeFile).toHaveBeenCalledWith('/output/file.txt', expect.any(Buffer));
+    });
+
+    test('should assemble multi-chunk file in order', async () => {
+      const chunk0 = Buffer.from('aaa');
+      const chunk1 = Buffer.from('bbb');
+      const chunk2 = Buffer.from('ccc');
+
+      fs.access.mockResolvedValue();
+      fs.readFile
+        .mockResolvedValueOnce(chunk0)
+        .mockResolvedValueOnce(chunk1)
+        .mockResolvedValueOnce(chunk2);
+      fs.mkdir.mockResolvedValue();
+      fs.writeFile.mockResolvedValue();
+
+      const result = await FileAssemblyService.assembleFile(
+        'upload-multi',
+        { total_chunks: 3 },
+        '/storage',
+        '/output/multi.bin'
+      );
+
+      expect(result).toBe('/output/multi.bin');
+      expect(fs.readFile).toHaveBeenCalledTimes(3);
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        '/output/multi.bin',
+        Buffer.concat([chunk0, chunk1, chunk2])
+      );
+    });
+
+    test('should throw when chunk is missing', async () => {
+      fs.access.mockRejectedValue(new Error('ENOENT'));
+
+      await expect(
+        FileAssemblyService.assembleFile(
+          'upload-missing',
+          { total_chunks: 2 },
+          '/storage',
+          '/output/file.txt'
+        )
+      ).rejects.toThrow('Failed to assemble file chunks');
+    });
+
+    test('should accept chunk_count as alternative to total_chunks', async () => {
+      const chunkData = Buffer.from('data');
+      fs.access.mockResolvedValue();
+      fs.readFile.mockResolvedValue(chunkData);
+      fs.mkdir.mockResolvedValue();
+      fs.writeFile.mockResolvedValue();
+
+      const result = await FileAssemblyService.assembleFile(
+        'upload-alt',
+        { chunk_count: 1 },
+        '/storage',
+        '/output/alt.txt'
+      );
+
+      expect(result).toBe('/output/alt.txt');
     });
   });
 
@@ -250,19 +320,36 @@ describe('FileAssemblyService', () => {
     });
   });
 
-  describe('Performance Tests', () => {
-    test('should assemble files within reasonable time', async () => {
-      const uploadId = 'performance-test';
-      const session = { upload_id: uploadId };
+  describe('validateChunkCompleteness', () => {
+    test('should return true when all chunks uploaded', () => {
+      expect(FileAssemblyService.validateChunkCompleteness(5, 5)).toBe(true);
+    });
 
-      mockAssembleFile.mockResolvedValue('/assembled/file.txt');
+    test('should return true when over-uploaded', () => {
+      expect(FileAssemblyService.validateChunkCompleteness(7, 5)).toBe(true);
+    });
+
+    test('should return false when incomplete', () => {
+      expect(FileAssemblyService.validateChunkCompleteness(3, 5)).toBe(false);
+    });
+
+    test('should return false for zero uploads', () => {
+      expect(FileAssemblyService.validateChunkCompleteness(0, 5)).toBe(false);
+    });
+  });
+
+  describe('Performance Tests', () => {
+    test('should assemble files within reasonable time via legacy wrapper', async () => {
+      const mockAssembleFileFn = jest.fn().mockResolvedValue('/assembled/file.txt');
 
       const startTime = process.hrtime.bigint();
-      const result = await FileAssemblyService.assembleFile(uploadId, session);
+      const result = await FileAssemblyService.assembleFileLegacy(
+        'performance-test', { upload_id: 'performance-test' }, mockAssembleFileFn
+      );
       const endTime = process.hrtime.bigint();
 
       const durationMs = Number(endTime - startTime) / 1000000;
-      expect(durationMs).toBeLessThan(100); // Should complete in less than 100ms
+      expect(durationMs).toBeLessThan(100);
       expect(result).toBe('/assembled/file.txt');
     });
 
@@ -277,24 +364,21 @@ describe('FileAssemblyService', () => {
       const endTime = process.hrtime.bigint();
 
       const durationMs = Number(endTime - startTime) / 1000000;
-      expect(durationMs).toBeLessThan(50); // Should complete in less than 50ms
+      expect(durationMs).toBeLessThan(50);
       expect(size).toBe(1024);
     });
 
-    test('should handle concurrent assembly operations', async () => {
+    test('should handle concurrent assembly operations via legacy', async () => {
       const concurrentOperations = Array(5).fill(null).map((_, i) => ({
         uploadId: `concurrent-${i}`,
         session: { upload_id: `concurrent-${i}`, chunk_count: i + 1 },
         expectedPath: `/assembled/concurrent-${i}.txt`
       }));
 
-      concurrentOperations.forEach(({ expectedPath }) => {
-        mockAssembleFile.mockResolvedValueOnce(expectedPath);
+      const promises = concurrentOperations.map(({ uploadId, session, expectedPath }) => {
+        const fn = jest.fn().mockResolvedValue(expectedPath);
+        return FileAssemblyService.assembleFileLegacy(uploadId, session, fn);
       });
-
-      const promises = concurrentOperations.map(({ uploadId, session }) =>
-        FileAssemblyService.assembleFile(uploadId, session)
-      );
 
       const results = await Promise.all(promises);
 
@@ -302,8 +386,6 @@ describe('FileAssemblyService', () => {
       results.forEach((result, i) => {
         expect(result).toBe(concurrentOperations[i].expectedPath);
       });
-
-      expect(mockAssembleFile).toHaveBeenCalledTimes(5);
     });
 
     test('should handle concurrent file size operations', async () => {
@@ -332,25 +414,24 @@ describe('FileAssemblyService', () => {
   });
 
   describe('Error Recovery', () => {
-    test('should handle temporary assembly failures', async () => {
+    test('should handle temporary assembly failures via legacy', async () => {
       const uploadId = 'retry-test';
       const session = { upload_id: uploadId };
 
-      // First call fails, second succeeds
-      mockAssembleFile
+      const mockAssembleFileFn = jest.fn()
         .mockRejectedValueOnce(new Error('Temporary failure'))
         .mockResolvedValueOnce('/assembled/retry-file.txt');
 
       // First attempt should fail
       await expect(
-        FileAssemblyService.assembleFile(uploadId, session)
+        FileAssemblyService.assembleFileLegacy(uploadId, session, mockAssembleFileFn)
       ).rejects.toThrow('Temporary failure');
 
       // Second attempt should succeed
-      const result = await FileAssemblyService.assembleFile(uploadId, session);
+      const result = await FileAssemblyService.assembleFileLegacy(uploadId, session, mockAssembleFileFn);
       expect(result).toBe('/assembled/retry-file.txt');
 
-      expect(mockAssembleFile).toHaveBeenCalledTimes(2);
+      expect(mockAssembleFileFn).toHaveBeenCalledTimes(2);
     });
 
     test('should handle filesystem permission errors', async () => {
@@ -366,19 +447,18 @@ describe('FileAssemblyService', () => {
   });
 
   describe('Edge Cases', () => {
-    test('should handle extremely long file paths', async () => {
+    test('should handle extremely long file paths via legacy', async () => {
       const longPath = '/very/long/path/'.repeat(100) + 'file.txt';
       const session = { upload_id: 'long-path-test' };
+      const mockAssembleFileFn = jest.fn().mockResolvedValue(longPath);
 
-      mockAssembleFile.mockResolvedValue(longPath);
-
-      const result = await FileAssemblyService.assembleFile('long-path-test', session);
+      const result = await FileAssemblyService.assembleFileLegacy('long-path-test', session, mockAssembleFileFn);
 
       expect(result).toBe(longPath);
-      expect(mockAssembleFile).toHaveBeenCalledWith('long-path-test', session);
+      expect(mockAssembleFileFn).toHaveBeenCalledWith('long-path-test', session);
     });
 
-    test('should handle special characters in upload IDs', async () => {
+    test('should handle special characters in upload IDs via legacy', async () => {
       const specialIds = [
         'id-with-spaces test',
         'id.with.dots',
@@ -390,27 +470,25 @@ describe('FileAssemblyService', () => {
       for (const uploadId of specialIds) {
         const session = { upload_id: uploadId };
         const expectedPath = `/special/${uploadId}`;
+        const mockAssembleFileFn = jest.fn().mockResolvedValue(expectedPath);
 
-        mockAssembleFile.mockResolvedValue(expectedPath);
-
-        const result = await FileAssemblyService.assembleFile(uploadId, session);
+        const result = await FileAssemblyService.assembleFileLegacy(uploadId, session, mockAssembleFileFn);
 
         expect(result).toBe(expectedPath);
-        expect(mockAssembleFile).toHaveBeenCalledWith(uploadId, session);
+        expect(mockAssembleFileFn).toHaveBeenCalledWith(uploadId, session);
       }
     });
 
-    test('should handle circular references in session objects', async () => {
+    test('should handle circular references in session objects via legacy', async () => {
       const uploadId = 'circular-test';
       const circularSession = { upload_id: uploadId };
       circularSession.self = circularSession;
+      const mockAssembleFileFn = jest.fn().mockResolvedValue('/circular/file.txt');
 
-      mockAssembleFile.mockResolvedValue('/circular/file.txt');
-
-      const result = await FileAssemblyService.assembleFile(uploadId, circularSession);
+      const result = await FileAssemblyService.assembleFileLegacy(uploadId, circularSession, mockAssembleFileFn);
 
       expect(result).toBe('/circular/file.txt');
-      expect(mockAssembleFile).toHaveBeenCalledWith(uploadId, circularSession);
+      expect(mockAssembleFileFn).toHaveBeenCalledWith(uploadId, circularSession);
     });
   });
 });

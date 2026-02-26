@@ -5,6 +5,15 @@
 
 const { UploadCompletionService, UploadCompletionError } = require('../../../services/UploadCompletionService');
 
+// Mock console to avoid spam
+const originalConsole = global.console;
+beforeAll(() => {
+  global.console = { ...originalConsole, log: jest.fn(), error: jest.fn(), warn: jest.fn() };
+});
+afterAll(() => {
+  global.console = originalConsole;
+});
+
 // Mock dependencies
 const mockPool = {};
 const mockRedis = {};
@@ -32,8 +41,16 @@ describe('UploadCompletionService', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        
-        // Setup service
+
+        // Setup mock repository BEFORE constructing service
+        mockRepository = {
+            createClip: jest.fn(),
+            updateSessionStatistics: jest.fn(),
+            cleanupUploadSession: jest.fn()
+        };
+        UploadRepository.mockImplementation(() => mockRepository);
+
+        // Setup service (constructor calls new UploadRepository)
         service = new UploadCompletionService(
             mockPool,
             mockRedis,
@@ -42,14 +59,6 @@ describe('UploadCompletionService', () => {
             mockGenerateClipId,
             mockGetUploadSession
         );
-
-        // Setup mock repository
-        mockRepository = {
-            createClip: jest.fn(),
-            updateSessionStatistics: jest.fn(),
-            cleanupUploadSession: jest.fn()
-        };
-        UploadRepository.mockImplementation(() => mockRepository);
     });
 
     describe('Constructor', () => {
@@ -85,7 +94,7 @@ describe('UploadCompletionService', () => {
             mockGetUploadSession.mockResolvedValue({ id: 'session-123' });
             mockGenerateClipId.mockReturnValue('clip-123');
             
-            FileAssemblyService.assembleFile.mockResolvedValue('/path/to/file');
+            FileAssemblyService.assembleFileLegacy.mockResolvedValue('/path/to/file');
             FileAssemblyService.getFileSize.mockResolvedValue(1024);
             
             EncryptionService.processAccessCode.mockReturnValue({
@@ -142,7 +151,7 @@ describe('UploadCompletionService', () => {
             expect(mockGetUploadSession).toHaveBeenCalledWith(mockUploadId);
             expect(UploadValidator.validateSession).toHaveBeenCalled();
             expect(UploadValidator.validateChunks).toHaveBeenCalled();
-            expect(FileAssemblyService.assembleFile).toHaveBeenCalled();
+            expect(FileAssemblyService.assembleFileLegacy).toHaveBeenCalled();
             expect(FileAssemblyService.getFileSize).toHaveBeenCalled();
             expect(mockGenerateClipId).toHaveBeenCalled();
             expect(EncryptionService.processAccessCode).toHaveBeenCalled();
@@ -209,7 +218,7 @@ describe('UploadCompletionService', () => {
             UploadValidator.validateChunks.mockReturnValue({ isComplete: true });
             mockGetUploadSession.mockResolvedValue({});
             
-            FileAssemblyService.assembleFile.mockRejectedValue(new Error('Assembly failed'));
+            FileAssemblyService.assembleFileLegacy.mockRejectedValue(new Error('Assembly failed'));
 
             await expect(service.completeUpload('upload-123', {}, mockRequest))
                 .rejects.toThrow('Assembly failed');
@@ -224,7 +233,7 @@ describe('UploadCompletionService', () => {
             mockGetUploadSession.mockResolvedValue({});
             mockGenerateClipId.mockReturnValue('clip-123');
             
-            FileAssemblyService.assembleFile.mockResolvedValue('/path/to/file');
+            FileAssemblyService.assembleFileLegacy.mockResolvedValue('/path/to/file');
             FileAssemblyService.getFileSize.mockResolvedValue(1024);
             EncryptionService.processAccessCode.mockReturnValue({});
             EncryptionService.createFileMetadata.mockReturnValue({});
@@ -247,7 +256,7 @@ describe('UploadCompletionService', () => {
             UploadValidator.validateChunks.mockReturnValue({ isComplete: true });
             mockGetUploadSession.mockResolvedValue({});
             mockGenerateClipId.mockReturnValue('clip-123');
-            FileAssemblyService.assembleFile.mockResolvedValue('/path');
+            FileAssemblyService.assembleFileLegacy.mockResolvedValue('/path');
             FileAssemblyService.getFileSize.mockResolvedValue(1024);
             EncryptionService.processAccessCode.mockReturnValue({});
             EncryptionService.createFileMetadata.mockReturnValue({});
