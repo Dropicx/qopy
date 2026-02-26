@@ -22,39 +22,25 @@ class EncryptionService {
         let shouldRequireAccessCode = false;
 
         try {
-            console.log('🔐 Processing access code for upload:', session?.upload_id);
-        } catch (error) {
-            console.error('❌ Error in Zero-Knowledge Access Code Analysis:', error);
-        }
-
-        try {
             if (session && session.quick_share) {
                 // Quick Share: Zero-knowledge — no secret stored on server
-                console.log('🔐 Quick Share (zero-knowledge) - no secret stored:', session?.upload_id);
                 passwordHash = null;
                 accessCodeHash = null;
                 shouldRequireAccessCode = false;
             } else if (requiresAccessCode && isValidAccessCodeHash) {
                 // Normal Share with Password: Use client-generated access code hash
-                console.log('🔐 Using client-side access code hash (Zero-Knowledge):', session?.upload_id);
                 accessCodeHash = clientAccessCodeHash;
-                shouldRequireAccessCode = true; // FORCE TRUE
+                shouldRequireAccessCode = true;
                 passwordHash = 'client-encrypted'; // Mark as client-encrypted for legacy compatibility
-                console.log('🔐 Access code hash stored for upload:', session?.upload_id);
             } else {
-                console.log('🔐 No access code provided for upload:', session?.upload_id);
                 passwordHash = null;
                 accessCodeHash = null;
                 shouldRequireAccessCode = false;
             }
         } catch (error) {
-            console.error('❌ Error in upload logic:', error);
+            console.error('Error processing access code:', error);
             throw error;
         }
-
-        // NEW: Zero-Knowledge File System - No download tokens needed
-        // All authentication happens via access codes, URL secrets remain client-side
-        console.log('🔐 Zero-Knowledge File System: No download tokens needed');
 
         // FORCE requiresAccessCode to boolean
         if (requiresAccessCode && isValidAccessCodeHash) {
@@ -76,17 +62,13 @@ class EncryptionService {
      * @returns {Object} - File metadata
      */
     static createFileMetadata(uploadId, session, actualFilesize) {
-        const fileMetadata = {
+        return {
             uploadId,
             originalUploadSession: true,
-            originalFileSize: Number(session?.filesize ?? session?.file_size ?? actualFilesize), // Store original size in metadata
+            originalFileSize: Number(session?.filesize ?? session?.file_size ?? actualFilesize),
             actualFileSize: actualFilesize,
-            // No downloadToken - using Zero-Knowledge access code system
             zeroKnowledge: true
         };
-
-        console.log('📝 File metadata created for upload:', uploadId);
-        return fileMetadata;
     }
 }
 

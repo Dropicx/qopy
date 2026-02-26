@@ -29,8 +29,6 @@ const fs = require('fs-extra');
 const multer = require('multer');
 const crypto = require('crypto');
 const mime = require('mime-types');
-const sharp = require('sharp');
-
 // Import services
 const FileService = require('./services/FileService');
 const createAccessValidationMiddleware = require('./middleware/accessValidation');
@@ -54,7 +52,6 @@ const upload = multer({
                 await fs.ensureDir(tempDir);
                 cb(null, tempDir);
             } catch (error) {
-                console.error('❌ Error creating temp directory:', error);
                 cb(error);
             }
         },
@@ -76,11 +73,6 @@ const redisManager = require('./config/redis');
 (async () => {
     try {
         await redisManager.connect();
-        if (redisManager.isConnected()) {
-            console.log('🔗 Using centralized Redis manager');
-        } else {
-            console.warn('⚠️ Redis not available, using in-memory cache');
-        }
     } catch (error) {
         console.warn('⚠️ Redis not available, using in-memory cache');
     }
@@ -119,15 +111,11 @@ async function initializeStorage() {
             const uid = execSync('id -u', { encoding: 'utf8' }).trim();
             const gid = execSync('id -g', { encoding: 'utf8' }).trim();
             
-            console.log(`🔧 Current user: ${uid}:${gid}`);
-            
             // Set proper ownership and permissions
             execSync(`chown -R ${uid}:${gid} ${STORAGE_PATH}`);
             execSync(`chmod -R 775 ${STORAGE_PATH}`);
-            
-            console.log(`✅ Fixed permissions for storage directories`);
         } catch (permError) {
-            console.warn(`⚠️ Could not fix permissions (this is normal in some environments): ${permError.message}`);
+            // Expected in most environments - permissions managed by platform
         }
         
         // Test write permissions
@@ -135,20 +123,13 @@ async function initializeStorage() {
         await fs.writeFile(testFile, 'test');
         await fs.remove(testFile);
         
-        console.log(`✅ Storage directories initialized at: ${STORAGE_PATH}`);
-        console.log(`   - Chunks: ${chunksDir}`);
-        console.log(`   - Files: ${filesDir}`);
-        console.log(`   - Temp: ${tempDir}`);
+        console.log(`✅ Storage initialized at: ${STORAGE_PATH}`);
     } catch (error) {
         console.error('❌ Failed to initialize storage:', error);
         
         // Provide helpful error message for Railway deployment
         if (error.code === 'EACCES') {
-            console.error('💡 Railway Volume Setup Issue:');
-            console.error('   1. Make sure you have added a Volume plugin in Railway dashboard');
-            console.error('   2. Set RAILWAY_VOLUME_MOUNT_PATH environment variable to the volume path');
-            console.error('   3. The volume path should be something like: /var/lib/containers/railwayapp/bind-mounts/...');
-            console.error('   4. Restart the deployment after adding the volume');
+            console.error('💡 Railway Volume Setup Issue: Ensure RAILWAY_VOLUME_MOUNT_PATH is set and volume is attached');
         }
         
         // Don't exit in development, but warn
@@ -166,8 +147,7 @@ initializeStorage();
 // PostgreSQL Configuration
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-    console.error('❌ DATABASE_URL environment variable is required for PostgreSQL');
-    console.error('   Please add PostgreSQL plugin in Railway dashboard');
+    console.error('❌ DATABASE_URL environment variable is required');
     process.exit(1);
 }
 
@@ -310,7 +290,7 @@ if (process.env.DEBUG === 'true') {
           const stats = await fs.stat(chunkPath);
           actualSize = stats.size;
         } catch (error) {
-          console.warn(`⚠️ Could not get stats for chunk ${chunkPath}:`, error);
+          // Chunk stats unavailable
         }
       }
       return {
@@ -356,7 +336,7 @@ if (process.env.DEBUG === 'true') {
     });
     
   } catch (error) {
-    console.error('Debug endpoint error:', error);
+    // Debug endpoint error - non-critical
     res.status(500).json({ error: 'Internal server error' });
   }
   });
@@ -417,7 +397,6 @@ const corsOptions = {
             origin.startsWith('moz-extension://') ||
             origin.startsWith('safari-extension://') ||
             origin.startsWith('ms-browser-extension://')) {
-            console.warn(`🚫 BLOCKED: Browser extension origin: ${origin}`);
             return callback(null, false); // Reject but don't crash with error
         }
         
@@ -446,10 +425,8 @@ const corsOptions = {
             if (origin.endsWith('.railway.app')) {
                 const railwayPattern = /^https:\/\/qopy-[a-zA-Z0-9\-]+(\.up)?\.railway\.app$/;
                 if (railwayPattern.test(origin)) {
-                    console.log(`✅ Allowed Railway origin: ${origin}`);
                     return callback(null, true);
                 } else {
-                    console.warn(`🚫 Rejected Railway origin (invalid pattern): ${origin}`);
                     return callback(new Error('Invalid Railway domain pattern'));
                 }
             }
@@ -458,7 +435,6 @@ const corsOptions = {
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            console.warn(`🚫 CORS blocked origin: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -622,9 +598,6 @@ function generateClipId(quickShare = false) {
   return result;
 }
 
-// Password hashing functions
-
-
 // Enhanced cleanup for expired clips and uploads
 async function cleanupExpiredClips() {
   try {
@@ -643,9 +616,8 @@ async function cleanupExpiredClips() {
         const result = await safeDeleteFile(clip.file_path);
         if (result.success) {
           deletedFilesCount++;
-          console.log(`🧹 Deleted expired file: ${clip.file_path} (clip: ${clip.clip_id})`);
         } else {
-          console.warn(`⚠️ Failed to delete expired file: ${clip.file_path} - ${result.reason}: ${result.error}`);
+          // Non-critical: file may have already been cleaned up
         }
       }
     }
@@ -680,18 +652,6 @@ async function cleanupExpiredClips() {
       );
       
       console.log(`🔄 Reset SERIAL sequence to ${newStartValue} (was ${currentSequence})`);
-    }
-    
-    if (deletedFilesCount > 0) {
-      console.log(`🧹 Deleted ${deletedFilesCount} expired files`);
-    }
-    
-    if (markResult.rowCount > 0) {
-      console.log(`🏷️ Marked ${markResult.rowCount} clips as expired`);
-    }
-    
-    if (deleteResult.rowCount > 0) {
-      console.log(`🧹 Permanently deleted ${deleteResult.rowCount} old expired clips`);
     }
   } catch (error) {
     console.error('❌ Error cleaning up expired clips:', error.message);
@@ -778,7 +738,6 @@ async function handleClipRetrieval(req, res, clip, clipId) {
       
       // Handle one-time access for inline content
       if (clip.one_time) {
-        console.log('🔥 One-time access for inline content, deleting clip:', clipId);
         await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
       }
     } else {
@@ -809,7 +768,7 @@ async function handleClipRetrieval(req, res, clip, clipId) {
     return res.json(response);
 
   } catch (error) {
-    console.error('❌ Error in handleClipRetrieval:', error.message);
+    console.error('❌ Clip retrieval error:', error.message);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to retrieve clip'
@@ -906,7 +865,7 @@ async function cleanupExpiredUploads() {
           limit(async () => {
             const result = await safeDeleteFile(chunk.storage_path);
             if (!result.success) {
-              console.warn(`⚠️ Failed to delete chunk file: ${chunk.storage_path} - ${result.reason}: ${result.error}`);
+              // Non-critical: chunk file cleanup failed
             }
             return result;
           })
@@ -925,12 +884,8 @@ async function cleanupExpiredUploads() {
         }
         
       } catch (error) {
-        console.error(`❌ Error cleaning up upload ${uploadId}:`, error.message);
+        // Individual upload cleanup error - continue with remaining
       }
-    }
-    
-    if (expiredSessions.rows.length > 0) {
-      console.log(`🧹 Cleaned up ${expiredSessions.rows.length} expired upload sessions`);
     }
     
     // Clean up orphaned files (files without corresponding clips)
@@ -951,28 +906,11 @@ async function cleanupExpiredUploads() {
       if (result.success) {
         if (result.reason === 'deleted') {
           deletedCount++;
-          console.log(`✅ Successfully deleted orphaned file: ${file.file_path}`);
-        } else {
-          console.log(`ℹ️ Orphaned file already deleted: ${file.file_path}`);
         }
       } else {
         failedCount++;
-        console.warn(`⚠️ Failed to delete orphaned file: ${file.file_path}`, {
-          reason: result.reason,
-          error: result.error
-        });
-        
-        // Log specific error types
-        if (result.reason === 'permission_denied') {
-          console.error(`🔒 Permission denied deleting file: ${file.file_path}`);
-        } else if (result.reason === 'file_in_use') {
-          console.error(`🔒 File in use or directory not empty: ${file.file_path}`);
-        }
+        // Non-critical: orphaned file cleanup failed
       }
-    }
-    
-    if (orphanedFiles.rows.length > 0) {
-      console.log(`🧹 Orphaned file cleanup: ${deletedCount} deleted, ${failedCount} failed, ${orphanedFiles.rows.length} total`);
     }
     
   } catch (error) {
@@ -982,106 +920,78 @@ async function cleanupExpiredUploads() {
 
 // Upload session management functions
 async function createUploadSession(sessionData) {
-    console.log(`📝 Creating upload session: ${sessionData.uploadId}, total_chunks: ${sessionData.total_chunks}`);
-    
     const redis = getRedis();
     if (redis) {
         await redis.setEx(`upload:${sessionData.uploadId}`, 3600, JSON.stringify(sessionData));
-        console.log(`✅ Cached session in Redis: ${sessionData.uploadId}`);
     }
-    
+
     return sessionData;
 }
 
 async function getUploadSession(uploadId) {
-    console.log(`🔍 Getting upload session: ${uploadId}`);
-    
     try {
         const redis = getRedis();
         if (redis) {
-            console.log(`🔍 Checking Redis for session: ${uploadId}`);
             const cached = await redis.get(`upload:${uploadId}`);
             if (cached) {
-                console.log(`✅ Found session in Redis: ${uploadId}`);
                 try {
-                    const parsed = JSON.parse(cached);
-                    console.log('✅ Parsed session from Redis:', uploadId);
-                    return parsed;
+                    return JSON.parse(cached);
                 } catch (error) {
-                    console.error(`❌ Error parsing Redis session:`, error);
                     // Fall through to database lookup
                 }
-            } else {
-                console.log(`❌ No session found in Redis: ${uploadId}`);
             }
         }
     } catch (redisError) {
-        console.error(`❌ Redis error:`, redisError);
+        // Redis unavailable, fall through to database
     }
-    
+
     // Fallback to database
-    console.log(`🔍 Falling back to database for session: ${uploadId}`);
     try {
         const result = await pool.query(
             'SELECT * FROM upload_sessions WHERE upload_id = $1',
             [uploadId]
         );
-        
+
         if (result.rows[0]) {
             const session = result.rows[0];
-            console.log(`✅ Found session in database: ${uploadId}`, {
-                uploaded_chunks: `${session.uploaded_chunks}/${session.total_chunks}`,
-                has_password: session.has_password,
-                one_time: session.one_time,
-                quick_share: session.quick_share,
-                is_text_content: session.is_text_content
-            });
-            
+
             // Cache it for next time
             const redis = getRedis();
             if (redis) {
                 try {
                     await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(session));
-                    console.log(`✅ Cached database session in Redis: ${uploadId}`);
                 } catch (cacheError) {
-                    console.error(`❌ Error caching session:`, cacheError);
+                    // Non-critical: database is primary source of truth
                 }
             }
-            
+
             return session;
         } else {
-            console.log(`❌ Session not found in database: ${uploadId}`);
             return null;
         }
     } catch (dbError) {
-        console.error(`❌ Database error:`, dbError);
+        // Database error getting upload session
         return null;
     }
 }
 
 async function updateUploadSession(uploadId, updates) {
-    console.log(`🔄 Updating upload session: ${uploadId}, uploaded_chunks: ${updates.uploaded_chunks}, status: ${updates.status}`);
     await pool.query(
         'UPDATE upload_sessions SET uploaded_chunks = $1, last_activity = $2, status = $3 WHERE upload_id = $4',
         [updates.uploaded_chunks, Date.now(), updates.status || 'uploading', uploadId]
     );
     const redis = getRedis();
     if (redis) {
-        // Hole Session direkt aus der Datenbank, nicht aus Redis!
+        // Get session directly from database, not from Redis
         const result = await pool.query('SELECT * FROM upload_sessions WHERE upload_id = $1', [uploadId]);
         const session = result.rows[0];
         if (session) {
             await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(session));
         }
     }
-    console.log(`✅ Upload session updated: ${uploadId}`);
 }
 
 // File utility functions
-function generateUploadId() {
-    return crypto.randomBytes(16).toString('hex');
-}
-
 function calculateChunks(filesize) {
     return Math.ceil(filesize / CHUNK_SIZE);
 }
@@ -1098,12 +1008,8 @@ async function saveChunkToFile(uploadId, chunkNumber, chunkData) {
 
 async function assembleFile(uploadId, session) {
     try {
-        console.log(`🔍 assembleFile started for uploadId: ${uploadId}, filename: ${session.filename}`);
         const finalPath = path.join(STORAGE_PATH, 'files', `${uploadId}_${session.filename}`);
-        console.log(`🔍 Final path: ${finalPath}`);
-        
         await fs.mkdir(path.dirname(finalPath), { recursive: true });
-        console.log(`🔍 Directory created/verified: ${path.dirname(finalPath)}`);
         
         const writeStream = require('fs').createWriteStream(finalPath);
         
@@ -1147,7 +1053,6 @@ async function assembleFile(uploadId, session) {
         for (let i = 0; i < session.total_chunks; i++) {
             chunkTasks.push(limit(async () => {
                 const chunkPath = path.join(STORAGE_PATH, 'chunks', uploadId, `chunk_${i}`);
-                console.log(`🔍 Reading chunk ${i} from: ${chunkPath}`);
                 
                 // Check if chunk file exists
                 const chunkExists = await fs.pathExists(chunkPath);
@@ -1156,7 +1061,6 @@ async function assembleFile(uploadId, session) {
                 }
                 
                 const chunkData = await fs.readFile(chunkPath);
-                console.log(`🔍 Chunk ${i} size: ${chunkData.length} bytes`);
                 return { index: i, data: chunkData };
             }));
         }
@@ -1173,7 +1077,6 @@ async function assembleFile(uploadId, session) {
         }
         
         writeStream.end();
-        console.log(`🔍 Write stream ended, file assembled: ${finalPath}`);
         
         // 🚀 PARALLEL OPTIMIZATION: Clean up chunks concurrently
         const cleanupTasks = [];
@@ -1182,10 +1085,9 @@ async function assembleFile(uploadId, session) {
                 const chunkPath = path.join(STORAGE_PATH, 'chunks', uploadId, `chunk_${i}`);
                 try {
                     await fs.unlink(chunkPath);
-                    console.log(`🧹 Cleaned up chunk: ${chunkPath}`);
                     return { success: true, path: chunkPath };
                 } catch (error) {
-                    console.warn(`⚠️ Could not delete chunk ${chunkPath}:`, error.message);
+                    // Non-critical: chunk cleanup failed
                     return { success: false, path: chunkPath, error: error.message };
                 }
             }));
@@ -1193,10 +1095,6 @@ async function assembleFile(uploadId, session) {
         
         // Execute all cleanup operations in parallel
         const cleanupResults = await Promise.all(cleanupTasks);
-        const successfulCleanups = cleanupResults.filter(r => r.success).length;
-        console.log(`🧹 Cleaned up ${successfulCleanups}/${session.total_chunks} chunks`);
-        
-        console.log(`✅ assembleFile completed successfully: ${finalPath}`);
         return finalPath;
     } catch (error) {
         console.error(`❌ Error in assembleFile for uploadId ${uploadId}:`, error);
@@ -1205,12 +1103,6 @@ async function assembleFile(uploadId, session) {
 }
 
 // Multi-part upload endpoints
-
-
-
-// Upload chunk (removed duplicate endpoint)
-
-// Complete upload
 // Import the refactored services
 const FileAssemblyService = require('./services/FileAssemblyService');
 const UploadValidator = require('./services/UploadValidator');
@@ -1231,8 +1123,6 @@ const uploadCompletionService = new UploadCompletionService(
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
     try {
         const { uploadId } = req.params;
-        console.log('🔍 Upload complete route started for:', uploadId);
-        
         const result = await uploadCompletionService.completeUpload(uploadId, req.body, req);
         res.json(result);
         
@@ -1275,7 +1165,6 @@ app.get('/api/upload/:uploadId/status', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting upload status:', error.message);
         res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to get upload status'
@@ -1395,24 +1284,6 @@ app.post('/api/upload/initiate', [
             finalMimeType = 'application/octet-stream';
         }
         
-        console.log('📤 Upload Initiation Request:', {
-            filename,
-            filesize,
-            mimeType: finalMimeType,
-            expiration,
-            hasPassword,
-            oneTime,
-            quickShare,
-            contentType,
-            isTextContent
-        });
-        
-        console.log('🔐 Upload Initiation - hasPassword flag analysis:', {
-            hasPasswordFromRequest: hasPassword,
-            hasPasswordType: typeof hasPassword,
-            willSetHasPasswordInDB: hasPassword
-        });
-        
         // Calculate chunks
         const totalChunks = Math.ceil(filesize / CHUNK_SIZE);
         
@@ -1501,8 +1372,6 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
         const { uploadId, chunkNumber } = req.params;
         const chunkNum = parseInt(chunkNumber);
 
-        console.log(`📤 Chunk upload request: uploadId=${uploadId}, chunkNumber=${chunkNumber}, hasFile=${!!req.file}`);
-
         // Verify upload session exists and is active
         const sessionResult = await pool.query(
             'SELECT * FROM upload_sessions WHERE upload_id = $1 AND status = $2',
@@ -1541,7 +1410,6 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
 
         // Check if file was uploaded
         if (!req.file) {
-            console.log(`❌ No file uploaded for chunk ${chunkNum}`);
             return res.status(400).json({
                 error: 'No chunk file provided',
                 message: 'Chunk file is required'
@@ -1616,11 +1484,8 @@ app.post('/api/upload/chunk/:uploadId/:chunkNumber', [
             );
             if (updatedSessionResult.rows[0]) {
                 await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(updatedSessionResult.rows[0]));
-                console.log(`🔄 Updated Redis cache for session ${uploadId} with uploaded_chunks: ${updatedSessionResult.rows[0].uploaded_chunks}`);
             }
         }
-
-        console.log(`✅ Chunk ${chunkNum} uploaded successfully. Progress: ${session.uploaded_chunks + 1}/${session.total_chunks}`);
 
         res.json({
             success: true,
@@ -1712,7 +1577,7 @@ app.delete('/api/upload/:uploadId', [
           limit(async () => {
             const result = await safeDeleteFile(chunk.storage_path);
             if (!result.success) {
-              console.warn(`⚠️ Failed to delete chunk file: ${chunk.storage_path} - ${result.reason}: ${result.error}`);
+              // Non-critical: chunk file cleanup failed
             }
             return result;
           })
@@ -1796,7 +1661,6 @@ app.get('/api/file/:clipId/info', [
         });
 
     } catch (error) {
-        console.error('❌ Error getting file info:', error.message);
         res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to get file info'
@@ -1819,7 +1683,6 @@ app.get('/file/:clipId', [
     // Serve the main index.html for file URLs (for client-side routing)
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
 
 // Authenticated file download API (POST with token) - Refactored with services
 app.post('/api/file/:clipId', [
@@ -1881,7 +1744,6 @@ app.post('/api/file/:clipId', [
         // Handle one-time access
         let deleteFileAfterSend = false;
         if (clip.one_time) {
-            console.log('🔥 One-time file access, deleting clip from database:', clipId);
             await pool.query('DELETE FROM clips WHERE clip_id = $1', [clipId]);
             deleteFileAfterSend = true;
         }
@@ -1891,7 +1753,7 @@ app.post('/api/file/:clipId', [
         await fileService.streamFile(clip.file_path, res, { deleteAfterSend: deleteFileAfterSend });
 
     } catch (error) {
-        console.error('❌ Error in authenticated file download:', error.message);
+        console.error('❌ File download error:', error.message);
         if (!res.headersSent) {
             res.status(500).json({
                 error: 'Internal server error',
@@ -1971,41 +1833,15 @@ app.get('/api/clip/:clipId/info', [
 
     const clip = result.rows[0];
 
-    // Debug: Show what we actually got from database
-    console.log('🔍 Info endpoint clip debug:', {
-      clipId: clipId,
-      content_type: clip.content_type,
-      file_path: !!clip.file_path,
-      password_hash: !!clip.password_hash,
-      password_hash_value: clip.password_hash,
-      requires_access_code: clip.requires_access_code,
-      requires_access_code_type: typeof clip.requires_access_code,
-      access_code_hash: !!clip.access_code_hash
-    });
-
-    // NEW: Zero-Knowledge Access Code System - no download tokens needed
+    // Zero-Knowledge Access Code System - no download tokens needed
     const isQuickShare = clipId.length <= 6;
 
-    if (isQuickShare) {
-      console.log('⚡ Quick Share clip - no authentication required:', clipId);
-    } else {
-      console.log('🔐 Normal clip - checking access code requirement:', clipId);
-    }
-
-    // NEW: Determine if clip requires access code based on requires_access_code column
+    // Determine if clip requires access code based on requires_access_code column
     let hasPassword = false;
     if (clipId.length === 10) {
       // For normal clips (10-digit), check if access code is required
       // Check both requires_access_code and password_hash for backward compatibility
       hasPassword = clip.requires_access_code || clip.password_hash === 'client-encrypted' || false;
-      console.log('🔍 Clip info debug:', {
-        clipId,
-        contentType: clip.content_type,
-        requires_access_code: clip.requires_access_code,
-        requires_access_code_type: typeof clip.requires_access_code,
-        password_hash: clip.password_hash,
-        hasPassword
-      });
     } else {
       // For Quick Share clips (6-digit), never have passwords
       hasPassword = false;
@@ -2021,7 +1857,6 @@ app.get('/api/clip/:clipId/info', [
     });
 
   } catch (error) {
-    console.error('❌ Error getting clip info:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get clip info'
@@ -2044,11 +1879,8 @@ app.post('/api/clip/:clipId', [
   body('accessCode').optional().isString().withMessage('Access code must be a string')
 ], async (req, res) => {
   try {
-    console.log('🔐 POST /api/clip/:clipId STARTED:', req.params.clipId, 'hasAccessCode:', !!req.body?.accessCode);
-    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
       return res.status(400).json({
         error: 'Validation failed',
         details: errors.array()
@@ -2057,8 +1889,6 @@ app.post('/api/clip/:clipId', [
 
     const { clipId } = req.params;
     const { accessCode } = req.body;
-
-    console.log('🔐 POST /api/clip/:clipId with access code authentication:', clipId, 'hasAccessCode:', !!accessCode);
 
     // Get clip from database
     const result = await pool.query(
@@ -2078,7 +1908,6 @@ app.post('/api/clip/:clipId', [
     // Validate access code if required
     if (clip.requires_access_code) {
       if (!accessCode) {
-        console.log(`❌ Access code required but not provided for clipId: ${clipId}`);
         return res.status(401).json({
           error: 'Access code required',
           message: 'This clip requires an access code'
@@ -2093,7 +1922,6 @@ app.post('/api/clip/:clipId', [
         );
         
         if (validationResult.rows.length === 0) {
-          console.log(`❌ Clip not found for access code validation: ${clipId}`);
           return res.status(404).json({
             error: 'Clip not found',
             message: 'The requested clip does not exist'
@@ -2104,7 +1932,6 @@ app.post('/api/clip/:clipId', [
         
         // If access code required but no hash stored, deny
         if (!validationClip.access_code_hash) {
-          console.log(`❌ No access code hash stored for clipId: ${clipId}`);
           return res.status(401).json({
             error: 'Access denied',
             message: 'Invalid access code configuration'
@@ -2116,10 +1943,8 @@ app.post('/api/clip/:clipId', [
         let providedHash;
         
         if (isAlreadyHashed) {
-          console.log('🔐 Using client-side hashed access code for validation');
           providedHash = accessCode;
                  } else {
-           console.log('🔐 Generating server-side access code hash for validation');
            // Inline hash generation to avoid reference errors
            const crypto = require('crypto');
            providedHash = await new Promise((resolve, reject) => {
@@ -2131,31 +1956,25 @@ app.post('/api/clip/:clipId', [
          }
         
         if (providedHash !== validationClip.access_code_hash) {
-          console.log(`❌ Invalid access code for clipId: ${clipId}`);
           return res.status(401).json({
             error: 'Access denied',
             message: 'Invalid access code'
           });
         }
         
-        console.log(`✅ Access code validated for clipId: ${clipId}`);
       } catch (validateError) {
-        console.error('❌ Error validating access code:', validateError);
+        console.error('❌ Access code validation error:', validateError.message);
         return res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to validate access code'
         });
       }
-      console.log(`✅ Access code validated for clipId: ${clipId}`);
     }
 
     // Continue with same logic as GET endpoint...
     return await handleClipRetrieval(req, res, clip, clipId);
   } catch (error) {
-    console.error('❌ Error in POST /api/clip/:clipId:', error);
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('❌ Error stack:', error.stack);
-    }
+    console.error('❌ Clip POST error:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to retrieve clip'
@@ -2187,8 +2006,6 @@ app.get('/api/clip/:clipId', [
 
     const { clipId } = req.params;
 
-    console.log('🔐 GET /api/clip/:clipId Zero-Knowledge request:', clipId);
-
     // Get clip from database
     const result = await pool.query(
       'SELECT * FROM clips WHERE clip_id = $1 AND is_expired = false',
@@ -2204,17 +2021,8 @@ app.get('/api/clip/:clipId', [
 
     const clip = result.rows[0];
 
-    // Debug: Show what we actually got from database
-    console.log('🔍 Main endpoint clip debug:', {
-      clipId: clipId,
-      content_type: clip.content_type,
-      file_path: !!clip.file_path,
-      password_hash: !!clip.password_hash
-    });
-
     // Zero-Knowledge system: Check if access code is required
     if (clip.requires_access_code) {
-      console.log(`❌ Access code required for clipId: ${clipId}, use POST endpoint`);
       return res.status(401).json({
         error: 'Access code required',
         message: 'This clip requires an access code. Use POST request with access code.',
@@ -2222,13 +2030,10 @@ app.get('/api/clip/:clipId', [
       });
     }
 
-    const isQuickShare = clipId.length <= 6;
-    console.log(`✅ Zero-Knowledge GET access granted for clipId: ${clipId}, isQuickShare: ${isQuickShare}`);
-
     // Use shared clip retrieval logic
     return await handleClipRetrieval(req, res, clip, clipId);
   } catch (error) {
-    console.error('❌ Error in GET /api/clip/:clipId:', error.message);
+    console.error('❌ Clip GET error:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to retrieve clip'
@@ -2241,13 +2046,12 @@ function requireAdminAuth(req, res, next) {
   const adminToken = process.env.ADMIN_TOKEN;
   
   if (!adminToken) {
-    console.error('❌ ADMIN_TOKEN environment variable not set');
     return res.status(500).json({
       error: 'Admin authentication not configured',
       message: 'Please set ADMIN_TOKEN environment variable'
     });
   }
-  
+
   // For API requests, check Authorization header
   if (req.path.startsWith('/api/admin/')) {
     const authHeader = req.headers.authorization;
@@ -2281,7 +2085,6 @@ app.post('/api/admin/auth', [
     const adminToken = process.env.ADMIN_TOKEN;
     
     if (!adminToken) {
-      console.error('❌ ADMIN_TOKEN environment variable not set');
       return res.status(500).json({
         error: 'Admin authentication not configured',
         message: 'Please set ADMIN_TOKEN environment variable'
@@ -2302,7 +2105,6 @@ app.post('/api/admin/auth', [
       });
     }
   } catch (error) {
-    console.error('❌ Admin authentication error:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Authentication failed'
@@ -2357,7 +2159,6 @@ app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
       lastUpdated: stats.last_updated
     });
   } catch (error) {
-    console.error('❌ Error getting admin stats:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get statistics'
@@ -2378,7 +2179,6 @@ app.get('/api/admin/clips', requireAdminAuth, async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error('❌ Error getting admin clips:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get clips'
@@ -2401,7 +2201,6 @@ app.get('/api/admin/system', requireAdminAuth, async (req, res) => {
       currentTime: dbTest.rows[0].current_time
     });
   } catch (error) {
-    console.error('❌ Error getting system info:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get system information'
@@ -2533,7 +2332,7 @@ async function updateStatistics(type, increment = 1) {
         
         await pool.query(updateQuery, [increment, Date.now()]);
     } catch (error) {
-        console.error('❌ Error updating statistics:', error.message);
+        // Non-critical: statistics update failed
     }
 }
 
@@ -2558,19 +2357,15 @@ async function gracefulShutdown(signal = 'SIGTERM') {
     try {
         // Close Redis connection first
         if (redisManager) {
-            console.log('📕 Disconnecting Redis...');
             await redisManager.disconnect();
-            console.log('✅ Redis disconnected gracefully');
         }
-        
+
         // Close database connection pool
-        console.log('🗄️ Closing database pool...');
         await pool.end();
-        console.log('✅ Database pool closed');
-        
+
         // Clear the timeout
         clearTimeout(shutdownTimeout);
-        
+
         console.log('✅ Server shutdown complete');
         process.exit(0);
     } catch (error) {

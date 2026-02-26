@@ -57,12 +57,6 @@ describe('EncryptionService', () => {
         expect(result.passwordHash).toBeNull();
         expect(result.shouldRequireAccessCode).toBe(false);
         expect(result.accessCodeHash).toBeNull();
-
-        // Verify simplified logging occurred (no sensitive data)
-        expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Processing access code for upload:'),
-          'upload-123'
-        );
       });
 
       test('should handle Quick Share without access code', () => {
@@ -82,10 +76,6 @@ describe('EncryptionService', () => {
         expect(result.passwordHash).toBeNull();
         expect(result.shouldRequireAccessCode).toBe(false);
         expect(result.accessCodeHash).toBeNull();
-        expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Processing access code for upload:'),
-          'upload-456'
-        );
       });
 
       test('should handle Quick Share - server never receives secret', () => {
@@ -105,10 +95,6 @@ describe('EncryptionService', () => {
         expect(result.passwordHash).toBeNull();
         expect(result.shouldRequireAccessCode).toBe(false);
         expect(result.accessCodeHash).toBeNull();
-        expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Processing access code for upload:'),
-          'upload-789'
-        );
       });
     });
 
@@ -121,17 +107,16 @@ describe('EncryptionService', () => {
         };
 
         const requestData = {
-          clientAccessCodeHash: 'regular-hash-123',
+          clientAccessCodeHash: 'regular-hash-123-that-is-at-least-32-chars-long',
           requiresAccessCode: true
         };
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
         expect(result).toBeDefined();
-        expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Processing access code for upload:'),
-          'regular-123'
-        );
+        expect(result.shouldRequireAccessCode).toBe(true);
+        expect(result.accessCodeHash).toBe('regular-hash-123-that-is-at-least-32-chars-long');
+        expect(result.passwordHash).toBe('client-encrypted');
       });
 
       test('should handle regular upload without password', () => {
@@ -148,10 +133,9 @@ describe('EncryptionService', () => {
         const result = EncryptionService.processAccessCode(session, requestData);
 
         expect(result).toBeDefined();
-        expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Processing access code for upload:'),
-          'regular-456'
-        );
+        expect(result.passwordHash).toBeNull();
+        expect(result.shouldRequireAccessCode).toBe(false);
+        expect(result.accessCodeHash).toBeNull();
       });
     });
 
@@ -174,11 +158,6 @@ describe('EncryptionService', () => {
         expect(mockConsole.log).not.toHaveBeenCalledWith(
           expect.stringContaining('Zero-Knowledge Access Code Analysis'),
           expect.any(Object)
-        );
-        // Should log simplified message instead
-        expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Processing access code for upload:'),
-          'hash-test-123'
         );
       });
 
@@ -211,28 +190,24 @@ describe('EncryptionService', () => {
     });
 
     describe('requiresAccessCode Type Analysis', () => {
-      test('should log correct upload id for boolean true', () => {
+      test('should return correct result for boolean true', () => {
         const session = { upload_id: 'type-test-1', has_password: false, quick_share: false };
         const requestData = { requiresAccessCode: true };
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
-        expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Processing access code for upload:'),
-          'type-test-1'
-        );
+        expect(result).toBeDefined();
+        expect(result.shouldRequireAccessCode).toBe(false); // No valid hash provided
       });
 
-      test('should log correct upload id for boolean false', () => {
+      test('should return correct result for boolean false', () => {
         const session = { upload_id: 'type-test-2', has_password: false, quick_share: false };
         const requestData = { requiresAccessCode: false };
 
         const result = EncryptionService.processAccessCode(session, requestData);
 
-        expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining('Processing access code for upload:'),
-          'type-test-2'
-        );
+        expect(result).toBeDefined();
+        expect(result.shouldRequireAccessCode).toBe(false);
       });
 
       test('should handle non-boolean types for requiresAccessCode', () => {
@@ -305,35 +280,23 @@ describe('EncryptionService', () => {
         });
       });
 
-      test('should catch and log errors during analysis', () => {
-        // Create a scenario that might cause an error in logging
+      test('should handle errors during processing gracefully', () => {
         const session = {
           upload_id: 'error-scenario',
           has_password: true,
           quick_share: true
         };
 
-        // Mock console.log to throw an error
-        mockConsole.log.mockImplementationOnce(() => {
-          throw new Error('Logging error');
-        });
-
         const requestData = {
           clientAccessCodeHash: 'test-hash',
           requiresAccessCode: true
         };
 
-        // Should not throw despite logging error
+        // Should not throw
         expect(() => {
           const result = EncryptionService.processAccessCode(session, requestData);
           expect(result).toBeDefined();
         }).not.toThrow();
-
-        // Verify error was caught and logged
-        expect(mockConsole.error).toHaveBeenCalledWith(
-          expect.stringContaining('Error in Zero-Knowledge Access Code Analysis'),
-          expect.any(Error)
-        );
       });
 
       test('should handle circular references in session or requestData', () => {

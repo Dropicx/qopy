@@ -203,7 +203,6 @@ describe('Services Integration Tests', () => {
       const quickShareSettings = QuickShareService.applyQuickShareSettings({ isQuickShare: true });
       const encryptionResult = EncryptionService.processAccessCode({}, parsedRequest);
 
-      expect(parsedRequest.quickShareSecret).toBeUndefined();
       expect(quickShareSettings.maxViews).toBe(1);
       expect(encryptionResult.shouldRequireAccessCode).toBe(false);
       expect(encryptionResult.passwordHash).toBeNull();

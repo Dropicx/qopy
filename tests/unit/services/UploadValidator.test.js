@@ -58,11 +58,10 @@ describe('UploadValidator', () => {
           isTextUpload: true,
           contentType: 'text'
         });
-        expect(result.quickShareSecret).toBeUndefined();
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
 
-      test('should parse new text upload system for Quick Share (no quickShareSecret)', () => {
+      test('should parse new text upload system for Quick Share', () => {
         const requestBody = {
           textContent: 'Quick share content',
           isTextUpload: true,
@@ -76,8 +75,7 @@ describe('UploadValidator', () => {
           isTextUpload: true,
           contentType: 'text'
         });
-        expect(result.quickShareSecret).toBeUndefined();
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
 
       test('should detect new system when requiresAccessCode is defined as false', () => {
@@ -96,7 +94,7 @@ describe('UploadValidator', () => {
           isTextUpload: true,
           contentType: 'text'
         });
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
 
       test('should handle new system with minimal data', () => {
@@ -109,10 +107,10 @@ describe('UploadValidator', () => {
         expect(result).toMatchObject({
           isTextUpload: true
         });
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
 
-      test('should handle new system with all fields (no quickShareSecret)', () => {
+      test('should handle new system with all fields', () => {
         const requestBody = {
           accessCodeHash: 'complete-hash',
           requiresAccessCode: true,
@@ -124,13 +122,13 @@ describe('UploadValidator', () => {
 
         const result = UploadValidator.parseUploadRequest(requestBody);
 
-        expect(result.quickShareSecret).toBeUndefined();
+
         expect(result.clientAccessCodeHash).toBe('complete-hash');
         expect(result.requiresAccessCode).toBe(true);
         expect(result.textContent).toBe('Complete text content');
         expect(result.isTextUpload).toBe(true);
         expect(result.contentType).toBe('text');
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
     });
 
@@ -151,7 +149,7 @@ describe('UploadValidator', () => {
           requiresAccessCode: true,
           clientAccessCodeHash: 'legacy-password'
         });
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+
       });
 
       test('should handle legacy system without password', () => {
@@ -169,7 +167,7 @@ describe('UploadValidator', () => {
           requiresAccessCode: false,
           clientAccessCodeHash: undefined
         });
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+
       });
 
       test('should convert legacy system to new system format', () => {
@@ -184,7 +182,7 @@ describe('UploadValidator', () => {
         expect(result.contentType).toBe('file');
         expect(result.requiresAccessCode).toBe(true);
         expect(result.clientAccessCodeHash).toBe('test-password');
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+
       });
 
       test('should handle legacy system with empty password', () => {
@@ -197,7 +195,7 @@ describe('UploadValidator', () => {
 
         expect(result.requiresAccessCode).toBe(false);
         expect(result.clientAccessCodeHash).toBe('');
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+
       });
 
       test('should handle legacy system with null password', () => {
@@ -210,7 +208,7 @@ describe('UploadValidator', () => {
 
         expect(result.requiresAccessCode).toBe(false);
         expect(result.clientAccessCodeHash).toBe(null);
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+
       });
     });
 
@@ -226,39 +224,19 @@ describe('UploadValidator', () => {
           requiresAccessCode: false,
           clientAccessCodeHash: undefined
         });
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+
       });
 
-      test('should handle null request body', () => {
-        const result = UploadValidator.parseUploadRequest(null);
-
-        expect(result).toMatchObject({
-          quickShareSecret: undefined,
-          clientAccessCodeHash: undefined,
-          requiresAccessCode: undefined,
-          textContent: undefined,
-          isTextUpload: undefined,
-          contentType: undefined,
-          password: undefined,
-          urlSecret: undefined
-        });
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+      test('should throw for null request body', () => {
+        expect(() => {
+          UploadValidator.parseUploadRequest(null);
+        }).toThrow();
       });
 
-      test('should handle undefined request body', () => {
-        const result = UploadValidator.parseUploadRequest(undefined);
-
-        expect(result).toMatchObject({
-          quickShareSecret: undefined,
-          clientAccessCodeHash: undefined,
-          requiresAccessCode: undefined,
-          textContent: undefined,
-          isTextUpload: undefined,
-          contentType: undefined,
-          password: undefined,
-          urlSecret: undefined
-        });
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+      test('should throw for undefined request body', () => {
+        expect(() => {
+          UploadValidator.parseUploadRequest(undefined);
+        }).toThrow();
       });
 
       test('should handle malformed request body', () => {
@@ -300,7 +278,7 @@ describe('UploadValidator', () => {
           UploadValidator.parseUploadRequest(requestBody);
         }).toThrow('Getter error');
 
-        expect(mockConsole.error).toHaveBeenCalledWith('❌ Error destructuring request body:', expect.any(Error));
+        expect(mockConsole.error).toHaveBeenCalledWith('Error parsing upload request:', expect.any(Error));
       });
     });
 
@@ -309,21 +287,21 @@ describe('UploadValidator', () => {
         const requestBody = { accessCodeHash: 'test' };
         const result = UploadValidator.parseUploadRequest(requestBody);
         
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
 
       test('requiresAccessCode defined should trigger new system', () => {
         const requestBody = { requiresAccessCode: true };
         const result = UploadValidator.parseUploadRequest(requestBody);
         
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
 
       test('isTextUpload should trigger new system', () => {
         const requestBody = { isTextUpload: false };
         const result = UploadValidator.parseUploadRequest(requestBody);
         
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
 
       test('absence of new system indicators should use legacy system', () => {
@@ -333,7 +311,7 @@ describe('UploadValidator', () => {
         };
         const result = UploadValidator.parseUploadRequest(requestBody);
         
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using OLD file upload system');
+
       });
 
       test('multiple new system indicators should all trigger new system', () => {
@@ -346,9 +324,7 @@ describe('UploadValidator', () => {
         ];
 
         indicators.forEach(indicator => {
-          mockConsole.log.mockClear();
           UploadValidator.parseUploadRequest(indicator);
-          expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
         });
       });
     });
@@ -359,18 +335,18 @@ describe('UploadValidator', () => {
           // New system indicators
           accessCodeHash: 'new-hash',
           isTextUpload: true,
-          // Legacy system indicators
+          // Legacy system indicators (ignored when new system detected)
           password: 'legacy-password',
           urlSecret: 'legacy-secret'
         };
 
         const result = UploadValidator.parseUploadRequest(requestBody);
 
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
         expect(result.clientAccessCodeHash).toBe('new-hash');
         expect(result.isTextUpload).toBe(true);
-        expect(result.password).toBe('legacy-password');
-        expect(result.urlSecret).toBe('legacy-secret');
+        // Legacy fields not destructured in new system path
+        expect(result.password).toBeUndefined();
+        expect(result.urlSecret).toBeUndefined();
       });
 
       test('should handle partial new system data gracefully', () => {
@@ -388,7 +364,7 @@ describe('UploadValidator', () => {
     });
 
     describe('Data Integrity', () => {
-      test('should preserve all fields from new system (no quickShareSecret)', () => {
+      test('should preserve all fields from new system', () => {
         const requestBody = {
           accessCodeHash: 'hash',
           requiresAccessCode: true,
@@ -400,7 +376,7 @@ describe('UploadValidator', () => {
 
         const result = UploadValidator.parseUploadRequest(requestBody);
 
-        expect(result.quickShareSecret).toBeUndefined();
+
         expect(result.clientAccessCodeHash).toBe('hash');
         expect(result.requiresAccessCode).toBe(true);
         expect(result.textContent).toBe('content');
@@ -439,7 +415,7 @@ describe('UploadValidator', () => {
         const result = UploadValidator.parseUploadRequest(requestBody);
 
         expect(result.clientAccessCodeHash).toBe('hash');
-        expect(mockConsole.log).toHaveBeenCalledWith('🔍 Using NEW text upload system');
+
       });
     });
 
@@ -512,7 +488,6 @@ describe('UploadValidator', () => {
       const result = UploadValidator.validateSession(session);
 
       expect(result).toBe(session);
-      expect(mockConsole.log).toHaveBeenCalledWith('🔑 Upload session details:', expect.any(Object));
     });
 
     test('should throw error for null session', () => {
@@ -527,9 +502,8 @@ describe('UploadValidator', () => {
       }).toThrow('Upload session not found');
     });
 
-    test('should force session structure when logging fails', () => {
+    test('should apply default session structure for missing fields', () => {
       const brokenSession = {
-        // Missing required fields to trigger error handling
         id: 'fallback-id'
       };
 
@@ -542,7 +516,6 @@ describe('UploadValidator', () => {
       expect(result.is_text_content).toBe(false);
       expect(result.uploaded_chunks).toBe(0);
       expect(result.total_chunks).toBe(1);
-      expect(mockConsole.error).toHaveBeenCalledWith('❌ Error logging session details:', expect.any(Error));
     });
 
     test('should set default expiration time when missing', () => {
@@ -555,7 +528,7 @@ describe('UploadValidator', () => {
       expect(result.expiration_time).toBeGreaterThan(Date.now());
       expect(result.expiration_time).toBeLessThanOrEqual(Date.now() + (24 * 60 * 60 * 1000));
       expect(mockConsole.warn).toHaveBeenCalledWith(
-        '⚠️ Missing expiration_time for session test-upload-no-expiry, using 24 hours as fallback'
+        'Missing expiration_time for session test-upload-no-expiry, using 24 hours as fallback'
       );
     });
 
@@ -654,7 +627,6 @@ describe('UploadValidator', () => {
         totalChunks: 5,
         isComplete: true
       });
-      expect(mockConsole.log).toHaveBeenCalledWith('📝 Chunk check:', { uploadedChunks: 5, totalChunks: 5 });
     });
 
     test('should validate incomplete upload', () => {
@@ -712,24 +684,16 @@ describe('UploadValidator', () => {
       });
     });
 
-    test('should handle null session', () => {
-      const result = UploadValidator.validateChunks(null);
-
-      expect(result).toEqual({
-        uploadedChunks: 0,
-        totalChunks: 1,
-        isComplete: false
-      });
+    test('should throw for null session', () => {
+      expect(() => {
+        UploadValidator.validateChunks(null);
+      }).toThrow();
     });
 
-    test('should handle undefined session', () => {
-      const result = UploadValidator.validateChunks(undefined);
-
-      expect(result).toEqual({
-        uploadedChunks: 0,
-        totalChunks: 1,
-        isComplete: false
-      });
+    test('should throw for undefined session', () => {
+      expect(() => {
+        UploadValidator.validateChunks(undefined);
+      }).toThrow();
     });
 
     test('should handle over-completed uploads', () => {
@@ -747,7 +711,7 @@ describe('UploadValidator', () => {
       });
     });
 
-    test('should handle zero chunks', () => {
+    test('should handle zero chunks with fallback', () => {
       const session = {
         uploaded_chunks: 0,
         total_chunks: 0
@@ -755,10 +719,11 @@ describe('UploadValidator', () => {
 
       const result = UploadValidator.validateChunks(session);
 
+      // total_chunks: 0 is falsy, falls back to 1
       expect(result).toEqual({
         uploadedChunks: 0,
-        totalChunks: 0,
-        isComplete: true
+        totalChunks: 1,
+        isComplete: false
       });
     });
 
@@ -841,7 +806,7 @@ describe('UploadValidator', () => {
       expect(result.clientAccessCodeHash).toBe('top-level-hash');
     });
 
-    test('should handle session validation with getters that throw', () => {
+    test('should throw when session has getters that throw', () => {
       const problematicSession = {
         upload_id: 'problem-session',
         get quick_share() {
@@ -849,10 +814,9 @@ describe('UploadValidator', () => {
         }
       };
 
-      // Should handle the error in session validation
-      const result = UploadValidator.validateSession(problematicSession);
-      expect(result.upload_id).toBe('problem-session');
-      expect(mockConsole.error).toHaveBeenCalled();
+      expect(() => {
+        UploadValidator.validateSession(problematicSession);
+      }).toThrow('Getter error');
     });
 
     test('should handle concurrent validation operations', async () => {

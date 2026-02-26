@@ -42,27 +42,6 @@ class QuickShareService {
     }
 
     /**
-     * Validate Quick Share secret length
-     * @param {string} quickShareSecret - Secret to validate
-     * @returns {Object} Validation result
-     */
-    static validateQuickShareSecret(quickShareSecret) {
-        if (!quickShareSecret) {
-            return { valid: true }; // No secret is valid
-        }
-
-        if (quickShareSecret.length > 60) {
-            return {
-                valid: false,
-                error: 'Secret too long',
-                message: 'Generated secret is too long for storage'
-            };
-        }
-
-        return { valid: true };
-    }
-
-    /**
      * Update Quick Share statistics
      * @param {Function} updateStatistics - Statistics update function
      * @param {Object} settings - Share settings

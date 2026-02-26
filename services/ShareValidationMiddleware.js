@@ -73,10 +73,6 @@ class ShareValidationMiddleware {
                 .optional()
                 .isBoolean()
                 .withMessage('quickShare must be a boolean'),
-            body('quickShareSecret')
-                .optional()
-                .isString()
-                .withMessage('quickShareSecret must be a string'),
             body('contentType')
                 .optional()
                 .isIn(['text', 'binary'])

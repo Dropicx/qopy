@@ -155,12 +155,12 @@ describe('StorageService', () => {
       expect(result).toEqual({ passwordHash: null });
     });
 
-    test('should handle empty quickShareSecret', () => {
+    test('should return null hash for Quick Share with empty secret (zero-knowledge)', () => {
       const result = storageService.determinePasswordHash(true, '', false);
       expect(result).toEqual({ passwordHash: null });
     });
 
-    test('should return null for long quickShareSecret (zero-knowledge, secret ignored)', () => {
+    test('should return null hash for Quick Share with long secret (zero-knowledge)', () => {
       const longSecret = 'a'.repeat(61);
 
       const result = storageService.determinePasswordHash(true, longSecret, false);
@@ -168,13 +168,13 @@ describe('StorageService', () => {
       expect(result).toEqual({ passwordHash: null });
     });
 
-    test('should handle exactly 60 character secret (ignored for zero-knowledge)', () => {
+    test('should return null hash for Quick Share with 60-char secret (zero-knowledge)', () => {
       const secret60 = 'a'.repeat(60);
       const result = storageService.determinePasswordHash(true, secret60, false);
       expect(result).toEqual({ passwordHash: null });
     });
 
-    test('should handle null quickShareSecret with quickShare true', () => {
+    test('should return null hash for Quick Share with null secret (zero-knowledge)', () => {
       const result = storageService.determinePasswordHash(true, null, false);
       expect(result).toEqual({ passwordHash: null });
     });

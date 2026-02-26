@@ -106,60 +106,6 @@ describe('QuickShareService', () => {
     });
   });
 
-  describe('validateQuickShareSecret', () => {
-    test('should return valid for no secret', () => {
-      const result = QuickShareService.validateQuickShareSecret(null);
-      expect(result).toEqual({ valid: true });
-
-      const result2 = QuickShareService.validateQuickShareSecret(undefined);
-      expect(result2).toEqual({ valid: true });
-
-      const result3 = QuickShareService.validateQuickShareSecret('');
-      expect(result3).toEqual({ valid: true });
-    });
-
-    test('should return valid for short secrets', () => {
-      const result = QuickShareService.validateQuickShareSecret('short');
-      expect(result).toEqual({ valid: true });
-    });
-
-    test('should return valid for exactly 60 character secret', () => {
-      const secret60 = 'a'.repeat(60);
-      const result = QuickShareService.validateQuickShareSecret(secret60);
-      expect(result).toEqual({ valid: true });
-    });
-
-    test('should return invalid for secrets longer than 60 characters', () => {
-      const secret61 = 'a'.repeat(61);
-      const result = QuickShareService.validateQuickShareSecret(secret61);
-      
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Secret too long');
-      expect(result.message).toBe('Generated secret is too long for storage');
-    });
-
-    test('should return invalid for very long secrets', () => {
-      const longSecret = 'a'.repeat(1000);
-      const result = QuickShareService.validateQuickShareSecret(longSecret);
-      
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Secret too long');
-      expect(result.message).toBe('Generated secret is too long for storage');
-    });
-
-    test('should handle special characters in secrets', () => {
-      const specialSecret = 'abc!@#$%^&*()_+-=[]{}|;:,.<>?';
-      const result = QuickShareService.validateQuickShareSecret(specialSecret);
-      expect(result).toEqual({ valid: true });
-    });
-
-    test('should handle unicode characters in secrets', () => {
-      const unicodeSecret = 'test🔥🚀💻✨';
-      const result = QuickShareService.validateQuickShareSecret(unicodeSecret);
-      expect(result).toEqual({ valid: true });
-    });
-  });
-
   describe('updateQuickShareStatistics', () => {
     let mockUpdateStatistics;
 
