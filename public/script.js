@@ -2763,7 +2763,7 @@ class ClipboardApp {
         // Create modern file download UI
         fileSection.innerHTML = `
             <div class="result-header">
-                <label class="label">📄 File Ready for Download</label>
+                <label class="label">🔒 Encrypted File Ready</label>
             </div>
             <div class="file-download-card">
                 <div class="file-info">
@@ -2799,17 +2799,14 @@ class ClipboardApp {
         const filenameElement = document.getElementById('download-filename');
         const filesizeElement = document.getElementById('download-filesize');
         
-        const filename = data.filename || 'Unknown File';
-        const filesize = data.filesize || 0;
-        
-        console.log('🗂️ Setting file info:', { filename, filesize });
-        
+        console.log('🗂️ Setting encrypted file placeholders (real info available after decryption)');
+
         if (filenameElement) {
-            filenameElement.textContent = filename;
+            filenameElement.textContent = 'Encrypted File';
         }
-        
+
         if (filesizeElement) {
-            filesizeElement.textContent = this.formatFileSize(filesize);
+            filesizeElement.textContent = 'File size available after decryption';
         }
         
         // Show one-time notice if applicable
@@ -2956,6 +2953,12 @@ class ClipboardApp {
                     // Check if we have metadata from decryption
                     if (decryptResult.metadata) {
                         console.log('📋 Using metadata from decryption:', decryptResult.metadata);
+                        // Update the download card with real file info
+                        const filenameEl = document.getElementById('download-filename');
+                        const filesizeEl = document.getElementById('download-filesize');
+                        if (filenameEl) filenameEl.textContent = decryptResult.metadata.filename || filename;
+                        if (filesizeEl) filesizeEl.textContent = this.formatFileSize(decryptResult.metadata.size || decryptResult.data.length);
+
                         // Use original filename and mime type from metadata
                         const originalFilename = decryptResult.metadata.filename || filename;
                         const originalMimeType = decryptResult.metadata.mimeType || 'application/octet-stream';
