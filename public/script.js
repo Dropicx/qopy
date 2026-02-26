@@ -265,7 +265,7 @@ class ClipboardApp {
     async autoRetrieveClip(clipId) {
         try {
             // Validate clip ID format
-            if (!/^[A-Z0-9]{4}$|^[A-Z0-9]{10}$/.test(clipId)) {
+            if (!/^[A-Z0-9]{6}$|^[A-Z0-9]{10}$/.test(clipId)) {
                 return;
             }
 
@@ -1342,8 +1342,8 @@ class ClipboardApp {
             return;
         }
 
-        if (clipId.length !== 4 && clipId.length !== 10) {
-            this.showToast(`❌ Invalid clip ID length: ${clipId.length} characters (must be exactly 4 or 10)`, 'error');
+        if (clipId.length !== 6 && clipId.length !== 10) {
+            this.showToast(`❌ Invalid clip ID length: ${clipId.length} characters (must be exactly 6 or 10)`, 'error');
             document.getElementById('clip-id-input').focus();
             return;
         }
