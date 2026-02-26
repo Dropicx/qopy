@@ -164,4 +164,4 @@ We appreciate the security research community's efforts to improve our security.
 
 **Last Updated**: January 2025
 
-For questions about this policy, open a [GitHub Issue](https://github.com/Dropicx/qopy/issues) or use the Security tab above.
+For questions about this policy, contact qopy.quiet156@passmail.net or use the Security tab above.

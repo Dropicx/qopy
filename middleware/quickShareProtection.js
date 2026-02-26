@@ -9,7 +9,7 @@
  *    For open source use. See LICENSE-AGPL for details.
  *
  * 2. Commercial License
- *    For proprietary/commercial use. Contact qopy@lit.services
+ *    For proprietary/commercial use. Contact qopy.quiet156@passmail.net
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of

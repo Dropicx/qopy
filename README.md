@@ -297,7 +297,7 @@ This project is dual-licensed:
 
 2. **Commercial License**
    - For proprietary/commercial use
-   - Contact: [GitHub Issues](https://github.com/Dropicx/qopy/issues)
+   - Contact: qopy.quiet156@passmail.net
 
 ## Contributing
 
@@ -310,7 +310,7 @@ This project is dual-licensed:
 ## Contact
 
 **Achim Lenz**
-- **Contact**: [GitHub Issues](https://github.com/Dropicx/qopy/issues)
+- **Contact**: qopy.quiet156@passmail.net
 
 ---
 

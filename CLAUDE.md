@@ -12,7 +12,7 @@ Qopy is a privacy-first, enterprise-grade secure temporary text and file sharing
 - Hybrid security: URL secrets + optional passwords for defense in depth
 - Binary database storage (BYTEA) with direct binary transmission (no base64 overhead)
 
-**Dual License**: AGPL-3.0 for open source use, Commercial license: contact via [GitHub Issues](https://github.com/Dropicx/qopy/issues)
+**Dual License**: AGPL-3.0 for open source use, Commercial license: contact qopy.quiet156@passmail.net
 
 ## Common Commands
 

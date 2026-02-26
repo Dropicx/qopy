@@ -196,12 +196,12 @@ Created comprehensive GitHub Actions workflows:
 ## Incident Response
 
 ### Security Contact
-- **Email**: security@lit.services
+- **Email**: qopy.quiet156@passmail.net
 - **Response Time**: 48 hours for initial response
 - **Escalation**: Critical vulnerabilities within 7 days
 
 ### Reporting Process
-1. Report security issues via security@lit.services
+1. Report security issues via qopy.quiet156@passmail.net
 2. Include technical details and reproduction steps
 3. Allow reasonable disclosure time
 4. Acknowledge contribution upon resolution

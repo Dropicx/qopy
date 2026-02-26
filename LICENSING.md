@@ -36,7 +36,7 @@ Qopy is available under two licensing options:
 - Plan to redistribute as part of commercial products
 
 ## How to obtain commercial license:
-Contact us via **[GitHub Issues](https://github.com/Dropicx/qopy/issues)** (please include "Commercial license" in the title).
+Contact us at **qopy.quiet156@passmail.net** (please include "Commercial license" in the subject).
 
 ## Pricing:
 - **Startup** (<$1M revenue): $500/year
@@ -56,4 +56,4 @@ Contact us via **[GitHub Issues](https://github.com/Dropicx/qopy/issues)** (plea
 | Warranty | None | Included |
 
 ## Questions?
-If you're unsure which license you need, please contact us via **[GitHub Issues](https://github.com/Dropicx/qopy/issues)** with details about your intended use case. 
+If you're unsure which license you need, please contact us at **qopy.quiet156@passmail.net** with details about your intended use case. 
