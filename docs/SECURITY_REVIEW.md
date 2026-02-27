@@ -73,6 +73,10 @@ This document provides a structured security review of the Qopy application: thr
 - Errors logged with context (e.g. path, method) without sensitive payloads.
 - Debug logging for file-upload client gated by `FILE_UPLOAD_DEBUG`.
 
+### 2.7 Zero-Knowledge Checklist
+
+When adding or changing client–server flows, ensure URL secret, plaintext access code, and plaintext content are never sent. For access control, send only the PBKDF2-SHA-512 hash of the access code. See [ZERO_KNOWLEDGE_CHECKLIST.md](ZERO_KNOWLEDGE_CHECKLIST.md) for the full audit checklist.
+
 ---
 
 ## 3. Recommendations
@@ -129,5 +133,6 @@ npm run test:integration
 
 - [SECURITY.md](../SECURITY.md) — Supported versions, reporting process, response timeline, configuration notes.
 - [CLAUDE.md](../CLAUDE.md) — Architecture, encryption flow, DB schema, env vars, security notes.
+- [ZERO_KNOWLEDGE_CHECKLIST.md](ZERO_KNOWLEDGE_CHECKLIST.md) — Zero-knowledge audit checklist for client–server flows.
 - [docs/DEPLOYMENT.md](DEPLOYMENT.md) — Production checklist, DB SSL, headers.
 - [docs/TESTING.md](TESTING.md) — Test layout and practices.

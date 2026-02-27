@@ -239,25 +239,18 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
               });
             }
 
-            // Detect if the client already sent a pre-hashed value (128-char hex = 64-byte PBKDF2 output)
+            // Zero-knowledge: accept only client-computed hash (128-char hex). Never hash plaintext server-side.
             const isAlreadyHashed = accessCode.length === 128 && /^[a-f0-9]+$/i.test(accessCode);
-            let providedHash;
-
-            if (isAlreadyHashed) {
-              providedHash = accessCode;
-            } else {
-              // Hash the raw access code server-side using the same PBKDF2 parameters
-              providedHash = await new Promise((resolve, reject) => {
-                crypto.pbkdf2(accessCode, process.env.PBKDF2_SALT || 'qopy-access-salt-v1', 600000, 64, 'sha512', (err, derivedKey) => {
-                  if (err) reject(err);
-                  else resolve(derivedKey.toString('hex'));
-                });
+            if (!isAlreadyHashed) {
+              return res.status(401).json({
+                error: 'Access denied',
+                message: 'Invalid access code'
               });
             }
 
-            // Constant-time comparison would be ideal here, but since both values are
-            // already hashed, timing attacks reveal no useful information about the original code.
-            if (providedHash !== clip.access_code_hash) {
+            const a = Buffer.from(accessCode);
+            const b = Buffer.from(clip.access_code_hash);
+            if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
               return res.status(401).json({
                 error: 'Access denied',
                 message: 'Invalid access code'

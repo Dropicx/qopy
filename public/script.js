@@ -1728,14 +1728,14 @@ class ClipboardApp {
             // Extract clipId from redirectTo URL (e.g., "/api/file/H6LEGF78SB" -> "H6LEGF78SB")
             const clipId = data.redirectTo.split('/').pop();
             
-            // NEW: Use Zero-Knowledge Access Code System instead of download tokens
+            // Zero-Knowledge: send only PBKDF2-SHA-512 hash of access code, never plaintext
             let requestBody = {};
             
             if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH && password) {
-                // Normal clip with password: Use access code for authentication
-                requestBody.accessCode = password; // Send password for access control
+                const accessCodeHash = await this.generateAccessCodeHash(password);
+                requestBody.accessCode = accessCodeHash;
             } else if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH) {
-                // Normal clip without password: No authentication needed (URL secret is client-side)
+                // No password: URL secret only (client-side), no auth body needed
             } else {
                 // Quick Share (6-digit): No authentication needed
             }
@@ -2520,14 +2520,14 @@ class ClipboardApp {
                 }
             }
 
-            // NEW: Zero-Knowledge Access Code System - no download tokens needed
+            // Zero-Knowledge: send only PBKDF2-SHA-512 hash of access code, never plaintext
             const requestBody = {};
             
             if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH && password) {
-                // Normal clip with password: Use access code for authentication
-                requestBody.accessCode = password; // Send password for access control
+                const accessCodeHash = await this.generateAccessCodeHash(password);
+                requestBody.accessCode = accessCodeHash;
             } else if (clipId.length === CLIP_CONFIG.NORMAL_ID_LENGTH) {
-                // Normal clip without password: No authentication needed (URL secret is client-side)
+                // No password: URL secret only (client-side), no auth body needed
             } else {
                 // Quick Share (6-digit): No authentication needed
             }

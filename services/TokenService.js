@@ -40,28 +40,18 @@ class TokenService extends BaseService {
     }
 
     /**
-     * Validate access code against stored hash
-     * @param {string} providedCode - The provided access code
+     * Validate access code against stored hash.
+     * Zero-knowledge: only pre-hashed values (128-char hex) are accepted; plaintext is never hashed server-side.
+     * @param {string} providedCode - The provided access code (must be client-computed PBKDF2-SHA-512 hash)
      * @param {string} storedHash - The stored hash to compare against
      * @returns {Promise<boolean>} - True if valid
      */
     async validateAccessCode(providedCode, storedHash) {
         try {
-            let providedHash;
-            
-            if (this.isAlreadyHashed(providedCode)) {
-                if (process.env.NODE_ENV !== 'production') {
-                    this.log('Using client-side hashed access code for file validation');
-                }
-                providedHash = providedCode;
-            } else {
-                if (process.env.NODE_ENV !== 'production') {
-                    this.log('Generating server-side access code hash for file validation');
-                }
-                providedHash = await this.generateHash(providedCode);
+            if (!this.isAlreadyHashed(providedCode)) {
+                return false;
             }
-
-            const a = Buffer.from(providedHash);
+            const a = Buffer.from(providedCode);
             const b = Buffer.from(storedHash);
             return a.length === b.length && crypto.timingSafeEqual(a, b);
         } catch (error) {

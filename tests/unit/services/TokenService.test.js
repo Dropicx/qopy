@@ -193,12 +193,12 @@ describe('TokenService', () => {
       storedHash = await service.generateHash('correct-code');
     });
 
-    test('should return true for a correct plaintext access code', async () => {
+    test('should return false when plaintext is sent (zero-knowledge: only hash accepted)', async () => {
       const result = await service.validateAccessCode('correct-code', storedHash);
-      expect(result).toBe(true);
+      expect(result).toBe(false);
     });
 
-    test('should return false for an incorrect plaintext access code', async () => {
+    test('should return false for an incorrect or non-hash access code', async () => {
       const result = await service.validateAccessCode('wrong-code', storedHash);
       expect(result).toBe(false);
     });
@@ -215,91 +215,59 @@ describe('TokenService', () => {
       expect(result).toBe(false);
     });
 
-    test('should use timing-safe comparison', async () => {
+    test('should use timing-safe comparison when comparing hashes', async () => {
       const crypto = require('crypto');
       const timingSafeEqualSpy = jest.spyOn(crypto, 'timingSafeEqual');
 
-      await service.validateAccessCode('correct-code', storedHash);
+      await service.validateAccessCode(storedHash, storedHash);
 
       expect(timingSafeEqualSpy).toHaveBeenCalled();
       timingSafeEqualSpy.mockRestore();
     });
 
-    test('should log client-side hash usage in non-production', async () => {
+    test('should return false when plaintext is sent in non-production', async () => {
       process.env.NODE_ENV = 'development';
-      await service.validateAccessCode(storedHash, storedHash);
-
-      expect(mockConsole.log).toHaveBeenCalledWith(
-        expect.stringContaining('Using client-side hashed access code'),
-        expect.any(Object)
-      );
+      const result = await service.validateAccessCode('plaintext-code', storedHash);
+      expect(result).toBe(false);
       delete process.env.NODE_ENV;
     });
 
-    test('should log server-side hash generation in non-production', async () => {
-      process.env.NODE_ENV = 'development';
-      await service.validateAccessCode('plaintext-code', storedHash);
-
-      expect(mockConsole.log).toHaveBeenCalledWith(
-        expect.stringContaining('Generating server-side access code hash'),
-        expect.any(Object)
-      );
-      delete process.env.NODE_ENV;
-    });
-
-    test('should not log in production mode', async () => {
+    test('should return true for matching hash in production', async () => {
       process.env.NODE_ENV = 'production';
-      jest.clearAllMocks();
-
-      await service.validateAccessCode('correct-code', storedHash);
-
-      expect(mockConsole.log).not.toHaveBeenCalledWith(
-        expect.stringContaining('Generating server-side access code hash'),
-        expect.any(Object)
-      );
-      expect(mockConsole.log).not.toHaveBeenCalledWith(
-        expect.stringContaining('Using client-side hashed access code'),
-        expect.any(Object)
-      );
+      const result = await service.validateAccessCode(storedHash, storedHash);
+      expect(result).toBe(true);
       delete process.env.NODE_ENV;
     });
 
-    test('should return false when an error occurs', async () => {
-      // Force an error by passing mismatched buffer lengths indirectly
-      // timingSafeEqual throws if buffers differ in length
+    test('should return false when provided value is not a valid hash', async () => {
       const shortHash = 'abc';
       const result = await service.validateAccessCode('test', shortHash);
       expect(result).toBe(false);
     });
 
-    test('should log error when validation fails with exception', async () => {
-      // Force generateHash to reject so the catch block is triggered
-      const originalGenerateHash = service.generateHash.bind(service);
-      service.generateHash = jest.fn().mockRejectedValue(new Error('hash failure'));
-
-      const result = await service.validateAccessCode('plaintext', storedHash);
+    test('should log error when validation throws', async () => {
+      const invalidCode = null;
+      const result = await service.validateAccessCode(invalidCode, storedHash);
 
       expect(result).toBe(false);
       expect(mockConsole.error).toHaveBeenCalledWith(
         expect.stringContaining('Error validating access code'),
         expect.any(Object)
       );
-
-      service.generateHash = originalGenerateHash;
     });
 
-    test('should handle empty string access code', async () => {
+    test('should handle empty string when sent as its hash', async () => {
       const emptyHash = await service.generateHash('');
-      const result = await service.validateAccessCode('', emptyHash);
+      const result = await service.validateAccessCode(emptyHash, emptyHash);
       expect(result).toBe(true);
     });
 
-    test('should handle concurrent validations', async () => {
+    test('should handle concurrent validations with hashes', async () => {
       const codes = ['code-1', 'code-2', 'code-3', 'code-4', 'code-5'];
       const hashes = await Promise.all(codes.map(c => service.generateHash(c)));
 
       const results = await Promise.all(
-        codes.map((code, i) => service.validateAccessCode(code, hashes[i]))
+        hashes.map((hash, i) => service.validateAccessCode(hash, hashes[i]))
       );
 
       results.forEach(result => {
@@ -307,12 +275,12 @@ describe('TokenService', () => {
       });
     });
 
-    test('should reject cross-matched codes and hashes', async () => {
+    test('should reject cross-matched hashes', async () => {
       const hash1 = await service.generateHash('code-1');
       const hash2 = await service.generateHash('code-2');
 
-      const result1 = await service.validateAccessCode('code-1', hash2);
-      const result2 = await service.validateAccessCode('code-2', hash1);
+      const result1 = await service.validateAccessCode(hash1, hash2);
+      const result2 = await service.validateAccessCode(hash2, hash1);
 
       expect(result1).toBe(false);
       expect(result2).toBe(false);

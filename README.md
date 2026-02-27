@@ -7,92 +7,62 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 The diagram below shows the full flow for **text or file** sharing: encryption and optional chunking on the sender’s device, transport and storage on the server (which never sees plaintext or the URL secret), and decryption only in the recipient’s browser.
 
 ```mermaid
-flowchart TB
-    subgraph SENDER["👤 Sender (Browser)"]
-        A1[Enter text or select file]
-        A2[Generate URL secret<br/>256-bit random, never sent to server]
-        A3[Optional: enter access code]
-        A4[Combine secret: urlSecret + accessCode]
-        A5[Derive key: PBKDF2-SHA256<br/>600k iterations, random 32-byte salt]
-        A6[Encrypt: AES-256-GCM<br/>random 96-bit IV per clip]
-        A7[Build V3 payload:<br/>version + salt + IV + ciphertext]
-        A8{Content type?}
-        A9[Split into 5MB chunks<br/>file only]
-        A10[POST /api/upload/initiate<br/>metadata only, no plaintext]
-        A11[POST /api/upload/chunk/:id/:n<br/>one request per chunk]
-        A12[POST /api/upload/complete/:id<br/>optional: accessCodeHash for validation]
-        A13["Receive clipId + build share URL<br/>/clip/clipId + fragment (urlSecret)"]
-        A1 --> A2
-        A2 --> A3
-        A3 --> A4
-        A4 --> A5
-        A5 --> A6
-        A6 --> A7
-        A7 --> A8
-        A8 -->|Text or small file| A10
-        A8 -->|File > 5MB| A9
-        A9 --> A10
-        A10 --> A11
-        A11 --> A12
-        A12 --> A13
+flowchart LR
+    subgraph SENDER["👤 Sender"]
+        direction TB
+        A1[Enter text or file]
+        A2[Generate URL secret]
+        A3[Encrypt: PBKDF2 + AES-256-GCM]
+        A4[V3 payload]
+        A5{File large?}
+        A6[Split 5MB chunks]
+        A7[POST initiate]
+        A8[POST chunk x N]
+        A9[POST complete]
+        A10[Share URL + fragment]
+        A1 --> A2 --> A3 --> A4 --> A5
+        A5 -->|No| A7
+        A5 -->|Yes| A6 --> A7
+        A7 --> A8 --> A9 --> A10
     end
 
-    subgraph SERVER["🖥️ Server & Database"]
-        B1[Create upload session<br/>store in DB/Redis]
-        B2[Store chunks on disk<br/>temp directory]
-        B3[Validate all chunks received]
-        B4[Assemble file, verify size]
-        B5[Store clip: DB row + encrypted file on disk<br/>BYTEA or file_path]
-        B6[Return clipId to client]
-        B7[Optional: store access_code_hash only<br/>never plaintext access code]
-        B8[Lookup clip in DB<br/>GET /api/clip/:id/info]
-        B9[Return clip metadata + redirectTo<br/>GET or POST /api/clip/:id]
-        B10[Read encrypted file from disk<br/>GET or POST /api/file/:id]
-        B1 --> B2
-        B2 --> B3
-        B3 --> B4
-        B4 --> B5
-        B5 --> B6
-        B5 --> B7
-        B5 --> B8
-        B5 --> B9
-        B5 --> B10
+    subgraph SERVER["🖥️ Server / DB"]
+        direction TB
+        B1[Create session]
+        B2[Store chunks]
+        B3[Assemble and validate]
+        B4[Store clip + file]
+        B5[Return clipId]
+        B_READ[Clip read API]
+        B1 --> B2 --> B3 --> B4 --> B5
+        B4 --> B_READ
     end
 
-    subgraph RECIPIENT["👤 Recipient (Browser)"]
-        C1["Open share link<br/>URL secret stays in fragment (not sent to server)"]
-        C2[GET /api/clip/:clipId/info<br/>expiry, requiresAccessCode]
-        C3{Access code required?}
-        C4[Hash access code client-side<br/>send accessCodeHash only]
-        C5[GET or POST /api/clip/:clipId<br/>get redirectTo /api/file/:clipId]
-        C6[GET or POST /api/file/:clipId<br/>receive encrypted bytes]
-        C7[Parse V3: version, salt, IV, ciphertext]
-        C8[Derive key: PBKDF2 + urlSecret from URL]
-        C9[Decrypt: AES-256-GCM]
-        C10[Display text or download file]
-        C1 --> C2
-        C2 --> C3
-        C3 -->|Yes| C4
+    subgraph RECIPIENT["👤 Recipient"]
+        direction TB
+        C1[Open link]
+        C2[GET clip info]
+        C3{Access code?}
+        C4[POST with hash]
+        C5[GET clip metadata]
+        C6[GET file bytes]
+        C7[Decrypt in browser]
+        C8[Show or download]
+        C1 --> C2 --> C3
+        C3 -->|Yes| C4 --> C5
         C3 -->|No| C5
-        C4 --> C5
-        C5 --> C6
-        C6 --> C7
-        C7 --> C8
-        C8 --> C9
-        C9 --> C10
+        C5 --> C6 --> C7 --> C8
     end
 
-    A10 -.->|initiate| B1
-    A11 -.->|chunks| B2
-    A12 -.->|complete| B3
-    B6 -.->|clipId| A13
+    A7 -.->|initiate| B1
+    A8 -.->|chunks| B2
+    A9 -.->|complete| B3
+    B5 -.->|clipId| A10
 
-    C2 -.->|request| B8
-    B8 -.->|expiry, requiresAccessCode| C2
-    C5 -.->|request| B9
-    B9 -.->|metadata, redirectTo| C5
-    C6 -.->|request| B10
-    B10 -.->|encrypted bytes| C6
+    C2 -.->|1. info| B_READ
+    C5 -.->|2. metadata| B_READ
+    C6 -.->|3. file| B_READ
+    B_READ -.->|info, metadata, file| C6
 ```
 
 **Takeaways:**

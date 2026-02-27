@@ -397,29 +397,20 @@ describe('Clip Routes', () => {
       expect(res.status).toBe(404);
     });
 
-    test('should return 500 when access code PBKDF2 hashing fails', async () => {
+    test('should return 401 when access code is not a valid hash (plaintext sent)', async () => {
       const clip = makeClipRow({
         requires_access_code: true,
-        access_code_hash: 'somehash'
+        access_code_hash: 'a'.repeat(128)
       });
       const { app, mockPool } = createApp();
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [clip] });
-
-      // Mock crypto.pbkdf2 to fail
-      const originalPbkdf2 = crypto.pbkdf2;
-      crypto.pbkdf2 = (password, salt, iterations, keylen, digest, callback) => {
-        callback(new Error('PBKDF2 error'));
-      };
+      mockPool.query.mockResolvedValueOnce({ rows: [clip] });
 
       const res = await request(app)
         .post('/api/clip/ABCDEF1234')
         .send({ accessCode: 'test-code' });
 
-      crypto.pbkdf2 = originalPbkdf2;
-
-      expect(res.status).toBe(500);
-      expect(res.body.message).toBe('Failed to validate access code');
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('Access denied');
     });
   });
 });
