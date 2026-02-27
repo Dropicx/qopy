@@ -224,7 +224,7 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
         const clip = result.rows[0];
 
         // Zero-knowledge access code validation:
-        // The client hashes the access code with PBKDF2 (100k iterations, SHA-512) before
+        // The client hashes the access code with PBKDF2 (600k iterations, SHA-512) before
         // sending it. The server only ever sees and compares hashes — never the plaintext
         // access code. This preserves the zero-knowledge guarantee.
         if (clip.requires_access_code) {

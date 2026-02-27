@@ -31,9 +31,9 @@ const DEFAULT_CONFIG = {
     crypto: {
         algorithm: 'aes-256-gcm',
         keyDerivation: 'pbkdf2',
-        iterations: 100000,
+        iterations: 600000,
         keyLength: 32,
-        saltLength: 16,
+        saltLength: 32,
         ivLength: 12,
         tagLength: 16,
         strategies: {

@@ -2243,7 +2243,7 @@ class ClipboardApp {
         );
     }
 
-    // Enhanced IV derivation with URL secret + password or URL secret only
+    // Legacy IV derivation with URL secret + password (kept for backward-compat decryption; V3 uses random IVs)
     async deriveIV(primarySecret, secondarySecret = null, salt = 'qopy-iv-salt-v1') {
         // Input validation
         if (typeof primarySecret !== 'string' || primarySecret.length === 0) {

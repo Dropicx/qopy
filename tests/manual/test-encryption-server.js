@@ -11,9 +11,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-// Test-Konfiguration
+// Test-Konfiguration (Legacy format — production uses V3 with 600k iterations + random salts)
 const TEST_CONFIG = {
-    iterations: 100000,
+    iterations: 100000, // Legacy — V3 production uses 600000
     salt: 'qopy-salt-v1',
     ivSalt: 'qopy-iv-salt-v1',
     algorithm: 'aes-256-gcm',

@@ -5,17 +5,18 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 ## Security Features
 
 ### Enterprise-Grade Client-Side Encryption
-- **AES-256-GCM encryption** for all content with PBKDF2 key derivation (100,000 iterations)
+- **AES-256-GCM encryption** for all content with PBKDF2 key derivation (600,000 iterations, OWASP 2025 compliant)
 - **Zero-knowledge architecture** - server never sees plaintext content
 - **Hybrid security system** - URL secrets + passwords for defense in depth
-- **Deterministic IV derivation** - IV derived from combined secrets, not transmitted
+- **Per-clip random salts** - 256-bit cryptographically random salt per encryption operation
+- **Random IV generation** - 96-bit cryptographically random IV per encryption operation
 - **Binary database storage** - encrypted content stored as BYTEA for efficiency
 - **Direct binary transmission** - no base64 overhead, raw bytes sent to server
 - **Client-side QR generation** - QR codes generated locally, no external API calls
 
 ### Advanced Security Architecture
-- **URL secrets** - 16-character random secrets in URL fragments for enhanced protection
-- **Password protection** - Optional passwords with 100,000 PBKDF2 iterations
+- **URL secrets** - High-entropy (256-bit) random secrets in URL fragments for enhanced protection
+- **Password protection** - Optional passwords with 600,000 PBKDF2 iterations
 - **Combined secrets** - URL secret + password combined for maximum security
 - **No password transmission** - passwords never leave the client
 - **Defense in depth** - Even weak passwords protected by URL secret
@@ -43,7 +44,7 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 
 ### Enhanced Security Mode
 - **10-character codes** for enhanced security
-- **URL secrets** - 16-character random secrets in URL fragments
+- **URL secrets** - High-entropy (256-bit) random secrets in URL fragments
 - **Flexible expiration** - 5 minutes to 24 hours
 - **Access code protection** - optional additional security layer
 - **Perfect for** - sensitive documents, confidential information, long-term sharing
@@ -230,10 +231,10 @@ CREATE TABLE statistics (
 
 ### Enhanced Security Flow
 1. **User enters content** in browser
-2. **URL secret generated** automatically (16-character random string)
-3. **Combined secret created** from URL secret + password (if provided)
-4. **Content encrypted** with AES-256-GCM + PBKDF2-derived key from combined secret
-5. **IV generated** (deterministic for password clips, random for others) and prepended to encrypted data
+2. **URL secret generated** automatically (256-bit high-entropy passphrase)
+3. **Random salt + IV generated** per clip (256-bit salt, 96-bit IV)
+4. **Content encrypted** with AES-256-GCM + PBKDF2-derived key (600,000 iterations) from combined secret
+5. **V3 payload created** - version byte + salt + IV + ciphertext prepended to encrypted data
 6. **Share URL includes secret** as fragment (e.g., `/clip/abc123#x7y9z2...`)
 7. **Encrypted content sent** to server (no password transmitted)
 8. **Server stores encrypted content** without ability to decrypt
@@ -254,7 +255,8 @@ CREATE TABLE statistics (
 - No content analysis or logging
 - Automatic data expiration
 - No password authentication needed
-- Deterministic IV derivation (for password-protected clips)
+- Random IV per encryption operation (no IV reuse risk)
+- Per-clip random salts (256-bit, NIST SP 800-132 compliant)
 - Hybrid security: URL secret + password provides defense in depth
 
 ## Monitoring & Analytics

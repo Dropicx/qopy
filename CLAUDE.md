@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Qopy is a privacy-first, enterprise-grade secure temporary text and file sharing application with client-side encryption, zero-knowledge architecture, and automatic expiration. Built with Express.js, PostgreSQL, and optional Redis caching.
 
 **Key Security Features**:
-- AES-256-GCM client-side encryption with PBKDF2 key derivation (100,000 iterations)
+- AES-256-GCM client-side encryption with PBKDF2 key derivation (600,000 iterations, OWASP 2025 compliant)
 - Zero-knowledge architecture - server never sees plaintext content
 - Hybrid security: URL secrets + optional passwords for defense in depth
 - Binary database storage (BYTEA) with direct binary transmission (no base64 overhead)
@@ -146,11 +146,12 @@ POST /api/upload/complete/:uploadId → assemble & validate
 ### Client-Side Encryption Flow
 
 **Enhanced Security Mode** (default):
-1. URL secret generated (16-char random) → never transmitted to server
+1. URL secret generated (256-bit high-entropy passphrase) → never transmitted to server
 2. Combined secret = URL secret + password (if provided)
-3. AES-256-GCM encryption with PBKDF2-derived key (100k iterations)
-4. IV prepended to encrypted data (12 bytes)
-5. Share URL: `/clip/{clipId}#{urlSecret}` (fragment never sent to server)
+3. Random 256-bit salt + 96-bit IV generated per clip
+4. AES-256-GCM encryption with PBKDF2-derived key (600k iterations, per-clip random salt)
+5. V3 payload: [version:1 byte][salt:32 bytes][IV:12 bytes][ciphertext]
+6. Share URL: `/clip/{clipId}#{urlSecret}` (fragment never sent to server)
 
 **Quick Share Mode**:
 - 6-character clip IDs for fast sharing
@@ -162,7 +163,8 @@ POST /api/upload/complete/:uploadId → assemble & validate
 - Server never sees plaintext content
 - Server never sees passwords (not even hashed)
 - Server never sees URL secrets
-- Deterministic IV derivation for password-protected clips
+- Random IV per encryption operation (no IV reuse risk)
+- Per-clip random salts (NIST SP 800-132 compliant)
 
 ## Testing Strategy
 

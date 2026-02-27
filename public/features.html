@@ -176,7 +176,7 @@
                 
                 <div class="feature-card">
                     <h3>Access Code Protection</h3>
-                    <p>Add an optional access code to your shared content. Access codes are processed with 100,000 PBKDF2 iterations and never leave your browser.</p>
+                    <p>Add an optional access code to your shared content. Access codes are processed with 600,000 PBKDF2 iterations and never leave your browser.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -221,9 +221,9 @@
             <p>Qopy implements cutting-edge encryption techniques for maximum security:</p>
             <ul>
                 <li><strong>AES-256-GCM encryption</strong> - Advanced algorithm used by financial institutions worldwide</li>
-                <li><strong>PBKDF2 key derivation</strong> - 100,000 iterations for access code-protected content</li>
+                <li><strong>PBKDF2 key derivation</strong> - 600,000 iterations (OWASP 2025 compliant) with per-clip random 256-bit salts</li>
                 <li><strong>Hybrid security system</strong> - URL secrets + access codes for defense in depth</li>
-                <li><strong>Deterministic IV derivation</strong> - IV derived from combined secret for access code-protected clips</li>
+                <li><strong>Random IV generation</strong> - Cryptographically random 96-bit IV per encryption operation</li>
                 <li><strong>Binary storage</strong> - Direct byte concatenation, stored as BYTEA for efficiency</li>
                 <li><strong>Random key generation</strong> - Cryptographically secure random keys for non-protected clips</li>
                 <li><strong>Authenticated encryption</strong> - GCM mode provides both confidentiality and integrity</li>
@@ -233,7 +233,7 @@
             <h3>Hybrid Security Architecture</h3>
             <p>Qopy's innovative hybrid security combines multiple protection layers:</p>
             <ul>
-                <li><strong>URL secrets</strong> - 16-character random secrets automatically generated and included in share URLs</li>
+                <li><strong>URL secrets</strong> - High-entropy (256-bit) random secrets automatically generated and included in share URLs</li>
                 <li><strong>User access codes</strong> - Traditional access code protection chosen by users</li>
                 <li><strong>Combined secrets</strong> - Both secrets combined for maximum security (URL_secret:access_code)</li>
                 <li><strong>Defense in depth</strong> - Even weak access codes are protected by the URL secret</li>
@@ -250,7 +250,7 @@
                 <li>Access codes never leave your browser</li>
                 <li>URL secrets never leave your browser</li>
                 <li>Even if our servers were compromised, your data would remain secure</li>
-                <li>No IV transmission - derived deterministically from combined secret</li>
+                <li>Random IV per operation - no IV reuse risk, cryptographically generated</li>
             </ul>
             
             <h3>File Upload Security</h3>

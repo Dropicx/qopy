@@ -181,7 +181,7 @@
                 
                 <div class="feature-card">
                     <h3>Passwortschutz</h3>
-                    <p>Fügen Sie ein optionales Passwort zu Ihrem geteilten Inhalt hinzu. Passwörter werden mit 100.000 PBKDF2-Iterationen verarbeitet und verlassen niemals Ihren Browser.</p>
+                    <p>Fügen Sie ein optionales Passwort zu Ihrem geteilten Inhalt hinzu. Passwörter werden mit 600.000 PBKDF2-Iterationen (OWASP 2025 konform) verarbeitet und verlassen niemals Ihren Browser.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -218,8 +218,8 @@
             <p>Qopy implementiert modernste Verschlüsselungstechniken für maximale Sicherheit:</p>
             <ul>
                 <li><strong>AES-256-GCM Verschlüsselung</strong> - Militärischer Standard, weltweit von Regierungen verwendet</li>
-                <li><strong>PBKDF2 Schlüsselableitung</strong> - 100.000 Iterationen für passwortgeschützte Inhalte</li>
-                <li><strong>Deterministische IV-Ableitung</strong> - IV wird aus kombiniertem Secret abgeleitet, nicht übertragen (50.000 Iterationen)</li>
+                <li><strong>PBKDF2 Schlüsselableitung</strong> - 600.000 Iterationen (OWASP 2025 konform) mit zufälligem 256-Bit-Salt pro Clip</li>
+                <li><strong>Zufällige IV-Generierung</strong> - Kryptographisch zufällige 96-Bit-IV pro Verschlüsselungsvorgang</li>
                 <li><strong>Optimiertes Speicherformat</strong> - Direkte Byte-Konkatenation reduziert Overhead um 40%</li>
                 <li><strong>Zufällige Schlüsselgenerierung</strong> - Kryptographisch sichere Zufallsschlüssel für nicht-passwortgeschützte Clips</li>
                 <li><strong>Authentifizierte Verschlüsselung</strong> - GCM-Modus bietet sowohl Vertraulichkeit als auch Integrität</li>
@@ -229,7 +229,7 @@
             <h3>Hybrid-Sicherheitsarchitektur</h3>
             <p>Qopys innovative Hybrid-Sicherheit kombiniert mehrere Schutzebenen:</p>
             <ul>
-                <li><strong>URL-Secrets</strong> - 16-Zeichen-Zufallssecrets automatisch generiert und in Share-URLs enthalten</li>
+                <li><strong>URL-Secrets</strong> - Hochentropie (256-Bit) Zufallssecrets automatisch generiert und in Share-URLs enthalten</li>
                 <li><strong>Benutzerpasswörter</strong> - Traditioneller Passwortschutz, gewählt von Benutzern</li>
                 <li><strong>Kombinierte Secrets</strong> - Beide Secrets kombiniert für maximale Sicherheit (URL_secret:passwort)</li>
                 <li><strong>Defense in Depth</strong> - Auch schwache Passwörter sind durch URL-Secret geschützt</li>
@@ -246,7 +246,7 @@
                 <li>Passwörter verlassen niemals Ihren Browser</li>
                 <li>URL-Secrets verlassen niemals Ihren Browser</li>
                 <li>Selbst wenn unsere Server kompromittiert würden, blieben Ihre Daten sicher</li>
-                <li>Keine IV-Übertragung - wird deterministisch aus kombiniertem Secret abgeleitet</li>
+                <li>Zufällige IV pro Vorgang - kryptographisch generiert, kein IV-Wiederverwendungsrisiko</li>
             </ul>
             
             <h3>Rate Limiting & Missbrauch-Prävention</h3>

@@ -11,7 +11,7 @@ class TokenService extends BaseService {
             throw new Error('PBKDF2_SALT environment variable is required');
         }
         this.salt = process.env.PBKDF2_SALT;
-        this.iterations = 100000;
+        this.iterations = 600000;
         this.keyLength = 64;
         this.algorithm = 'sha512';
     }

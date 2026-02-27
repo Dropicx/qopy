@@ -326,7 +326,7 @@ describe('Clip Routes', () => {
 
     test('should accept pre-hashed access code and grant access', async () => {
       // Generate a known hash
-      const hash = crypto.pbkdf2Sync('test-code', 'qopy-access-salt-v1', 100000, 64, 'sha512').toString('hex');
+      const hash = crypto.pbkdf2Sync('test-code', 'qopy-access-salt-v1', 600000, 64, 'sha512').toString('hex');
 
       const clip = makeClipRow({
         content_type: 'text',

@@ -254,8 +254,8 @@
                             <li><strong>Client-side encryption</strong> - Content encrypted in your browser with AES-256-GCM before transmission</li>
                             <li><strong>Zero-knowledge architecture</strong> - Server cannot access plain text content under any circumstances</li>
                             <li><strong>Hybrid security system</strong> - URL secrets combined with user passwords for defense in depth</li>
-                            <li><strong>PBKDF2 key derivation</strong> - 100,000 iterations for password-protected content</li>
-                            <li><strong>Deterministic IV derivation</strong> - IV derived from combined secrets for password-protected clips</li>
+                            <li><strong>PBKDF2 key derivation</strong> - 600,000 iterations (OWASP 2025 compliant) with per-clip random salts</li>
+                            <li><strong>Random IV generation</strong> - Cryptographically random 96-bit IV per encryption operation</li>
                             <li><strong>Auto-expiration</strong> - Content automatically deletes after specified time period</li>
                             <li><strong>Access code protection</strong> - Optional additional security layer</li>
                             <li><strong>One-time access</strong> - Content deleted after first access if configured</li>
@@ -424,16 +424,16 @@
                             <li><strong>Client-side processing</strong> - Encryption performed in browser, not on servers</li>
                             <li><strong>Hybrid security system</strong>:
                                 <ul>
-                                    <li><strong>URL secrets</strong> - 16-character random secret in URL fragment (e.g., #x7y9z2...)</li>
+                                    <li><strong>URL secrets</strong> - High-entropy (256-bit) random secret in URL fragment (never sent to server)</li>
                                     <li><strong>User access codes</strong> - User-defined access code for additional protection</li>
                                     <li><strong>Combined secrets</strong> - Both secrets combined for enhanced security</li>
                                 </ul>
                             </li>
                             <li><strong>Zero-knowledge</strong> - Server cannot access plain text content</li>
-                            <li><strong>PBKDF2 key derivation</strong> - 100,000 iterations for access code-protected content</li>
+                            <li><strong>PBKDF2 key derivation</strong> - 600,000 iterations with per-clip random 256-bit salts</li>
                             <li><strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
                             <li><strong>No access code transmission</strong> - Access codes remain client-side only</li>
-                            <li><strong>Deterministic IV</strong> - For access code-protected clips, IV is derived from combined secret</li>
+                            <li><strong>Random IV</strong> - Cryptographically random 96-bit IV generated per encryption operation</li>
                             <li><strong>Binary storage</strong> - Direct byte concatenation, stored as BYTEA for efficiency</li>
                             <li><strong>Defense in depth</strong> - Access codes protected by URL secret</li>
                             <li><strong>Quick Share mode</strong> - Same zero-knowledge encryption as Enhanced Security, with shorter 6-character codes and URL secrets for instant peer-to-peer sharing</li>
@@ -441,11 +441,10 @@
                         <p><strong>How it works:</strong></p>
                         <ol>
                             <li>You type your content or select a file in the browser</li>
-                            <li>Qopy generates a random 16-character URL secret</li>
+                            <li>Qopy generates a high-entropy URL secret (256 bits)</li>
                             <li>Your access code + URL secret are combined for encryption</li>
-                            <li>Content is encrypted with AES-256-GCM using the combined secret</li>
-                            <li>For access code-protected clips, IV is derived deterministically from combined secret</li>
-                            <li>For non-protected clips, a random IV is generated</li>
+                            <li>A random 256-bit salt and 96-bit IV are generated per clip</li>
+                            <li>Content is encrypted with AES-256-GCM using a PBKDF2-derived key (600,000 iterations)</li>
                             <li>Encrypted data is stored using optimized byte concatenation (40% less overhead)</li>
                             <li>Share URL includes the URL secret as fragment (e.g., /clip/abc123#x7y9z2...)</li>
                             <li>Only encrypted data is stored in our database</li>

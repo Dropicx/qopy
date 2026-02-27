@@ -608,7 +608,7 @@ class FileUploadManager {
         }
     }
 
-    // Compatible IV derivation
+    // Legacy IV derivation (kept for backward-compat decryption; V3 uses random IVs)
     async deriveCompatibleIV(password, secret = null, customSalt = null) {
         try {
             const encoder = new TextEncoder();
@@ -863,7 +863,7 @@ class FileUploadManager {
         );
     }
 
-    // Enhanced IV derivation with secure passphrase
+    // Enhanced IV derivation with secure passphrase (legacy — V3 uses random IVs)
     async deriveEnhancedIV(password, securePassphrase = null, salt = 'qopy-enhanced-iv-salt-v2') {
         const encoder = new TextEncoder();
         
@@ -2059,8 +2059,7 @@ class FileDownloadManager {
                     expectedSecurity,
                     compatibility,
                     willUseParams: {
-                        salt: isLegacy ? 'qopy-salt-v1' : 'qopy-enhanced-salt-v2',
-                        iterations: isLegacy ? 100000 : 250000
+                        format: 'V3 (random salt + random IV + 600k iterations)'
                     }
                 });
                 

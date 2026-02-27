@@ -28,8 +28,8 @@ Wir haben drei verschiedene Testmethoden erstellt:
 
 ### Was wird getestet?
 - ✅ AES-256-GCM Verschlüsselung
-- ✅ PBKDF2 Schlüsselableitung (100.000 Iterationen)
-- ✅ IV-Ableitung (50.000 Iterationen)
+- ✅ PBKDF2 Schlüsselableitung (600.000 Iterationen, OWASP 2025 konform)
+- ✅ Zufällige IV-Generierung (96-Bit kryptographisch zufällig)
 - ✅ Entropie-Analyse der verschlüsselten Daten
 - ✅ Verschlüsselung/Entschlüsselung mit und ohne Passwort
 - ✅ Verschiedene Zeichentypen (Umlaute, Sonderzeichen, Unicode)
@@ -205,9 +205,9 @@ console.log('Entropie:', calculateEntropy(encryptedData));
 
 ### Verschlüsselungsleistung
 - **Algorithmus:** AES-256-GCM
-- **Schlüsselableitung:** PBKDF2 (100.000 Iterationen)
-- **IV-Ableitung:** PBKDF2 (50.000 Iterationen)
-- **Overhead:** ~28-32 Bytes
+- **Schlüsselableitung:** PBKDF2 (600.000 Iterationen, zufälliger 256-Bit-Salt pro Clip)
+- **IV-Generierung:** Kryptographisch zufällig (96-Bit)
+- **Overhead:** ~73-77 Bytes (V3-Header: 1 + 32 + 12 Bytes + Ciphertext-Overhead)
 - **Entropie:** > 7.5 bits/byte
 
 ### Test-Erfolgsraten

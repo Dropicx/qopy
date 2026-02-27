@@ -545,7 +545,7 @@
                 const encryptedData = encrypted.slice(12);
                 
                 tester.addResult('Detaillierte Analyse', 
-                    `IV (12 Bytes): ${tester.bytesToHex(iv)}\nVerschlüsselte Daten: ${encryptedData.length} Bytes\nFormat: IV + verschlüsselte Daten\nAlgorithmus: AES-256-GCM\nSchlüsselableitung: PBKDF2 (100.000 Iterationen)`, 'info');
+                    `IV (12 Bytes): ${tester.bytesToHex(iv)}\nVerschlüsselte Daten: ${encryptedData.length} Bytes\nFormat: IV + verschlüsselte Daten\nAlgorithmus: AES-256-GCM\nSchlüsselableitung: PBKDF2 (Legacy-Test: 100.000 Iterationen, Produktion: 600.000 Iterationen)`, 'info');
 
             } catch (error) {
                 tester.addResult('Fehler', `Verschlüsselungstest fehlgeschlagen: ${error.message}`, 'error');

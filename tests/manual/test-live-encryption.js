@@ -128,9 +128,9 @@ class LiveEncryptionTester {
         }
     }
 
-    // Simuliere client-seitige Verschlüsselung
+    // Simuliere client-seitige Verschlüsselung (Legacy format — production uses V3 with 600k iterations + random salts)
     async simulateClientEncryption(content, password, urlSecret) {
-        // PBKDF2 Schlüsselableitung
+        // PBKDF2 Schlüsselableitung (Legacy: 100k iterations; V3 production: 600k)
         const deriveKey = (secret, salt, iterations) => {
             return new Promise((resolve, reject) => {
                 crypto.pbkdf2(secret, salt, iterations, 32, 'sha256', (err, key) => {

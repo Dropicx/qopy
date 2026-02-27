@@ -46,7 +46,7 @@ describe('TokenService', () => {
   describe('Constructor', () => {
     test('should initialize with PBKDF2_SALT from environment', () => {
       expect(service.salt).toBe('test-salt');
-      expect(service.iterations).toBe(100000);
+      expect(service.iterations).toBe(600000);
       expect(service.keyLength).toBe(64);
       expect(service.algorithm).toBe('sha512');
     });
@@ -326,8 +326,8 @@ describe('TokenService', () => {
       const endTime = process.hrtime.bigint();
 
       const durationMs = Number(endTime - startTime) / 1_000_000;
-      // PBKDF2 with 100k iterations should be under 2 seconds
-      expect(durationMs).toBeLessThan(2000);
+      // PBKDF2 with 600k iterations should be under 5 seconds
+      expect(durationMs).toBeLessThan(5000);
     });
 
     test('should handle multiple sequential hash operations', async () => {
