@@ -2,6 +2,94 @@
 
 Qopy is a privacy-first, secure temporary text and file sharing web application with enterprise-grade client-side encryption, zero-knowledge architecture, and automatic expiration. Built with modern web technologies and optimized for both development and production environments.
 
+## How Sharing Works (Peer → Server → Peer)
+
+The diagram below shows the full flow for **text or file** sharing: encryption and optional chunking on the sender’s device, transport and storage on the server (which never sees plaintext or the URL secret), and decryption only in the recipient’s browser.
+
+```mermaid
+flowchart TB
+    subgraph SENDER["👤 Sender (Browser)"]
+        A1[Enter text or select file]
+        A2[Generate URL secret<br/>256-bit random, never sent to server]
+        A3[Optional: enter access code]
+        A4[Combine secret: urlSecret + accessCode]
+        A5[Derive key: PBKDF2-SHA256<br/>600k iterations, random 32-byte salt]
+        A6[Encrypt: AES-256-GCM<br/>random 96-bit IV per clip]
+        A7[Build V3 payload:<br/>version + salt + IV + ciphertext]
+        A8{Content type?}
+        A9[Split into 5MB chunks<br/>file only]
+        A10[POST /api/upload/initiate<br/>metadata only, no plaintext]
+        A11[POST /api/upload/chunk/:id/:n<br/>one request per chunk]
+        A12[POST /api/upload/complete/:id<br/>optional: accessCodeHash for validation]
+        A13[Receive clipId + build share URL<br/>/clip/{clipId}#{urlSecret}]
+        A1 --> A2
+        A2 --> A3
+        A3 --> A4
+        A4 --> A5
+        A5 --> A6
+        A6 --> A7
+        A7 --> A8
+        A8 -->|Text or small file| A10
+        A8 -->|File > 5MB| A9
+        A9 --> A10
+        A10 --> A11
+        A11 --> A12
+        A12 --> A13
+    end
+
+    subgraph SERVER["🖥️ Server & Database"]
+        B1[Create upload session<br/>store in DB/Redis]
+        B2[Store chunks on disk<br/>temp directory]
+        B3[Validate all chunks received]
+        B4[Assemble file, verify size]
+        B5[Store clip: DB row + encrypted file on disk<br/>BYTEA or file_path]
+        B6[Return clipId to client]
+        B7[Optional: store access_code_hash only<br/>never plaintext access code]
+        B1 --> B2
+        B2 --> B3
+        B3 --> B4
+        B4 --> B5
+        B5 --> B6
+        B5 --> B7
+    end
+
+    subgraph RECIPIENT["👤 Recipient (Browser)"]
+        C1[Open share link<br/>URL secret stays in fragment #]
+        C2[GET /api/clip/:clipId/info<br/>expiry, requiresAccessCode]
+        C3{Access code required?}
+        C4[Hash access code client-side<br/>send accessCodeHash only]
+        C5[GET or POST /api/clip/:clipId<br/>get redirectTo /api/file/:clipId]
+        C6[GET or POST /api/file/:clipId<br/>receive encrypted bytes]
+        C7[Parse V3: version, salt, IV, ciphertext]
+        C8[Derive key: PBKDF2 + urlSecret from URL]
+        C9[Decrypt: AES-256-GCM]
+        C10[Display text or download file]
+        C1 --> C2
+        C2 --> C3
+        C3 -->|Yes| C4
+        C3 -->|No| C5
+        C4 --> C5
+        C5 --> C6
+        C6 --> C7
+        C7 --> C8
+        C8 --> C9
+        C9 --> C10
+    end
+
+    A10 -.->|initiate| B1
+    A11 -.->|chunks| B2
+    A12 -.->|complete| B3
+    B6 -.->|clipId| A13
+    C5 -.->|metadata| B5
+    C6 -.->|encrypted content| B5
+```
+
+**Takeaways:**
+
+- **Sender:** Plaintext and URL secret never leave the browser. Optional access code is hashed (PBKDF2-SHA-512) before send; only the hash is used for server-side access checks.
+- **Server:** Sees only encrypted payloads, chunk blobs, and optional access-code hashes. It cannot decrypt content (no URL secret) and does not log or store plaintext.
+- **Recipient:** Gets ciphertext via API; decryption runs in the browser using the URL secret from the link fragment (`#...`), which the browser does not send to the server.
+
 ## Security Features
 
 ### Enterprise-Grade Client-Side Encryption
