@@ -12,14 +12,8 @@ const { clipIdValidator } = require('./shared/validators');
  */
 async function handleClipRetrieval(req, res, clip, clipId, { pool, updateStatistics }) {
   try {
-    // Update access count and timestamp
-    await pool.query(`
-      UPDATE clips
-      SET access_count = access_count + 1, accessed_at = $1
-      WHERE clip_id = $2
-    `, [Date.now(), clipId]);
-
-    // Update statistics
+    // Access count is updated only when content is delivered (POST /api/file/:clipId)
+    // to avoid double-counting: clip metadata fetch + file content fetch = one logical access
     await updateStatistics('clip_accessed');
 
     // Handle content based on storage type
