@@ -188,13 +188,20 @@ class ClipboardApp {
         const contentResult = document.getElementById('content-result');
         if (contentResult) {
             contentResult.addEventListener('click', async (e) => {
-                if (e.target.closest('#download-file-button') && this._pendingFileDownload) {
+                const btn = e.target.closest('#download-file-button');
+                if (btn && this._pendingFileDownload) {
+                    const originalHTML = btn.innerHTML;
                     try {
+                        btn.disabled = true;
+                        btn.innerHTML = '<span class="button-icon spinner-inline"></span> Downloading...';
                         const clipId = document.getElementById('clip-id-input').value.trim();
                         await this.downloadFile(clipId, this._pendingFileDownload.filename);
                     } catch (error) {
                         console.error('Download failed:', error);
                         this.showToast('Download failed: ' + error.message, 'error');
+                    } finally {
+                        btn.disabled = false;
+                        btn.innerHTML = originalHTML;
                     }
                 }
             });
