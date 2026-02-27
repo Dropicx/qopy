@@ -351,12 +351,9 @@ describe('Clip Routes', () => {
         access_code_hash: hash
       });
       const { app, mockPool } = createApp();
-      // First query: get clip (for POST handler)
-      // Second query: get access_code_hash (for validation)
-      // Then: update access count, updateStatistics
+      // Single query fetches the clip with access_code_hash — no redundant second query
       mockPool.query
-        .mockResolvedValueOnce({ rows: [clip] })    // SELECT * for POST
-        .mockResolvedValueOnce({ rows: [{ access_code_hash: hash, requires_access_code: true }] }) // access code validation query
+        .mockResolvedValueOnce({ rows: [clip] })    // SELECT for POST
         .mockResolvedValueOnce({ rows: [] })         // UPDATE access count
         .mockResolvedValueOnce({ rows: [] });        // any follow-up
 
@@ -375,9 +372,9 @@ describe('Clip Routes', () => {
         access_code_hash: correctHash
       });
       const { app, mockPool } = createApp();
+      // Single query — access_code_hash is already on the clip object
       mockPool.query
-        .mockResolvedValueOnce({ rows: [clip] })
-        .mockResolvedValueOnce({ rows: [{ access_code_hash: correctHash, requires_access_code: true }] });
+        .mockResolvedValueOnce({ rows: [clip] });
 
       const res = await request(app)
         .post('/api/clip/ABCDEF1234')
@@ -393,9 +390,9 @@ describe('Clip Routes', () => {
         access_code_hash: null
       });
       const { app, mockPool } = createApp();
+      // Single query — clip already has access_code_hash: null
       mockPool.query
-        .mockResolvedValueOnce({ rows: [clip] })
-        .mockResolvedValueOnce({ rows: [{ access_code_hash: null, requires_access_code: true }] });
+        .mockResolvedValueOnce({ rows: [clip] });
 
       const res = await request(app)
         .post('/api/clip/ABCDEF1234')
@@ -417,19 +414,26 @@ describe('Clip Routes', () => {
       expect(res.status).toBe(404);
     });
 
-    test('should return 500 when access code validation query fails', async () => {
+    test('should return 500 when access code PBKDF2 hashing fails', async () => {
       const clip = makeClipRow({
         requires_access_code: true,
         access_code_hash: 'somehash'
       });
       const { app, mockPool } = createApp();
       mockPool.query
-        .mockResolvedValueOnce({ rows: [clip] })
-        .mockRejectedValueOnce(new Error('DB error'));
+        .mockResolvedValueOnce({ rows: [clip] });
+
+      // Mock crypto.pbkdf2 to fail
+      const originalPbkdf2 = crypto.pbkdf2;
+      crypto.pbkdf2 = (password, salt, iterations, keylen, digest, callback) => {
+        callback(new Error('PBKDF2 error'));
+      };
 
       const res = await request(app)
         .post('/api/clip/ABCDEF1234')
         .send({ accessCode: 'test-code' });
+
+      crypto.pbkdf2 = originalPbkdf2;
 
       expect(res.status).toBe(500);
       expect(res.body.message).toBe('Failed to validate access code');

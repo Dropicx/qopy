@@ -1869,52 +1869,35 @@ class ClipboardApp {
         }
     }
 
+    // Lazy-initialized cache for text-related DOM elements.
+    // These elements are static (never added/removed from the DOM), so we only
+    // need to query them once and can reuse the references across hide/show calls.
+    _getTextElements() {
+        if (!this._textElementsCache) {
+            this._textElementsCache = {
+                retrievedContent: document.getElementById('retrieved-content'),
+                copyContentButton: document.getElementById('copy-content-button'),
+                oneTimeNotice: document.getElementById('one-time-notice'),
+                contentActions: document.querySelector('.content-actions'),
+                contentDisplay: document.querySelector('.content-display'),
+                contentInfo: document.querySelector('.content-info'),
+                newPasteSection: document.querySelector('.new-paste-section')
+            };
+        }
+        return this._textElementsCache;
+    }
+
     // Helper function to hide all text-related elements
     hideAllTextElements() {
-        
-        // Hide individual text-related elements
-        const retrievedContent = document.getElementById('retrieved-content');
-        const copyContentButton = document.getElementById('copy-content-button');
-        const oneTimeNotice = document.getElementById('one-time-notice');
-        const contentActions = document.querySelector('.content-actions');
-        const contentDisplay = document.querySelector('.content-display');
-        const contentInfo = document.querySelector('.content-info');
-        const newPasteSection = document.querySelector('.new-paste-section');
-        
-        // Hide text content display
-        if (retrievedContent) {
-            retrievedContent.style.display = 'none';
-        }
-        
-        // Hide copy content button
-        if (copyContentButton) {
-            copyContentButton.style.display = 'none';
-        }
-        
-        // Hide content actions (contains copy button)
-        if (contentActions) {
-            contentActions.style.display = 'none';
-        }
-        
-        // Hide content display container
-        if (contentDisplay) {
-            contentDisplay.style.display = 'none';
-        }
-        
-        // Hide content info (Created/Expires times)
-        if (contentInfo) {
-            contentInfo.style.display = 'none';
-        }
-        
-        // Hide new paste section
-        if (newPasteSection) {
-            newPasteSection.style.display = 'none';
-        }
-        
-        // Hide one-time notice
-        if (oneTimeNotice) {
-            oneTimeNotice.style.display = 'none';
-        }
+        const els = this._getTextElements();
+
+        if (els.retrievedContent) els.retrievedContent.style.display = 'none';
+        if (els.copyContentButton) els.copyContentButton.style.display = 'none';
+        if (els.contentActions) els.contentActions.style.display = 'none';
+        if (els.contentDisplay) els.contentDisplay.style.display = 'none';
+        if (els.contentInfo) els.contentInfo.style.display = 'none';
+        if (els.newPasteSection) els.newPasteSection.style.display = 'none';
+        if (els.oneTimeNotice) els.oneTimeNotice.style.display = 'none';
 
         // Note: Password section visibility is handled by checkClipId function
         // which shows it only for text content with passwords, not for files
@@ -1922,50 +1905,15 @@ class ClipboardApp {
 
     // Helper function to show all text-related elements
     showTextElements() {
-        
-        // Show individual text-related elements
-        const retrievedContent = document.getElementById('retrieved-content');
-        const copyContentButton = document.getElementById('copy-content-button');
-        const oneTimeNotice = document.getElementById('one-time-notice');
-        const contentActions = document.querySelector('.content-actions');
-        const contentDisplay = document.querySelector('.content-display');
-        const contentInfo = document.querySelector('.content-info');
-        const newPasteSection = document.querySelector('.new-paste-section');
-        
-        // Show text content display
-        if (retrievedContent) {
-            retrievedContent.style.display = 'block';
-        }
-        
-        // Show copy content button
-        if (copyContentButton) {
-            copyContentButton.style.display = 'block';
-        }
-        
-        // Show content actions (contains copy button)
-        if (contentActions) {
-            contentActions.style.display = 'flex';
-        }
-        
-        // Show content display container
-        if (contentDisplay) {
-            contentDisplay.style.display = 'block';
-        }
-        
-        // Show content info (Created/Expires times)
-        if (contentInfo) {
-            contentInfo.style.display = 'block';
-        }
-        
-        // Show new paste section
-        if (newPasteSection) {
-            newPasteSection.style.display = 'block';
-        }
-        
-        // Show one-time notice (will be controlled by data.oneTime)
-        if (oneTimeNotice) {
-            oneTimeNotice.style.display = 'block';
-        }
+        const els = this._getTextElements();
+
+        if (els.retrievedContent) els.retrievedContent.style.display = 'block';
+        if (els.copyContentButton) els.copyContentButton.style.display = 'block';
+        if (els.contentActions) els.contentActions.style.display = 'flex';
+        if (els.contentDisplay) els.contentDisplay.style.display = 'block';
+        if (els.contentInfo) els.contentInfo.style.display = 'block';
+        if (els.newPasteSection) els.newPasteSection.style.display = 'block';
+        if (els.oneTimeNotice) els.oneTimeNotice.style.display = 'block';
     }
 
     // Copy to Clipboard

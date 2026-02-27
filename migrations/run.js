@@ -183,7 +183,13 @@ async function runMigrations(pool) {
             'CREATE INDEX IF NOT EXISTS idx_file_chunks_created_at ON file_chunks(created_at)',
             'CREATE INDEX IF NOT EXISTS idx_upload_statistics_date ON upload_statistics(date)',
             'CREATE INDEX IF NOT EXISTS idx_clips_content_type ON clips(content_type)',
-            'CREATE INDEX IF NOT EXISTS idx_clips_file_path ON clips(file_path)'
+            'CREATE INDEX IF NOT EXISTS idx_clips_file_path ON clips(file_path)',
+            // Partial index: covers the most common query pattern (active clips by clip_id)
+            'CREATE INDEX IF NOT EXISTS idx_clips_active ON clips(clip_id) WHERE is_expired = false',
+            // Partial index: speeds up periodic cleanup of expired clips
+            'CREATE INDEX IF NOT EXISTS idx_clips_expiration_active ON clips(expiration_time) WHERE is_expired = false',
+            // Composite index: speeds up expired upload session cleanup queries
+            'CREATE INDEX IF NOT EXISTS idx_upload_sessions_status_activity ON upload_sessions(status, last_activity)'
         ];
         for (const q of indexes) {
             try { await client.query(q); } catch (e) { console.warn(`⚠️ Index: ${e.message}`); }

@@ -702,6 +702,68 @@ describe('CleanupService', () => {
     });
   });
 
+  // ─── cleanupUploadStatistics ──────────────────────────────────────────────
+
+  describe('cleanupUploadStatistics', () => {
+    test('should delete rows older than 90 days by default', async () => {
+      mockPool.query.mockResolvedValueOnce({ rowCount: 5 });
+
+      await service.cleanupUploadStatistics();
+
+      expect(mockPool.query).toHaveBeenCalledWith(
+        'DELETE FROM upload_statistics WHERE date < $1',
+        [expect.any(String)]
+      );
+      // Verify the cutoff date is roughly 90 days ago
+      const cutoffDate = mockPool.query.mock.calls[0][1][0];
+      const daysDiff = (Date.now() - new Date(cutoffDate).getTime()) / (1000 * 60 * 60 * 24);
+      expect(daysDiff).toBeGreaterThanOrEqual(89);
+      expect(daysDiff).toBeLessThanOrEqual(91);
+    });
+
+    test('should accept custom retention period', async () => {
+      mockPool.query.mockResolvedValueOnce({ rowCount: 2 });
+
+      await service.cleanupUploadStatistics(30);
+
+      const cutoffDate = mockPool.query.mock.calls[0][1][0];
+      const daysDiff = (Date.now() - new Date(cutoffDate).getTime()) / (1000 * 60 * 60 * 24);
+      expect(daysDiff).toBeGreaterThanOrEqual(29);
+      expect(daysDiff).toBeLessThanOrEqual(31);
+    });
+
+    test('should log when rows are deleted', async () => {
+      mockPool.query.mockResolvedValueOnce({ rowCount: 10 });
+
+      await service.cleanupUploadStatistics();
+
+      expect(mockConsole.log).toHaveBeenCalledWith(
+        expect.stringContaining('Cleaned up 10 old upload_statistics rows')
+      );
+    });
+
+    test('should not log when no rows are deleted', async () => {
+      mockPool.query.mockResolvedValueOnce({ rowCount: 0 });
+
+      await service.cleanupUploadStatistics();
+
+      expect(mockConsole.log).not.toHaveBeenCalledWith(
+        expect.stringContaining('Cleaned up')
+      );
+    });
+
+    test('should handle database errors gracefully', async () => {
+      mockPool.query.mockRejectedValueOnce(new Error('DB error'));
+
+      await service.cleanupUploadStatistics();
+
+      expect(mockConsole.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error cleaning up upload statistics'),
+        'DB error'
+      );
+    });
+  });
+
   // ─── start ─────────────────────────────────────────────────────────────────
 
   describe('start', () => {
@@ -717,9 +779,10 @@ describe('CleanupService', () => {
       expect(service._cleanupInterval).not.toBeNull();
     });
 
-    test('should call cleanupExpiredClips and cleanupExpiredUploads on interval tick', async () => {
+    test('should call cleanupExpiredClips, cleanupExpiredUploads, and cleanupUploadStatistics on interval tick', async () => {
       const cleanupClipsSpy = jest.spyOn(service, 'cleanupExpiredClips').mockResolvedValue();
       const cleanupUploadsSpy = jest.spyOn(service, 'cleanupExpiredUploads').mockResolvedValue();
+      const cleanupStatsSpy = jest.spyOn(service, 'cleanupUploadStatistics').mockResolvedValue();
 
       service.start(1000);
 
@@ -729,12 +792,15 @@ describe('CleanupService', () => {
       // Allow the async callback to resolve
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
 
       expect(cleanupClipsSpy).toHaveBeenCalledTimes(1);
       expect(cleanupUploadsSpy).toHaveBeenCalledTimes(1);
+      expect(cleanupStatsSpy).toHaveBeenCalledTimes(1);
 
       cleanupClipsSpy.mockRestore();
       cleanupUploadsSpy.mockRestore();
+      cleanupStatsSpy.mockRestore();
     });
 
     test('should use default interval of 60000ms', () => {

@@ -36,17 +36,20 @@ module.exports = {
   collectCoverageFrom: [
     'server.js',
     'services/**/*.js',
+    'routes/**/*.js',
     '!**/node_modules/**',
     '!**/coverage/**',
     '!**/tests/**'
   ],
   coverageReporters: ['text', 'html', 'lcov'],
+  // Coverage thresholds: stepping stones toward the >80% project target (CLAUDE.md).
+  // Set conservatively to avoid blocking PRs while we increase coverage incrementally.
   coverageThreshold: {
     global: {
-      branches: 40,
-      functions: 40,
-      lines: 40,
-      statements: 40
+      branches: 60,
+      functions: 70,
+      lines: 75,
+      statements: 75
     }
   },
   setupFilesAfterEnv: ['<rootDir>/tests/helpers/setup.js'],

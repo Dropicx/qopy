@@ -95,7 +95,7 @@ function registerUploadRoutes(app, {
             res.json(result);
 
         } catch (error) {
-            console.error('Error completing upload:', error);
+            console.error('Error completing upload:', { method: req.method, path: req.path, error: error.message });
 
             if (error instanceof UploadCompletionError) {
                 return res.status(error.statusCode).json({
@@ -242,7 +242,7 @@ function registerUploadRoutes(app, {
             });
 
         } catch (error) {
-            console.error('Error initiating upload:', error.message);
+            console.error('Error initiating upload:', { method: req.method, path: req.path, error: error.message });
             res.status(500).json({
                 error: 'Internal server error',
                 message: 'Failed to initiate upload'
@@ -267,9 +267,9 @@ function registerUploadRoutes(app, {
             const { uploadId, chunkNumber } = req.params;
             const chunkNum = parseInt(chunkNumber);
 
-            // Verify upload session exists and is active
+            // Verify upload session exists and is active — only fetch columns used for validation and chunk processing
             const sessionResult = await pool.query(
-                'SELECT * FROM upload_sessions WHERE upload_id = $1 AND status = $2',
+                'SELECT upload_id, total_chunks, uploaded_chunks, chunk_size, is_text_content, status FROM upload_sessions WHERE upload_id = $1 AND status = $2',
                 [uploadId, 'uploading']
             );
 
@@ -290,9 +290,9 @@ function registerUploadRoutes(app, {
                 });
             }
 
-            // Check if chunk already exists
+            // Check if chunk already exists (only need to know if a row exists)
             const existingChunk = await pool.query(
-                'SELECT * FROM file_chunks WHERE upload_id = $1 AND chunk_number = $2',
+                'SELECT 1 FROM file_chunks WHERE upload_id = $1 AND chunk_number = $2',
                 [uploadId, chunkNum]
             );
 
@@ -374,7 +374,7 @@ function registerUploadRoutes(app, {
             const redis = getRedis();
             if (redis) {
                 const updatedSessionResult = await pool.query(
-                    'SELECT * FROM upload_sessions WHERE upload_id = $1',
+                    'SELECT upload_id, total_chunks, uploaded_chunks, chunk_size, is_text_content, status, expiration_time, last_activity, created_at FROM upload_sessions WHERE upload_id = $1',
                     [uploadId]
                 );
                 if (updatedSessionResult.rows[0]) {
@@ -391,7 +391,7 @@ function registerUploadRoutes(app, {
             });
 
         } catch (error) {
-            console.error('Error uploading chunk:', error.message);
+            console.error('Error uploading chunk:', { method: req.method, path: req.path, error: error.message });
             res.status(500).json({
                 error: 'Internal server error',
                 message: 'Failed to upload chunk'
@@ -414,9 +414,9 @@ function registerUploadRoutes(app, {
 
             const { uploadId } = req.params;
 
-            // Get upload session
+            // Get upload session — only need upload_id to confirm existence
             const sessionResult = await pool.query(
-                'SELECT * FROM upload_sessions WHERE upload_id = $1',
+                'SELECT upload_id FROM upload_sessions WHERE upload_id = $1',
                 [uploadId]
             );
 
@@ -427,9 +427,9 @@ function registerUploadRoutes(app, {
                 });
             }
 
-            // Get and delete all chunks
+            // Get chunk storage paths for file cleanup before deleting DB records
             const chunksResult = await pool.query(
-                'SELECT * FROM file_chunks WHERE upload_id = $1',
+                'SELECT storage_path FROM file_chunks WHERE upload_id = $1',
                 [uploadId]
             );
 
@@ -463,7 +463,7 @@ function registerUploadRoutes(app, {
             });
 
         } catch (error) {
-            console.error('Error cancelling upload:', error.message);
+            console.error('Error cancelling upload:', { method: req.method, path: req.path, error: error.message });
             res.status(500).json({
                 error: 'Internal server error',
                 message: 'Failed to cancel upload'

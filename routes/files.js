@@ -3,8 +3,9 @@
  * File download and info routes
  */
 
-const { param, body, validationResult } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const path = require('path');
+const { clipIdValidator } = require('./shared/validators');
 
 /**
  * Register file-related routes
@@ -12,16 +13,6 @@ const path = require('path');
  * @param {{ pool: import('pg').Pool, fileService: object, fileDownloadLimiter: object, accessValidationMiddleware: Function, updateStatistics: Function }} deps
  */
 function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, accessValidationMiddleware, updateStatistics }) {
-    // Shared clipId validator
-    const clipIdValidator = param('clipId').custom((value) => {
-        if (value.length !== 6 && value.length !== 10) {
-            throw new Error('Clip ID must be 6 or 10 characters');
-        }
-        if (!/^[A-Z0-9]+$/.test(value)) {
-            throw new Error('Clip ID must contain only uppercase letters and numbers');
-        }
-        return true;
-    });
 
     // ==========================================
     // FILE SHARING ENDPOINTS
@@ -42,8 +33,9 @@ function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, acces
 
             const { clipId } = req.params;
 
+            // Fetch only metadata columns needed for the file info response
             const result = await pool.query(
-                'SELECT * FROM clips WHERE clip_id = $1 AND content_type = $2 AND is_expired = false',
+                'SELECT clip_id, original_filename, filesize, mime_type, expiration_time, one_time, password_hash FROM clips WHERE clip_id = $1 AND content_type = $2 AND is_expired = false',
                 [clipId, 'file']
             );
 
@@ -101,9 +93,9 @@ function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, acces
 
             const { clipId } = req.params;
 
-            // Get clip data
+            // Get clip data — only columns needed for file download and access control
             const result = await pool.query(
-                'SELECT * FROM clips WHERE clip_id = $1 AND file_path IS NOT NULL AND is_expired = false',
+                'SELECT clip_id, file_path, original_filename, filesize, mime_type, one_time, password_hash FROM clips WHERE clip_id = $1 AND file_path IS NOT NULL AND is_expired = false',
                 [clipId]
             );
 
@@ -151,7 +143,7 @@ function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, acces
             await fileService.streamFile(clip.file_path, res, { deleteAfterSend: deleteFileAfterSend });
 
         } catch (error) {
-            console.error('❌ File download error:', error.message);
+            console.error('❌ File download error:', { method: req.method, path: req.path, error: error.message });
             if (!res.headersSent) {
                 res.status(500).json({
                     error: 'Internal server error',

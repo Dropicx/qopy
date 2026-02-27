@@ -109,7 +109,8 @@ function registerAdminRoutes(app, { pool }) {
     app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
       try {
         // Get statistics from dedicated table (much faster than COUNT queries)
-        const statsResult = await pool.query('SELECT * FROM statistics ORDER BY id DESC LIMIT 1');
+        // Only fetch the columns used for dashboard display
+        const statsResult = await pool.query('SELECT total_clips, total_accesses, password_protected_clips, quick_share_clips, one_time_clips, normal_clips, last_updated FROM statistics ORDER BY id DESC LIMIT 1');
         const stats = statsResult.rows[0];
 
         // Get active clips (not expired) - still need to query clips table for this

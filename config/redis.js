@@ -18,6 +18,17 @@
 
 const redis = require('redis');
 
+/**
+ * Centralized Redis connection manager (singleton pattern).
+ * Provides a single shared connection used by all services, preventing the memory leaks
+ * that occurred when individual services each created their own connections.
+ *
+ * Key design decisions:
+ * - Singleton: only one instance exists, accessed via module-level `redisManager` export
+ * - Graceful degradation: all methods silently fall back when Redis is unavailable
+ * - Heartbeat: periodic PING detects stale TCP connections before they cause errors
+ * - Centralized shutdown: `disconnect()` is called once during process exit
+ */
 class RedisManager {
     constructor() {
         this.client = null;
@@ -92,13 +103,19 @@ class RedisManager {
                 this.client.on('end', endHandler);
                 this.eventListeners.set('end', endHandler);
 
-                // Connect with timeout - don't let this block server startup
+                // Connect with a 10s timeout to prevent blocking server startup.
+                // If Redis is down, the app falls back to in-memory caching gracefully.
                 const connectPromise = this.client.connect();
                 const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Connection timeout')), 10000)
                 );
 
                 await Promise.race([connectPromise, timeoutPromise]);
+
+                // Start periodic PING heartbeat (every 30s) to detect stale TCP connections
+                // early. Without this, a silently dropped connection won't be noticed until
+                // the next cache operation fails.
+                this.startHeartbeat();
 
             } else {
                 console.warn('⚠️ No Redis URL found - running without Redis cache');

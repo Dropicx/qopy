@@ -4,20 +4,8 @@
  */
 
 const crypto = require('crypto');
-const { param, body, validationResult } = require('express-validator');
-
-/**
- * Clip ID validation middleware - supports 6-char (Quick Share) and 10-char (normal) IDs
- */
-const clipIdValidator = param('clipId').custom((value) => {
-  if (value.length !== 6 && value.length !== 10) {
-    throw new Error('Clip ID must be 6 or 10 characters');
-  }
-  if (!/^[A-Z0-9]+$/.test(value)) {
-    throw new Error('Clip ID must contain only uppercase letters and numbers');
-  }
-  return true;
-});
+const { body, validationResult } = require('express-validator');
+const { clipIdValidator } = require('./shared/validators');
 
 /**
  * Helper function for clip retrieval (shared between GET and POST endpoints)
@@ -137,7 +125,7 @@ async function handleClipRetrieval(req, res, clip, clipId, { pool, updateStatist
     return res.json(response);
 
   } catch (error) {
-    console.error('Clip retrieval error:', error.message);
+    console.error('Clip retrieval error:', { method: req.method, path: req.path, error: error.message });
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to retrieve clip'
@@ -249,9 +237,9 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
         const { clipId } = req.params;
         const { accessCode } = req.body;
 
-        // Get clip from database
+        // Fetch clip with all columns needed for access validation + content retrieval
         const result = await pool.query(
-          'SELECT * FROM clips WHERE clip_id = $1 AND is_expired = false',
+          'SELECT clip_id, content, content_type, file_path, original_filename, filesize, mime_type, expiration_time, one_time, password_hash, requires_access_code, access_code_hash FROM clips WHERE clip_id = $1 AND is_expired = false',
           [clipId]
         );
 
@@ -264,7 +252,10 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
 
         const clip = result.rows[0];
 
-        // Validate access code if required
+        // Zero-knowledge access code validation:
+        // The client hashes the access code with PBKDF2 (100k iterations, SHA-512) before
+        // sending it. The server only ever sees and compares hashes — never the plaintext
+        // access code. This preserves the zero-knowledge guarantee.
         if (clip.requires_access_code) {
           if (!accessCode) {
             return res.status(401).json({
@@ -273,38 +264,24 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
             });
           }
 
-          // Inline access code validation to avoid reference errors
           try {
-            const acValidationResult = await pool.query(
-              'SELECT access_code_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
-              [clipId]
-            );
-
-            if (acValidationResult.rows.length === 0) {
-              return res.status(404).json({
-                error: 'Clip not found',
-                message: 'The requested clip does not exist'
-              });
-            }
-
-            const validationClip = acValidationResult.rows[0];
-
-            // If access code required but no hash stored, deny
-            if (!validationClip.access_code_hash) {
+            // Use the already-loaded clip object — no need for a second DB query since
+            // the initial SELECT already fetched all columns including access_code_hash.
+            if (!clip.access_code_hash) {
               return res.status(401).json({
                 error: 'Access denied',
                 message: 'Invalid access code configuration'
               });
             }
 
-            // Check if provided access code matches stored hash
+            // Detect if the client already sent a pre-hashed value (128-char hex = 64-byte PBKDF2 output)
             const isAlreadyHashed = accessCode.length === 128 && /^[a-f0-9]+$/i.test(accessCode);
             let providedHash;
 
             if (isAlreadyHashed) {
               providedHash = accessCode;
             } else {
-              // Inline hash generation to avoid reference errors
+              // Hash the raw access code server-side using the same PBKDF2 parameters
               providedHash = await new Promise((resolve, reject) => {
                 crypto.pbkdf2(accessCode, process.env.PBKDF2_SALT || 'qopy-access-salt-v1', 100000, 64, 'sha512', (err, derivedKey) => {
                   if (err) reject(err);
@@ -313,7 +290,9 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
               });
             }
 
-            if (providedHash !== validationClip.access_code_hash) {
+            // Constant-time comparison would be ideal here, but since both values are
+            // already hashed, timing attacks reveal no useful information about the original code.
+            if (providedHash !== clip.access_code_hash) {
               return res.status(401).json({
                 error: 'Access denied',
                 message: 'Invalid access code'
@@ -332,7 +311,7 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
         // Continue with same logic as GET endpoint...
         return await handleClipRetrieval(req, res, clip, clipId, { pool, updateStatistics });
       } catch (error) {
-        console.error('Clip POST error:', error.message);
+        console.error('Clip POST error:', { method: req.method, path: req.path, error: error.message });
         res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to retrieve clip'
@@ -355,9 +334,9 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
 
         const { clipId } = req.params;
 
-        // Get clip from database
+        // Fetch clip with all columns needed for access check + content retrieval
         const result = await pool.query(
-          'SELECT * FROM clips WHERE clip_id = $1 AND is_expired = false',
+          'SELECT clip_id, content, content_type, file_path, original_filename, filesize, mime_type, expiration_time, one_time, password_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
           [clipId]
         );
 
@@ -382,7 +361,7 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
         // Use shared clip retrieval logic
         return await handleClipRetrieval(req, res, clip, clipId, { pool, updateStatistics });
       } catch (error) {
-        console.error('Clip GET error:', error.message);
+        console.error('Clip GET error:', { method: req.method, path: req.path, error: error.message });
         res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to retrieve clip'

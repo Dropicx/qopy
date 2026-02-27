@@ -41,8 +41,12 @@ const QuickShareProtection = require('./middleware/quickShareProtection');
 // The previous config/storage.js file has been removed as it was unused
 
 // File storage configuration (define before multer config)
+// STORAGE_PATH: Railway volumes persist across deploys; falls back to local ./uploads for dev
 const STORAGE_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || './uploads';
+// CHUNK_SIZE: 5MB balances upload throughput vs memory usage. Multer limit is CHUNK_SIZE + 1MB
+// to accommodate encryption overhead (12-byte IV + 16-byte auth tag + padding).
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+// MAX_FILE_SIZE: Hard cap enforced both client-side and server-side during assembly
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 // Configure multer for file uploads
@@ -249,25 +253,8 @@ if (process.env.NODE_ENV === 'production') {
 const { registerHealthRoutes } = require('./routes/health');
 registerHealthRoutes(app, { pool });
 
-// Helper function to format bytes
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-// Helper function to check if content looks like text
-function isTextContent(buffer) {
-  const text = buffer.toString('utf8');
-  // Check if it contains mostly printable ASCII characters
-  const printableChars = text.replace(/[^\x20-\x7E]/g, '').length;
-  const totalChars = text.length;
-  return totalChars > 0 && (printableChars / totalChars) > 0.8;
-}
-
-// Enhanced middleware configuration
+// CORS and security middleware — helmet enforces CSP, HSTS, and other HTTP security headers.
+// Stripe domains are whitelisted for the payment integration (script-src, connect-src, frame-src).
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -391,8 +378,10 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: getClientIP,
   skip: (req) => {
-    // Skip rate limiting for health checks, admin routes, and chunk uploads/completion
-    // Chunk uploads are already protected by the upload session initiation limiter
+    // Skip rate limiting for health checks (monitoring) and chunk upload paths.
+    // Chunk uploads are already gated by the upload initiation limiter (shareLimiter),
+    // so applying the general limiter here would cause legitimate large-file uploads
+    // to hit the 100-request cap mid-transfer.
     return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.match(/^\/api\/upload\/(chunk|complete)\//);
   }
 });

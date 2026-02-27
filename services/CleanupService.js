@@ -181,6 +181,28 @@ class CleanupService extends BaseService {
     }
 
     /**
+     * Delete upload_statistics rows older than the retention period.
+     * The upload_statistics table grows by ~1 row/day with no built-in cleanup,
+     * so this prevents unbounded growth over months/years of operation.
+     * @param {number} retentionDays - Number of days to retain (default: 90)
+     */
+    async cleanupUploadStatistics(retentionDays = 90) {
+        try {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+            const result = await this.pool.query(
+                'DELETE FROM upload_statistics WHERE date < $1',
+                [cutoffDate.toISOString().split('T')[0]]
+            );
+            if (result.rowCount > 0) {
+                console.log(`🧹 Cleaned up ${result.rowCount} old upload_statistics rows (older than ${retentionDays} days)`);
+            }
+        } catch (error) {
+            console.error('❌ Error cleaning up upload statistics:', error.message);
+        }
+    }
+
+    /**
      * Start the periodic cleanup interval
      * @param {number} intervalMs - Interval in milliseconds (default: 60000 = 1 minute)
      */
@@ -188,6 +210,7 @@ class CleanupService extends BaseService {
         this._cleanupInterval = setInterval(async () => {
             await this.cleanupExpiredClips();
             await this.cleanupExpiredUploads();
+            await this.cleanupUploadStatistics();
         }, intervalMs);
     }
 

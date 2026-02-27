@@ -46,8 +46,7 @@ class FileAssemblyService {
                     
                     // Read chunk data
                     const chunkData = await fs.readFile(chunkPath);
-                    logger.log(`Chunk ${i}: ${chunkData.length} bytes`);
-                    
+
                     return {
                         index: i,
                         data: chunkData,
@@ -55,10 +54,13 @@ class FileAssemblyService {
                     };
                 }));
             }
-            
+
             // Execute all chunk reads in parallel
             logger.log(`Reading ${totalChunks} chunks in parallel`);
             const chunks = await Promise.all(chunkTasks);
+            // Single summary log instead of per-chunk logging to reduce noise for large files
+            const totalReadBytes = chunks.reduce((sum, c) => sum + c.size, 0);
+            logger.log(`Read ${totalChunks} chunks totaling ${totalReadBytes} bytes`);
             
             // Sort chunks by index to ensure correct order
             chunks.sort((a, b) => a.index - b.index);

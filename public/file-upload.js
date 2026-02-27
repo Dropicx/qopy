@@ -747,14 +747,20 @@ class FileUploadManager {
         }
     }
 
-    // Legacy URL secret generation with logging
+    // Legacy URL secret generation — uses the same alphanumeric format as script.js
+    // for backward compatibility with existing share URLs. Called "legacy" because
+    // newer code paths use crypto.getRandomValues() directly via generateUrlSecret().
     generateLegacyUrlSecret() {
         FILE_UPLOAD_DEBUG && console.log('🔑 [LEGACY] Generating backward-compatible URL secret...');
-        
+
+        // SECURITY: Use crypto.getRandomValues() instead of Math.random() for
+        // cryptographically secure URL secrets. Math.random() is predictable and
+        // unsuitable for security-sensitive token generation.
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const randomValues = crypto.getRandomValues(new Uint32Array(16));
         let result = '';
         for (let i = 0; i < 16; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
+            result += chars.charAt(randomValues[i] % chars.length);
         }
         
         FILE_UPLOAD_DEBUG && console.log('✅ Legacy URL secret generated:', {
@@ -1119,10 +1125,11 @@ class FileUploadManager {
                 formData.append('chunkIndex', chunkIndex.toString());
 
                 const chunkRequestStart = performance.now();
-                const response = await fetch(`/api/upload/chunk/${uploadId}/${chunkIndex}`, {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await this.fetchWithRetry(
+                    `/api/upload/chunk/${uploadId}/${chunkIndex}`,
+                    { method: 'POST', body: formData },
+                    { chunkLabel: `Chunk ${chunkIndex + 1}/${totalChunks}` }
+                );
                 const chunkRequestTime = performance.now() - chunkRequestStart;
 
                 if (!response.ok) {
@@ -1202,6 +1209,46 @@ class FileUploadManager {
         }
     }
 
+    /**
+     * Retry wrapper for chunk upload fetch requests.
+     * Retries up to maxRetries times with exponential backoff (1s, 2s, 4s) on:
+     *   - Network errors (fetch throws)
+     *   - Server errors (5xx responses)
+     * Does NOT retry on client errors (4xx) since those indicate a permanent problem.
+     * Safe to retry because the server returns 409 for duplicate chunks.
+     */
+    async fetchWithRetry(url, options, { maxRetries = 3, chunkLabel = '' } = {}) {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const response = await fetch(url, options);
+
+                // Don't retry client errors (4xx) — they won't succeed on retry
+                if (response.ok || (response.status >= 400 && response.status < 500)) {
+                    return response;
+                }
+
+                // Server error (5xx) — retry if attempts remain
+                if (attempt < maxRetries) {
+                    const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+                    FILE_UPLOAD_DEBUG && console.warn(`⚠️ ${chunkLabel} Server error ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                return response; // Final attempt — return the error response
+            } catch (networkError) {
+                // Network failure (offline, DNS, timeout, etc.)
+                if (attempt < maxRetries) {
+                    const delay = Math.pow(2, attempt) * 1000;
+                    FILE_UPLOAD_DEBUG && console.warn(`⚠️ ${chunkLabel} Network error, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries}):`, networkError.message);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+                throw networkError; // Final attempt — propagate the error
+            }
+        }
+    }
+
     async uploadChunk(uploadId, chunkNumber, chunk, encryptionOptions = {}) {
         FILE_UPLOAD_DEBUG && console.log(`📦 uploadChunk called for chunk ${chunkNumber}:`, {
             hasPassword: !!encryptionOptions.password,
@@ -1212,7 +1259,10 @@ class FileUploadManager {
         let chunkData = await chunk.arrayBuffer();
         FILE_UPLOAD_DEBUG && console.log(`📦 Original chunk size: ${chunkData.byteLength} bytes`);
         
-        // Encrypt chunk if password or URL secret is provided (but not if already pre-encrypted)
+        // Encrypt chunk based on one of three branches:
+        // 1. Encrypted: password/urlSecret provided and not pre-encrypted → encrypt with AES-256-GCM
+        // 2. Pre-encrypted: content already encrypted client-side → pass through as-is
+        // 3. No options: no encryption credentials → upload raw (only for non-sensitive content)
         if ((encryptionOptions.password || encryptionOptions.urlSecret) && !encryptionOptions.preEncrypted) {
             try {
                 FILE_UPLOAD_DEBUG && console.log(`🔐 Encrypting chunk ${chunkNumber}...`);
@@ -1221,14 +1271,10 @@ class FileUploadManager {
                 chunkData = encryptedChunk;
                 FILE_UPLOAD_DEBUG && console.log(`✅ Chunk ${chunkNumber} encrypted successfully, new size: ${chunkData.byteLength} bytes`);
             } catch (error) {
+                // SECURITY: Never fall back to unencrypted upload — this would violate
+                // the zero-knowledge architecture by sending plaintext to the server.
                 console.error(`❌ Chunk ${chunkNumber} encryption failed:`, error);
-                
-                // Fallback: Upload without encryption if encryption fails
-                FILE_UPLOAD_DEBUG && console.warn(`⚠️ Falling back to unencrypted upload for chunk ${chunkNumber}`);
-                chunkData = await chunk.arrayBuffer();
-                
-                // Note: This is not ideal for security, but prevents upload failures
-                // In production, you might want to fail the entire upload instead
+                throw new Error(`Encryption failed for chunk ${chunkNumber}: ${error.message}. Upload aborted to protect data privacy.`);
             }
         } else if (encryptionOptions.preEncrypted) {
             FILE_UPLOAD_DEBUG && console.log(`📦 Chunk ${chunkNumber} is already pre-encrypted, uploading as-is`);
@@ -1237,16 +1283,17 @@ class FileUploadManager {
         }
         
         FILE_UPLOAD_DEBUG && console.log(`📤 Uploading chunk ${chunkNumber} with size: ${chunkData.byteLength} bytes`);
-        
+
         // Create FormData for chunk upload (same as text uploads)
         const formData = new FormData();
         formData.append('chunk', new Blob([chunkData]));
         formData.append('chunkNumber', chunkNumber);
-        
-        const response = await fetch(`/api/upload/chunk/${uploadId}/${chunkNumber}`, {
-            method: 'POST',
-            body: formData
-        });
+
+        const response = await this.fetchWithRetry(
+            `/api/upload/chunk/${uploadId}/${chunkNumber}`,
+            { method: 'POST', body: formData },
+            { chunkLabel: `Chunk ${chunkNumber}` }
+        );
 
         if (!response.ok) {
             const error = await response.json();
@@ -1580,40 +1627,51 @@ class FileUploadManager {
             clipIdSection.style.display = 'none';
         }
         
-        // Generate QR code using the correct method
+        // Generate QR code using an offscreen container, then extract the <img> src.
+        // The container is appended to the DOM so qrcode.js can render into it,
+        // then removed in a finally block to prevent memory leaks on error.
         try {
             const qrCodeImg = document.getElementById('qr-code');
             if (qrCodeImg && window.QRCode) {
-                // Clear any existing QR code
                 qrCodeImg.style.display = 'none';
-                
-                // Create a temporary container for QR code generation
+
                 const tempContainer = document.createElement('div');
                 tempContainer.style.position = 'absolute';
                 tempContainer.style.left = '-9999px';
                 tempContainer.style.top = '-9999px';
                 document.body.appendChild(tempContainer);
-                
-                // Generate QR code using the qrcode.js library
-                new QRCode(tempContainer, {
-                    text: finalUrl,
-                    width: 200,
-                    height: 200,
-                    colorDark: '#000000',
-                    colorLight: '#FFFFFF',
-                    correctLevel: QRCode.CorrectLevel.M
-                });
-                
-                // Wait a moment for the QR code to be generated
-                setTimeout(() => {
-                    const generatedImg = tempContainer.querySelector('img');
-                    if (generatedImg) {
-                        qrCodeImg.src = generatedImg.src;
-                        qrCodeImg.style.display = 'block';
+
+                try {
+                    new QRCode(tempContainer, {
+                        text: finalUrl,
+                        width: 200,
+                        height: 200,
+                        colorDark: '#000000',
+                        colorLight: '#FFFFFF',
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+
+                    setTimeout(() => {
+                        try {
+                            const generatedImg = tempContainer.querySelector('img');
+                            if (generatedImg) {
+                                qrCodeImg.src = generatedImg.src;
+                                qrCodeImg.style.display = 'block';
+                            }
+                        } finally {
+                            // Always remove the offscreen container to prevent DOM leaks
+                            if (tempContainer.parentNode) {
+                                document.body.removeChild(tempContainer);
+                            }
+                        }
+                    }, 100);
+                } catch (qrError) {
+                    // Clean up container if QRCode constructor throws synchronously
+                    if (tempContainer.parentNode) {
+                        document.body.removeChild(tempContainer);
                     }
-                    // Clean up temporary container
-                    document.body.removeChild(tempContainer);
-                }, 100);
+                    throw qrError;
+                }
             }
         } catch (error) {
             FILE_UPLOAD_DEBUG && console.warn('QR code generation failed:', error);
