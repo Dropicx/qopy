@@ -214,8 +214,12 @@ const accessValidationMiddleware = createAccessValidationMiddleware(pool);
 let connectionAttempts = 0;
 const maxConnectionAttempts = 3;
 
+let dbConnected = false;
 pool.on('connect', () => {
-    console.log('✅ Connected to PostgreSQL database');
+    if (!dbConnected) {
+        console.log('✅ Connected to PostgreSQL database');
+        dbConnected = true;
+    }
     connectionAttempts = 0; // Reset on successful connection
 });
 

@@ -25,18 +25,6 @@ class UploadRepository {
             fileMetadata
         } = clipData;
 
-        // Log database insert parameters for debugging
-        console.log('💾 Database Insert Parameters:', {
-            clipId,
-            contentType: session.is_text_content ? 'text' : 'file',
-            passwordHash,
-            accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-            requiresAccessCode: shouldRequireAccessCode,
-            requiresAccessCodeType: typeof shouldRequireAccessCode,
-            FORCED_VALUE: shouldRequireAccessCode,
-            isFile
-        });
-
         // Store clip in database (content column removed - all content stored as files)
         await this.pool.query(`
             INSERT INTO clips 
@@ -63,7 +51,6 @@ class UploadRepository {
             shouldRequireAccessCode // New: Whether access code is required
         ]);
 
-        console.log('✅ Database insert completed successfully');
     }
 
     /**

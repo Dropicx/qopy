@@ -15,12 +15,12 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 - **Client-side QR generation** - QR codes generated locally, no external API calls
 
 ### Advanced Security Architecture
-- **URL secrets** - High-entropy (256-bit) random secrets in URL fragments for enhanced protection
-- **Password protection** - Optional passwords with 600,000 PBKDF2 iterations
-- **Combined secrets** - URL secret + password combined for maximum security
-- **No password transmission** - passwords never leave the client
-- **Defense in depth** - Even weak passwords protected by URL secret
-- **Automatic expiration** with guaranteed cleanup every minute
+- **URL secrets** - High-entropy random secrets in URL fragments (256-bit for Enhanced, 31-bit for Quick Share)
+- **Password protection** - Optional access codes hashed with 600,000 PBKDF2-SHA-512 iterations before leaving the browser
+- **Combined secrets** - URL secret + access code combined for maximum security
+- **No plaintext password transmission** - only a PBKDF2-SHA-512 hash is sent to the server for access validation (the server cannot reverse this to recover the original code)
+- **Defense in depth** - Even weak access codes protected by URL secret
+- **Automatic expiration** with cleanup every minute
 - **One-time access** option for sensitive content
 - **Rate limiting** - Multi-layered protection against abuse
 
@@ -44,7 +44,7 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 
 ### Enhanced Security Mode
 - **10-character codes** for enhanced security
-- **URL secrets** - High-entropy (256-bit) random secrets in URL fragments
+- **URL secrets** - 256-bit (32 random bytes, base64-encoded) secrets in URL fragments
 - **Flexible expiration** - 5 minutes to 24 hours
 - **Access code protection** - optional additional security layer
 - **Perfect for** - sensitive documents, confidential information, long-term sharing
@@ -97,7 +97,7 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 - **Automatic migrations** - Database schema management
 - **Sequence management** - Automatic ID sequence optimization
 - **Statistics tracking** - Comprehensive usage analytics
-- **Automatic cleanup** - Expired content removal every 5 minutes
+- **Automatic cleanup** - Expired content removal every minute (clips deleted after 5-minute post-expiration grace period)
 
 ### Deployment & Infrastructure
 - **Docker support** - Multi-stage Dockerfile for production
@@ -205,59 +205,78 @@ For maximum security, always use the web interface at `https://qopy.app` for cli
 CREATE TABLE clips (
   id SERIAL PRIMARY KEY,
   clip_id VARCHAR(10) UNIQUE NOT NULL,
-  content BYTEA NOT NULL,
-  password_hash VARCHAR(60),
+  content_type VARCHAR(20) DEFAULT 'text',
+  file_path VARCHAR(500),              -- path to encrypted file on disk
+  original_filename VARCHAR(255),
+  mime_type VARCHAR(100),
+  filesize BIGINT,
+  password_hash VARCHAR(255),          -- legacy column (not used for access code validation)
+  access_code_hash VARCHAR(255),       -- PBKDF2-SHA-512 hash (128 hex chars) of the access code
+  requires_access_code BOOLEAN DEFAULT FALSE,
   expiration_time BIGINT NOT NULL,
   created_at BIGINT NOT NULL,
   accessed_at BIGINT,
   access_count INTEGER DEFAULT 0,
   one_time BOOLEAN DEFAULT FALSE,
-  is_expired BOOLEAN DEFAULT FALSE
-);
-
-CREATE TABLE statistics (
-  id SERIAL PRIMARY KEY,
-  total_clips BIGINT DEFAULT 0,
-  total_accesses BIGINT DEFAULT 0,
-  password_protected_clips BIGINT DEFAULT 0,
-  quick_share_clips BIGINT DEFAULT 0,
-  one_time_clips BIGINT DEFAULT 0,
-  normal_clips BIGINT DEFAULT 0,
-  last_updated BIGINT DEFAULT 0
+  is_expired BOOLEAN DEFAULT FALSE,
+  quick_share BOOLEAN DEFAULT FALSE,
+  is_file BOOLEAN DEFAULT FALSE
 );
 ```
 
 ## Security Architecture
 
-### Enhanced Security Flow
+### How Encryption Works (explained simply)
+
+Think of Qopy like a locked box system:
+
+1. **You write a secret message** on your device
+2. **Your browser generates a random key** (the URL secret) and locks the box with it
+3. **The locked box is sent to our server** — we store it but have no key, so we can't open it
+4. **You share a link** that contains the key hidden in the `#fragment` — browsers never send the part after `#` to the server
+5. **The recipient's browser uses the key** from the link to unlock the box and read the message
+
+**The server only ever touches the locked box. It never sees the key, and it never sees the message.**
+
+### Enhanced Security Flow (technical detail)
 1. **User enters content** in browser
-2. **URL secret generated** automatically (256-bit high-entropy passphrase)
-3. **Random salt + IV generated** per clip (256-bit salt, 96-bit IV)
-4. **Content encrypted** with AES-256-GCM + PBKDF2-derived key (600,000 iterations) from combined secret
-5. **V3 payload created** - version byte + salt + IV + ciphertext prepended to encrypted data
-6. **Share URL includes secret** as fragment (e.g., `/clip/abc123#x7y9z2...`)
-7. **Encrypted content sent** to server (no password transmitted)
-8. **Server stores encrypted content** without ability to decrypt
+2. **URL secret generated** — 32 cryptographically random bytes, base64-encoded (~44 chars, 256 bits of entropy)
+3. **Random salt + IV generated** per clip — 256-bit salt, 96-bit IV (both unique per encryption)
+4. **Encryption key derived** — PBKDF2 with 600,000 iterations stretches the URL secret into an AES-256 key. This makes brute-force attacks computationally expensive.
+5. **Content encrypted** with AES-256-GCM — the same algorithm banks and governments use. GCM mode ensures both confidentiality (can't read it) and integrity (can't tamper with it).
+6. **V3 payload created** — version byte + salt + IV + ciphertext packed into a single binary blob
+7. **Share URL includes secret** as fragment (e.g., `/clip/abc123#x7y9z2...`) — the `#` fragment is never sent to the server by any browser
+8. **Only encrypted bytes reach the server** — the server stores them without any ability to decrypt
 
 ### Quick Share Flow
 1. **User enables Quick Share** mode
-2. **6-character ID generated** for ultra-fast sharing
-3. **6-character URL secret generated** client-side (never sent to server)
+2. **6-character ID generated** for fast sharing
+3. **6-character URL secret generated** client-side — ~31 bits of entropy (shorter than Enhanced mode's 256-bit, but still zero-knowledge since the server never sees it)
 4. **Content encrypted** with AES-256-GCM using PBKDF2-derived key from URL secret
 5. **5-minute expiration** automatically set
 6. **Share URL includes secret** as fragment (e.g., `/clip/X8K2M9#AB7K9P`)
 
+### What the Server Sees vs. What It Doesn't
+
+| | Server sees | Server does NOT see |
+|---|---|---|
+| **Your content** | Encrypted ciphertext (random-looking bytes) | Plaintext content — ever |
+| **URL secret** | Never — the `#fragment` is not transmitted by browsers | The decryption key |
+| **Access code** | A PBKDF2-SHA-512 hash (600k iterations) — computationally infeasible to reverse | The plaintext access code |
+| **Filenames** | A random hash (e.g., `a7f3b2c9`) | Real filenames — encrypted inside the payload |
+| **File types** | `application/octet-stream` | Real MIME types — encrypted inside the payload |
+| **IP addresses** | In-memory only for rate limiting | Never stored in database or logs |
+| **Encryption keys** | Never | Derived in your browser, used there, never transmitted |
+
 ### Zero-Knowledge Guarantees
-- Server never sees plaintext content
-- Server never sees passwords (not even hashed)
-- Server never sees URL secrets
-- Server cannot decrypt content
-- No content analysis or logging
-- Automatic data expiration
-- No password authentication needed
-- Random IV per encryption operation (no IV reuse risk)
-- Per-clip random salts (256-bit, NIST SP 800-132 compliant)
-- Hybrid security: URL secret + password provides defense in depth
+- **Server never sees plaintext content** — all encryption happens in your browser before upload
+- **Server never sees URL secrets** — kept in the URL fragment (`#`), which browsers never transmit
+- **Server never sees plaintext access codes** — only a PBKDF2-SHA-512 hash (600,000 iterations) is sent for access validation. The server cannot reverse this hash to recover your code.
+- **Server cannot decrypt content** — it would need the URL secret (which it never receives) to derive the decryption key
+- **Random IV per encryption** — a fresh 96-bit IV is generated for every clip, eliminating IV reuse risks
+- **Per-clip random salts** — 256-bit cryptographically random salt per clip prevents rainbow table attacks
+- **Hybrid security** — URL secret + access code combined means even a weak access code is protected by the high-entropy URL secret
+- **Automatic data expiration** — encrypted content is permanently deleted after your chosen expiration time
 
 ## Monitoring & Analytics
 
@@ -281,7 +300,7 @@ curl https://your-app.railway.app/ping
 
 ### Automatic Maintenance
 - **Database migrations** - handled automatically on server start
-- **Expired clip cleanup** - runs every 5 minutes
+- **Expired clip cleanup** - runs every minute (deletes clips 5 minutes after expiration)
 - **Rate limiting** - multi-layered protection against abuse
 - **Connection pooling** - optimized database performance
 - **Graceful shutdown** - proper resource cleanup

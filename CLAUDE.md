@@ -97,8 +97,11 @@ PostgreSQL with two main tables:
 ```sql
 id SERIAL PRIMARY KEY
 clip_id VARCHAR(10) UNIQUE NOT NULL  -- 6-char (quick) or 10-char (enhanced)
-content BYTEA NOT NULL                -- Binary encrypted content
-password_hash VARCHAR(60)             -- Bcrypt hash (if password-protected)
+content_type VARCHAR(20) DEFAULT 'text'
+file_path VARCHAR(500)                -- Path to encrypted file on disk
+access_code_hash VARCHAR(255)         -- PBKDF2-SHA-512 hash (128 hex chars)
+requires_access_code BOOLEAN DEFAULT FALSE
+password_hash VARCHAR(255)            -- Legacy column (not used for access code validation)
 expiration_time BIGINT NOT NULL       -- Unix timestamp
 created_at BIGINT NOT NULL
 accessed_at BIGINT
@@ -146,9 +149,9 @@ POST /api/upload/complete/:uploadId → assemble & validate
 ### Client-Side Encryption Flow
 
 **Enhanced Security Mode** (default):
-1. URL secret generated (256-bit high-entropy passphrase) → never transmitted to server
-2. Combined secret = URL secret + password (if provided)
-3. Random 256-bit salt + 96-bit IV generated per clip
+1. URL secret generated (32 random bytes → base64, ~44 chars, 256-bit entropy) → never transmitted to server
+2. Combined secret = URL secret + access code (if provided), joined with `:`
+3. Random 256-bit salt + random 96-bit IV generated per clip
 4. AES-256-GCM encryption with PBKDF2-derived key (600k iterations, per-clip random salt)
 5. V3 payload: [version:1 byte][salt:32 bytes][IV:12 bytes][ciphertext]
 6. Share URL: `/clip/{clipId}#{urlSecret}` (fragment never sent to server)
@@ -161,8 +164,8 @@ POST /api/upload/complete/:uploadId → assemble & validate
 
 **Zero-Knowledge Guarantees**:
 - Server never sees plaintext content
-- Server never sees passwords (not even hashed)
-- Server never sees URL secrets
+- Server never sees plaintext access codes (only a PBKDF2-SHA-512 hash is transmitted for validation)
+- Server never sees URL secrets (kept in URL fragment, never transmitted by browsers)
 - Random IV per encryption operation (no IV reuse risk)
 - Per-clip random salts (NIST SP 800-132 compliant)
 
@@ -224,7 +227,7 @@ tests/
 
 **Database**:
 - Use connection pooling (configured in server.js)
-- Run cleanup job every 5 minutes for expired clips
+- Run cleanup job every minute (deletes clips 5 min after expiration)
 - Index on `clip_id` for fast lookups
 
 **Redis** (optional):

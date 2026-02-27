@@ -324,7 +324,7 @@
                             <li><strong>Plaintext content</strong> - Encrypted client-side before upload; server only stores ciphertext</li>
                             <li><strong>Real filenames</strong> - Replaced with a random hash (e.g. <code>a7f3b2c9</code>) on the client before upload</li>
                             <li><strong>Real MIME types</strong> - Encrypted inside the file payload; server only sees <code>application/octet-stream</code> or <code>text/plain</code></li>
-                            <li><strong>Passwords / access codes</strong> - Only a bcrypt hash is stored, never the plaintext password</li>
+                            <li><strong>Plaintext access codes</strong> - Only a PBKDF2-SHA-512 hash (600,000 iterations) is sent to the server for access validation. The server cannot reverse this hash to recover your code.</li>
                             <li><strong>URL secrets</strong> - Kept in the URL fragment (<code>#</code>), which is never transmitted to the server</li>
                             <li><strong>Decryption keys</strong> - Generated and used only in your browser</li>
                             <li><strong>IP addresses</strong> - Processed in-memory for rate limiting only, never stored in the database</li>
@@ -432,7 +432,7 @@
                             <li><strong>Zero-knowledge</strong> - Server cannot access plain text content</li>
                             <li><strong>PBKDF2 key derivation</strong> - 600,000 iterations with per-clip random 256-bit salts</li>
                             <li><strong>Automatic</strong> - No setup required, encryption happens seamlessly</li>
-                            <li><strong>No access code transmission</strong> - Access codes remain client-side only</li>
+                            <li><strong>No plaintext access code transmission</strong> - Only a PBKDF2-SHA-512 hash of your access code is sent to the server; the plaintext code never leaves your browser</li>
                             <li><strong>Random IV</strong> - Cryptographically random 96-bit IV generated per encryption operation</li>
                             <li><strong>Binary storage</strong> - Direct byte concatenation, stored as BYTEA for efficiency</li>
                             <li><strong>Defense in depth</strong> - Access codes protected by URL secret</li>
@@ -441,7 +441,7 @@
                         <p><strong>How it works:</strong></p>
                         <ol>
                             <li>You type your content or select a file in the browser</li>
-                            <li>Qopy generates a high-entropy URL secret (256 bits)</li>
+                            <li>Qopy generates a high-entropy URL secret (256-bit for Enhanced Security, 31-bit for Quick Share)</li>
                             <li>Your access code + URL secret are combined for encryption</li>
                             <li>A random 256-bit salt and 96-bit IV are generated per clip</li>
                             <li>Content is encrypted with AES-256-GCM using a PBKDF2-derived key (600,000 iterations)</li>
@@ -450,7 +450,7 @@
                             <li>Only encrypted data is stored in our database</li>
                             <li>When someone retrieves the content, they need both URL secret + access code</li>
                             <li>We never see the plain text at any point</li>
-                            <li>Access codes and URL secrets are used only for encryption, never sent to our servers</li>
+                            <li>URL secrets are never sent to our servers (kept in URL fragment). Plaintext access codes never leave the browser — only a PBKDF2-SHA-512 hash is transmitted for access validation.</li>
                         </ol>
                         <p><strong>Enhanced Security Benefits:</strong></p>
                         <ul>

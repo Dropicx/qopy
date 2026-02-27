@@ -127,7 +127,7 @@
                 <li><strong>Plaintext content:</strong> All content is encrypted client-side before upload. The server only stores ciphertext.</li>
                 <li><strong>Real filenames:</strong> Replaced with a random hash (e.g. <code>a7f3b2c9</code>) on the client before upload.</li>
                 <li><strong>Real MIME types:</strong> Encrypted inside the file payload. The server only sees <code>application/octet-stream</code> or <code>text/plain</code>.</li>
-                <li><strong>Passwords or access codes:</strong> Only a bcrypt hash is stored; the plaintext password never reaches the server.</li>
+                <li><strong>Plaintext access codes:</strong> Your access code is hashed with PBKDF2-SHA-512 (600,000 iterations) in your browser before being sent to the server. Only this irreversible hash is transmitted and stored — the plaintext access code never leaves your browser.</li>
                 <li><strong>URL secrets:</strong> Kept in the URL fragment (<code>#</code>), which browsers never transmit to the server.</li>
                 <li><strong>Decryption keys:</strong> Generated and used exclusively in your browser.</li>
                 <li><strong>IP addresses:</strong> Processed in-memory for rate limiting only. Never stored in the database.</li>
@@ -382,7 +382,7 @@
                     </tr>
                     <tr style="border-bottom:1px solid var(--border-color);">
                         <td style="padding:0.6rem;">Access code hash</td>
-                        <td style="padding:0.6rem;">Bcrypt hash</td>
+                        <td style="padding:0.6rem;">PBKDF2-SHA-512 hash (128 hex chars)</td>
                         <td style="padding:0.6rem;">Authentication</td>
                         <td style="padding:0.6rem;">Until expiration</td>
                     </tr>
@@ -424,8 +424,8 @@
                         <td style="padding:0.6rem;">Encrypted inside file payload; server only sees generic type</td>
                     </tr>
                     <tr style="border-bottom:1px solid var(--border-color);">
-                        <td style="padding:0.6rem;">Passwords / access codes</td>
-                        <td style="padding:0.6rem;">Only bcrypt hash stored, never plaintext</td>
+                        <td style="padding:0.6rem;">Access codes</td>
+                        <td style="padding:0.6rem;">Only PBKDF2-SHA-512 hash stored (600k iterations), plaintext never leaves browser</td>
                     </tr>
                     <tr style="border-bottom:1px solid var(--border-color);">
                         <td style="padding:0.6rem;">URL secrets</td>

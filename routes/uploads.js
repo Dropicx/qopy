@@ -371,7 +371,7 @@ function registerUploadRoutes(app, {
                 const redis = getRedis();
                 if (redis) {
                     const updatedSessionResult = await pool.query(
-                        'SELECT upload_id, total_chunks, uploaded_chunks, chunk_size, is_text_content, status, expiration_time, last_activity, created_at FROM upload_sessions WHERE upload_id = $1',
+                        'SELECT * FROM upload_sessions WHERE upload_id = $1',
                         [uploadId]
                     );
                     if (updatedSessionResult.rows[0]) {

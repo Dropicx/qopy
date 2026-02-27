@@ -176,7 +176,7 @@
                 
                 <div class="feature-card">
                     <h3>Access Code Protection</h3>
-                    <p>Add an optional access code to your shared content. Access codes are processed with 600,000 PBKDF2 iterations and never leave your browser.</p>
+                    <p>Add an optional access code to your shared content. Your plaintext access code is hashed with 600,000 PBKDF2 iterations in your browser — only the irreversible hash is sent to the server.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -247,7 +247,7 @@
                 <li>We never see your plain text content</li>
                 <li>All encryption happens in your browser</li>
                 <li>Only encrypted data is stored on our servers</li>
-                <li>Access codes never leave your browser</li>
+                <li>Plaintext access codes never leave your browser — only a PBKDF2-SHA-512 hash is transmitted</li>
                 <li>URL secrets never leave your browser</li>
                 <li>Even if our servers were compromised, your data would remain secure</li>
                 <li>Random IV per operation - no IV reuse risk, cryptographically generated</li>

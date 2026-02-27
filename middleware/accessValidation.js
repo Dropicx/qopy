@@ -13,8 +13,6 @@ function createAccessValidationMiddleware(pool) {
             const { clipId } = req.params;
             const { accessCode } = req.body;
 
-            console.log(`🔐 Zero-Knowledge download request for clipId: ${clipId}`);
-
             const validationResult = await validator.validateAccess(clipId, accessCode);
             
             if (!validationResult.valid) {

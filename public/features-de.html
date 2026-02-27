@@ -181,7 +181,7 @@
                 
                 <div class="feature-card">
                     <h3>Passwortschutz</h3>
-                    <p>Fügen Sie ein optionales Passwort zu Ihrem geteilten Inhalt hinzu. Passwörter werden mit 600.000 PBKDF2-Iterationen (OWASP 2025 konform) verarbeitet und verlassen niemals Ihren Browser.</p>
+                    <p>Fügen Sie ein optionales Passwort zu Ihrem geteilten Inhalt hinzu. Ihr Klartext-Passwort wird mit 600.000 PBKDF2-Iterationen (OWASP 2025 konform) in Ihrem Browser gehasht — nur der irreversible Hash wird an den Server gesendet.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -217,7 +217,7 @@
             <h3>Erweiterte Verschlüsselungsfunktionen</h3>
             <p>Qopy implementiert modernste Verschlüsselungstechniken für maximale Sicherheit:</p>
             <ul>
-                <li><strong>AES-256-GCM Verschlüsselung</strong> - Militärischer Standard, weltweit von Regierungen verwendet</li>
+                <li><strong>AES-256-GCM Verschlüsselung</strong> - Fortschrittlicher Verschlüsselungsstandard, weltweit von Finanzinstituten und Behörden eingesetzt</li>
                 <li><strong>PBKDF2 Schlüsselableitung</strong> - 600.000 Iterationen (OWASP 2025 konform) mit zufälligem 256-Bit-Salt pro Clip</li>
                 <li><strong>Zufällige IV-Generierung</strong> - Kryptographisch zufällige 96-Bit-IV pro Verschlüsselungsvorgang</li>
                 <li><strong>Optimiertes Speicherformat</strong> - Direkte Byte-Konkatenation reduziert Overhead um 40%</li>
@@ -243,7 +243,7 @@
                 <li>Wir sehen niemals Ihren Klartext-Inhalt</li>
                 <li>Alle Verschlüsselung findet in Ihrem Browser statt</li>
                 <li>Nur verschlüsselte Daten werden auf unseren Servern gespeichert</li>
-                <li>Passwörter verlassen niemals Ihren Browser</li>
+                <li>Klartext-Passwörter verlassen niemals Ihren Browser — nur ein PBKDF2-SHA-512-Hash wird übertragen</li>
                 <li>URL-Secrets verlassen niemals Ihren Browser</li>
                 <li>Selbst wenn unsere Server kompromittiert würden, blieben Ihre Daten sicher</li>
                 <li>Zufällige IV pro Vorgang - kryptographisch generiert, kein IV-Wiederverwendungsrisiko</li>

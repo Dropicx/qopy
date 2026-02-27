@@ -27,8 +27,6 @@ class UploadCompletionService {
      * @returns {object} Upload completion result
      */
     async completeUpload(uploadId, requestData, req) {
-        console.log('🔍 Starting upload completion for:', uploadId);
-
         // Parse and validate request
         const parsedData = UploadValidator.parseUploadRequest(requestData);
         
@@ -55,7 +53,7 @@ class UploadCompletionService {
         const actualFilesize = await FileAssemblyService.getFileSize(filePath);
         
         // Generate clip ID and prepare encryption
-        const clipId = this.generateClipId(validatedSession.is_text_content ? validatedSession.quick_share : false);
+        const clipId = this.generateClipId(validatedSession.quick_share);
         const encryptionConfig = EncryptionService.processAccessCode(validatedSession, parsedData);
         const fileMetadata = EncryptionService.createFileMetadata(uploadId, validatedSession, actualFilesize);
         
