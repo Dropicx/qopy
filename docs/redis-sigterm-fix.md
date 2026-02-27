@@ -1,5 +1,7 @@
 # Redis SIGTERM Graceful Shutdown Fix
 
+This document describes a past fix for Redis SIGTERM handling on Railway.
+
 ## Issue Overview
 
 **Problem**: Redis connections were not closing properly during SIGTERM signals on Railway deployment, causing graceful shutdown failures.

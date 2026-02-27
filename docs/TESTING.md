@@ -7,7 +7,7 @@ This document consolidates all testing information for the Qopy project, includi
 ## Test Suite Summary
 
 ### Overall Statistics
-- **Unit Tests**: 333 individual test cases
+- **Unit Tests**: 843+ individual test cases
 - **Integration Tests**: 15+ workflow scenarios  
 - **Visual Tests**: Complete UI verification
 - **Chunk Upload Tests**: 5 specialized test files
@@ -17,16 +17,25 @@ This document consolidates all testing information for the Qopy project, includi
 
 ### Services Tested
 
-#### Core Services (333 Test Cases)
-1. **FileService** - 75 test cases covering file operations, headers, streaming, and error handling
-2. **QuickShareService** - 45 test cases covering settings application, edge cases, and performance
-3. **UploadValidator** - 80 test cases covering request parsing, system detection, and data integrity
-4. **EncryptionService** - 60 test cases covering access code processing, error handling, and performance
-5. **StorageService** - 23 test cases covering database operations, file storage, and configuration
-6. **FileAssemblyService** - 50 test cases covering file assembly, size calculation, and error recovery
+#### Core Services (843+ test cases total)
+1. **FileService** - File operations, headers, streaming, and error handling
+2. **QuickShareService** - Settings application, edge cases, and performance
+3. **UploadValidator** - Request parsing, system detection, and data integrity
+4. **EncryptionService** - Access code processing, error handling, and performance
+5. **StorageService** - Database operations, file storage, and configuration
+6. **FileAssemblyService** - File assembly, size calculation, and error recovery
+7. **AccessValidator** - Access validation, parameterized queries, 401 vs 404
+8. **CleanupService** - Expired clip cleanup, path canonicalization, orphan cleanup
+9. **pathSafety** - resolvePathUnderBase (path under base, traversal rejection)
 
-### Additional Services
-- **AccessValidator** - Access validation middleware
+### Routes and middleware
+- **admin** - Admin auth (timing-safe token), rate limiting
+- **clips** - Clip retrieval routes
+- **files** - File info and download; path canonicalization (404 when path outside storage)
+- **uploads** - Upload initiate, chunk, complete
+- **quickShareProtection** - Failed-lookup tracking, IP blocking
+
+### Additional services
 - **ContentProcessor** - Content processing utilities
 - **ShareValidationMiddleware** - Share validation middleware
 - **TokenService** - Token management
@@ -231,6 +240,10 @@ node run-tests.js
 - [ ] Performance benchmarks met
 - [ ] Security tests passed
 - [ ] Coverage thresholds maintained
+
+## Manual and encryption tests
+
+**Encryption tests**: See [VERSCHLÜSSELUNGSTEST-ANLEITUNG.md](VERSCHLÜSSELUNGSTEST-ANLEITUNG.md) for the German-language encryption test guide and manual test instructions (browser-based, server-side, and live-application tests).
 
 ## Test Maintenance
 

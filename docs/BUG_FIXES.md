@@ -1,5 +1,7 @@
 # Bug Fixes Documentation
 
+Historical log of notable bug fixes (date display, upload percentage, etc.).
+
 ## Date Display Fix (August 2025)
 
 ### Issue

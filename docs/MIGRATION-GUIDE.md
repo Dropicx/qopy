@@ -269,3 +269,5 @@ ALTER TABLE clips DROP COLUMN IF EXISTS content;
 ---
 
 **After successful migration, you have access to all new file-sharing features of Qopy.**
+
+See also: [DEPLOYMENT.md](DEPLOYMENT.md).

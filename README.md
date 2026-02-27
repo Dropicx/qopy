@@ -106,6 +106,9 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 - **Graceful shutdown** - Proper resource cleanup
 - **Environment configuration** - Flexible environment variable support
 
+### Documentation
+- **[docs/](docs/README.md)** - Deployment, architecture, testing, security, and historical docs (see [docs/README.md](docs/README.md) for the full index).
+
 ## Quick Start
 
 ### Prerequisites

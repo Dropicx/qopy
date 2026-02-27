@@ -409,6 +409,10 @@ The app uses Helmet with `style-src` including `'unsafe-inline'` for compatibili
 - [ ] Monitor performance metrics
 - [ ] Update dependencies
 
+## Troubleshooting
+
+- **Redis not closing on shutdown (SIGTERM)** – See [redis-sigterm-fix.md](redis-sigterm-fix.md) for the fix and root cause.
+
 ## Support and Resources
 
 ### Railway.app Resources
@@ -424,6 +428,10 @@ The app uses Helmet with `style-src` including `'unsafe-inline'` for compatibili
 ### Emergency Contacts
 - Railway Support: support@railway.app
 - Application Issues: Create GitHub issue
+
+### See also
+- [SECURITY_REVIEW.md](SECURITY_REVIEW.md) – Security review and recommendations
+- [TESTING.md](TESTING.md) – Testing guide and commands
 
 ## Conclusion
 

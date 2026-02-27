@@ -1,5 +1,7 @@
 # 🗺️ Qopy Monetization Implementation Roadmap
 
+Status: draft roadmap. Last reviewed: 2025.
+
 ## Overview
 Complete implementation timeline: **6 months** (24 weeks)
 

@@ -1,5 +1,7 @@
 # SOLID Refactoring - Issue #4 Documentation
 
+**Status**: Design document for file-upload.js refactor (Issue #4). Partial or planned; current `public/file-upload.js` may not yet reflect this structure.
+
 ## Overview
 This document captures the reasoning and approach for refactoring the `file-upload.js` monolith to follow SOLID principles, as requested in GitHub Issue #4.
 

@@ -1,6 +1,6 @@
 # Production Reports Archive
 
-This document archives historical production validation and deployment reports for reference.
+This document is an **archive** of historical production validation and deployment reports. Content is kept for reference and is not updated for the current codebase.
 
 ## Production Validation Report - Railway Deployment
 

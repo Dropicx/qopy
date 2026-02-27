@@ -1,5 +1,7 @@
 # DRY Refactoring Solution for Issue #5
 
+**Status**: Documents DRY refactor for script.js (Issue #5). Some helpers (e.g. UIHelpers) exist under `public/js/`; see [public/js/README.md](../public/js/README.md) for current layout.
+
 ## Overview
 
 This document details the solution implemented to eliminate DRY (Don't Repeat Yourself) violations in `script.js` as identified in Issue #5. The refactoring reduces code duplication from 15-20% to under 5% while improving maintainability and testability.

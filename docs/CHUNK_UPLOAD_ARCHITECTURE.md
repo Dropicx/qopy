@@ -110,3 +110,5 @@ Common issues:
 - **Memory errors**: Files too large for browser
 - **Timeout errors**: Slow networks need larger timeout
 - **Assembly failures**: Missing or corrupted chunks
+
+See also: [PERFORMANCE.md](PERFORMANCE.md), [DEPLOYMENT.md](DEPLOYMENT.md).
