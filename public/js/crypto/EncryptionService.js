@@ -13,6 +13,14 @@
     const IV_SALT_ENHANCED = 'qopy-enhanced-iv-salt-v2';
     const ITERATIONS_LEGACY = 100000;
     const ITERATIONS_ENHANCED = 250000;
+    const ITERATIONS_V3 = 600000;
+
+    // V3 format: [version:1 byte (0x03)][salt:32 bytes][IV:12 bytes][ciphertext]
+    // V2/legacy format: [IV:12 bytes][ciphertext]
+    const FORMAT_VERSION_V3 = 0x03;
+    const SALT_LENGTH_V3 = 32;
+    const IV_LENGTH = 12;
+    const V3_HEADER_LENGTH = 1 + SALT_LENGTH_V3 + IV_LENGTH; // 45 bytes
 
     function isLegacySecret(secret) {
         return secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
@@ -22,7 +30,8 @@
         return secret && secret.length >= 40;
     }
 
-    async function generateKey(password, urlSecret) {
+    // Generate key for legacy/enhanced formats (backward compatibility)
+    async function generateKeyLegacy(password, urlSecret) {
         const encoder = new TextEncoder();
         let keyMaterial;
         let salt;
@@ -64,6 +73,33 @@
         );
     }
 
+    // Generate key for V3 format with per-clip random salt and 600k iterations
+    async function generateKeyV3(password, urlSecret, saltBytes) {
+        const encoder = new TextEncoder();
+        let secret;
+        if (password && urlSecret) {
+            secret = urlSecret + ':' + password;
+        } else if (urlSecret) {
+            secret = urlSecret;
+        } else {
+            throw new Error('Either password or urlSecret must be provided');
+        }
+
+        const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(secret), 'PBKDF2', false, ['deriveKey']);
+        return crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: saltBytes, iterations: ITERATIONS_V3, hash: 'SHA-256' },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
+    }
+
+    // Default generateKey: delegates to legacy for backward compat
+    async function generateKey(password, urlSecret) {
+        return generateKeyLegacy(password, urlSecret);
+    }
+
     async function deriveIV(primarySecret, secondarySecret, salt) {
         const encoder = new TextEncoder();
         let combinedSecret = primarySecret;
@@ -99,37 +135,47 @@
     }
 
     async function encryptContent(content, password, urlSecret) {
-        const key = await generateKey(password, urlSecret);
         const encoder = new TextEncoder();
         const data = typeof content === 'string' ? encoder.encode(content) : content;
-        let iv;
-        if (password) {
-            iv = await deriveIV(password, urlSecret, urlSecret && isEnhancedPassphrase(urlSecret) ? IV_SALT_ENHANCED : IV_SALT_LEGACY);
-        } else {
-            iv = await deriveIV(urlSecret, null, urlSecret && isEnhancedPassphrase(urlSecret) ? IV_SALT_ENHANCED : IV_SALT_LEGACY);
-        }
+
+        // V3 format: random salt, random IV, 600k iterations
+        const salt = new Uint8Array(SALT_LENGTH_V3);
+        crypto.getRandomValues(salt);
+        const iv = new Uint8Array(IV_LENGTH);
+        crypto.getRandomValues(iv);
+
+        const key = await generateKeyV3(password, urlSecret, salt);
         const encryptedData = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
         const encryptedBytes = new Uint8Array(encryptedData);
-        const combined = new Uint8Array(iv.length + encryptedBytes.length);
-        combined.set(iv, 0);
-        combined.set(encryptedBytes, iv.length);
+
+        // V3 payload: [version:1][salt:32][IV:12][ciphertext]
+        const combined = new Uint8Array(1 + salt.length + iv.length + encryptedBytes.length);
+        combined[0] = FORMAT_VERSION_V3;
+        combined.set(salt, 1);
+        combined.set(iv, 1 + salt.length);
+        combined.set(encryptedBytes, 1 + salt.length + iv.length);
         return combined;
     }
 
     async function encryptChunk(chunkBytes, password, urlSecret) {
-        const key = await generateKey(password, urlSecret);
         const chunkArray = chunkBytes instanceof Uint8Array ? chunkBytes : new Uint8Array(chunkBytes);
-        let iv;
-        if (password) {
-            iv = await deriveIV(password, urlSecret, urlSecret && isEnhancedPassphrase(urlSecret) ? IV_SALT_ENHANCED : IV_SALT_LEGACY);
-        } else {
-            iv = await deriveIV(urlSecret, null, urlSecret && isEnhancedPassphrase(urlSecret) ? IV_SALT_ENHANCED : IV_SALT_LEGACY);
-        }
+
+        // V3 format: random salt, random IV, 600k iterations
+        const salt = new Uint8Array(SALT_LENGTH_V3);
+        crypto.getRandomValues(salt);
+        const iv = new Uint8Array(IV_LENGTH);
+        crypto.getRandomValues(iv);
+
+        const key = await generateKeyV3(password, urlSecret, salt);
         const encryptedData = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, chunkArray);
         const encryptedBytes = new Uint8Array(encryptedData);
-        const combined = new Uint8Array(iv.length + encryptedBytes.length);
-        combined.set(iv, 0);
-        combined.set(encryptedBytes, iv.length);
+
+        // V3 payload: [version:1][salt:32][IV:12][ciphertext]
+        const combined = new Uint8Array(1 + salt.length + iv.length + encryptedBytes.length);
+        combined[0] = FORMAT_VERSION_V3;
+        combined.set(salt, 1);
+        combined.set(iv, 1 + salt.length);
+        combined.set(encryptedBytes, 1 + salt.length + iv.length);
         return combined;
     }
 
@@ -164,15 +210,29 @@
         if (bytes.length < 20) {
             throw new Error('Content too short to be encrypted');
         }
-        const iv = bytes.slice(0, 12);
-        const ciphertext = bytes.slice(12);
-        const key = await generateKey(password, urlSecret);
+
+        let iv, ciphertext, key;
+        if (bytes[0] === FORMAT_VERSION_V3 && bytes.length >= V3_HEADER_LENGTH + 16) {
+            // V3 format: [version:1][salt:32][IV:12][ciphertext]
+            const salt = bytes.slice(1, 1 + SALT_LENGTH_V3);
+            iv = bytes.slice(1 + SALT_LENGTH_V3, V3_HEADER_LENGTH);
+            ciphertext = bytes.slice(V3_HEADER_LENGTH);
+            key = await generateKeyV3(password, urlSecret, salt);
+        } else {
+            // Legacy format: [IV:12][ciphertext]
+            iv = bytes.slice(0, 12);
+            ciphertext = bytes.slice(12);
+            key = await generateKeyLegacy(password, urlSecret);
+        }
+
         const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
         return new TextDecoder().decode(decrypted);
     }
 
     global.QopyCrypto = {
         generateKey,
+        generateKeyLegacy,
+        generateKeyV3,
         deriveIV,
         generateCompatibleSecret,
         encryptContent,
@@ -186,6 +246,11 @@
         IV_SALT_LEGACY,
         IV_SALT_ENHANCED,
         ITERATIONS_LEGACY,
-        ITERATIONS_ENHANCED
+        ITERATIONS_ENHANCED,
+        ITERATIONS_V3,
+        FORMAT_VERSION_V3,
+        SALT_LENGTH_V3,
+        IV_LENGTH,
+        V3_HEADER_LENGTH
     };
 })(typeof window !== 'undefined' ? window : globalThis);

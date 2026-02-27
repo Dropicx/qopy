@@ -226,9 +226,9 @@ tests/
 - Index on `clip_id` for fast lookups
 
 **Redis** (optional):
-- Used for upload session caching
+- Used as a read cache for upload sessions (PostgreSQL is the primary store)
 - Centralized manager in `config/redis.js` prevents memory leaks
-- Graceful fallback to in-memory when unavailable
+- Graceful fallback to PostgreSQL-only when unavailable
 
 **File Operations**:
 - Stream large files instead of loading into memory
@@ -245,7 +245,7 @@ tests/
 
 **Optional Environment Variables**:
 - `PORT` - Server port (default: `3000`, auto-set by Railway)
-- `REDIS_URL` - Redis connection string (auto-set by Railway; falls back to in-memory cache)
+- `REDIS_URL` - Redis connection string (auto-set by Railway; falls back to PostgreSQL-only)
 - `REDISCLOUD_URL` - Alternative Redis URL (checked if `REDIS_URL` is not set)
 - `DATABASE_SSL_REJECT_UNAUTHORIZED` - TLS certificate verification for PostgreSQL. Defaults to `false` (Railway uses self-signed certs). Set to `true` for providers with CA-signed certs
 - `PBKDF2_SALT` - Custom salt for PBKDF2 key derivation (default: built-in salt). Used in zero-knowledge client-side hashing via `/api/config`
@@ -344,6 +344,6 @@ Access at `/admin.html` with admin token authentication.
 
 **Redis Connection**:
 - Redis is optional - app works without it
-- Check logs for "Using centralized Redis manager" vs "using in-memory cache"
-- Graceful degradation to in-memory sessions
+- Check logs for "Using centralized Redis manager" vs "continuing without cache"
+- Graceful degradation to PostgreSQL-only session storage
 - Use `redisManager.connect()` for controlled initialization

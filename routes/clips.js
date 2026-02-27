@@ -254,7 +254,7 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
             } else {
               // Hash the raw access code server-side using the same PBKDF2 parameters
               providedHash = await new Promise((resolve, reject) => {
-                crypto.pbkdf2(accessCode, process.env.PBKDF2_SALT || 'qopy-access-salt-v1', 100000, 64, 'sha512', (err, derivedKey) => {
+                crypto.pbkdf2(accessCode, process.env.PBKDF2_SALT || 'qopy-access-salt-v1', 600000, 64, 'sha512', (err, derivedKey) => {
                   if (err) reject(err);
                   else resolve(derivedKey.toString('hex'));
                 });

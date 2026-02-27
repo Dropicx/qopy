@@ -356,48 +356,54 @@ class FileUploadManager {
         return result;
     }
 
-    // Embed encrypted metadata into file for zero-knowledge retrieval (compatible version)
+    // Embed encrypted metadata into file for zero-knowledge retrieval (V3 format)
     async embedMetadata(fileData, originalFilename, originalSize, originalMimeType, compatibleSecret) {
-        // Create comprehensive metadata object including MIME type
         const metadata = {
             filename: originalFilename,
             size: originalSize,
             mimeType: originalMimeType,
             timestamp: Date.now(),
-            version: 'v2-compatible'  // Version marker for compatibility
+            version: 'v3'
         };
-        
+
         const metadataJson = JSON.stringify(metadata);
         const encoder = new TextEncoder();
         const metadataBytes = encoder.encode(metadataJson);
-        
-        FILE_UPLOAD_DEBUG && console.log(`🔐 Embedding compatible encrypted metadata: ${metadataJson}`);
-        
-        // Encrypt metadata with compatible secret using AES-GCM
-        const metadataKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
-        const metadataIV = await this.deriveCompatibleIV(null, compatibleSecret, 'qopy-metadata-salt');
-        
+
+        FILE_UPLOAD_DEBUG && console.log(`🔐 Embedding V3 encrypted metadata: ${metadataJson}`);
+
+        // V3: random salt + random IV for metadata encryption
+        const metaSalt = new Uint8Array(32);
+        window.crypto.getRandomValues(metaSalt);
+        const metaIV = new Uint8Array(12);
+        window.crypto.getRandomValues(metaIV);
+
+        const metadataKey = await this.generateKeyV3(null, compatibleSecret, metaSalt);
+
         const encryptedMetadata = await window.crypto.subtle.encrypt(
-            {
-                name: 'AES-GCM',
-                iv: metadataIV
-            },
+            { name: 'AES-GCM', iv: metaIV },
             metadataKey,
             metadataBytes
         );
-        
-        const encryptedMetadataArray = new Uint8Array(encryptedMetadata);
-        
+
+        // V3 metadata payload: [version:1][salt:32][IV:12][ciphertext]
+        const encryptedMetadataRaw = new Uint8Array(encryptedMetadata);
+        const encryptedMetadataArray = new Uint8Array(1 + metaSalt.length + metaIV.length + encryptedMetadataRaw.length);
+        encryptedMetadataArray[0] = 0x03;
+        encryptedMetadataArray.set(metaSalt, 1);
+        encryptedMetadataArray.set(metaIV, 1 + metaSalt.length);
+        encryptedMetadataArray.set(encryptedMetadataRaw, 1 + metaSalt.length + metaIV.length);
+
         // Create final file structure: [4 bytes: metadata_length][encrypted_metadata][file_data]
         const metadataLengthBytes = new ArrayBuffer(4);
         new DataView(metadataLengthBytes).setUint32(0, encryptedMetadataArray.length, true); // Little-endian
-        
+
         const finalFile = new Uint8Array(4 + encryptedMetadataArray.length + fileData.length);
         finalFile.set(new Uint8Array(metadataLengthBytes), 0);
         finalFile.set(encryptedMetadataArray, 4);
         finalFile.set(fileData, 4 + encryptedMetadataArray.length);
-        
-        FILE_UPLOAD_DEBUG && console.log(`✅ Compatible metadata embedded: ${metadataJson.length} chars → ${encryptedMetadataArray.length} encrypted bytes`);
+
+        FILE_UPLOAD_DEBUG && console.log(`✅ V3 metadata embedded: ${metadataJson.length} chars → ${encryptedMetadataArray.length} encrypted bytes`);
         return finalFile;
     }
 
@@ -829,6 +835,34 @@ class FileUploadManager {
         }
     }
 
+    // V3 key derivation: per-clip random salt, 600k iterations (OWASP 2025)
+    async generateKeyV3(password, urlSecret, saltBytes) {
+        const encoder = new TextEncoder();
+        let secret;
+        if (password && urlSecret) {
+            secret = urlSecret + ':' + password;
+        } else if (urlSecret) {
+            secret = urlSecret;
+        } else {
+            throw new Error('Either password or urlSecret must be provided');
+        }
+
+        const keyMaterial = await window.crypto.subtle.importKey(
+            'raw',
+            encoder.encode(secret),
+            'PBKDF2',
+            false,
+            ['deriveKey']
+        );
+        return await window.crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: saltBytes, iterations: 600000, hash: 'SHA-256' },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
+    }
+
     // Enhanced IV derivation with secure passphrase
     async deriveEnhancedIV(password, securePassphrase = null, salt = 'qopy-enhanced-iv-salt-v2') {
         const encoder = new TextEncoder();
@@ -1049,22 +1083,24 @@ class FileUploadManager {
                 throw new Error('Access code protection enabled but no access code provided');
             }
 
-            // Use compatible encryption (URL-Secret only for file encryption)
-            FILE_UPLOAD_DEBUG && console.log('🔐 Preparing compatible encryption...');
+            // V3 encryption: random salt + random IV + 600k iterations
+            FILE_UPLOAD_DEBUG && console.log('🔐 Preparing V3 encryption (600k iterations, random salt/IV)...');
             const encryptionStart = performance.now();
-            
-            // For Access Code System: File encryption uses only URL-Secret, not password
-            const encryptionKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
-            const iv = await this.deriveCompatibleIV(null, compatibleSecret);
-            
+
+            const salt = new Uint8Array(32);
+            window.crypto.getRandomValues(salt);
+            const iv = new Uint8Array(12);
+            window.crypto.getRandomValues(iv);
+            const encryptionKey = await this.generateKeyV3(null, compatibleSecret, salt);
+
             const encryptionPrepTime = performance.now() - encryptionStart;
-            
-            FILE_UPLOAD_DEBUG && console.log('🔐 Compatible encryption prepared:', {
-                keyType: 'secret-only', // Access Code System: File encryption uses only URL-Secret
+
+            FILE_UPLOAD_DEBUG && console.log('🔐 V3 encryption prepared:', {
+                keyType: 'secret-only',
                 accessCode: accessCode ? 'enabled' : 'disabled',
                 secretLength: compatibleSecret.length,
-                secretType: compatibleSecret.length >= 40 ? 'Enhanced (43+ chars)' : 'Legacy (16 chars)',
                 ivLength: iv.length,
+                saltLength: salt.length,
                 dataSize: fileDataToUpload.length,
                 dataSizeFormatted: this.formatFileSize(fileDataToUpload.length),
                 preparationTime: encryptionPrepTime.toFixed(2) + 'ms'
@@ -1073,23 +1109,22 @@ class FileUploadManager {
             // Encrypt the entire file data with metadata
             FILE_UPLOAD_DEBUG && console.log('🔒 Encrypting file data...');
             const fileEncryptionStart = performance.now();
-            
+
             const encryptedData = await window.crypto.subtle.encrypt(
-                {
-                    name: 'AES-GCM',
-                    iv: iv
-                },
+                { name: 'AES-GCM', iv: iv },
                 encryptionKey,
                 fileDataToUpload
             );
-            
+
             const fileEncryptionTime = performance.now() - fileEncryptionStart;
             const encryptedArray = new Uint8Array(encryptedData);
-            
-            // Create final structure: IV (12 bytes) + encrypted data
-            const finalData = new Uint8Array(iv.length + encryptedArray.length);
-            finalData.set(iv, 0);
-            finalData.set(encryptedArray, iv.length);
+
+            // V3 payload: [version:1][salt:32][IV:12][ciphertext]
+            const finalData = new Uint8Array(1 + salt.length + iv.length + encryptedArray.length);
+            finalData[0] = 0x03;
+            finalData.set(salt, 1);
+            finalData.set(iv, 1 + salt.length);
+            finalData.set(encryptedArray, 1 + salt.length + iv.length);
             
             FILE_UPLOAD_DEBUG && console.log(`✅ File encryption completed:`, {
                 originalSize: fileDataToUpload.length,
@@ -1328,44 +1363,39 @@ class FileUploadManager {
         return result;
     }
 
-    // Encrypt chunk using the same encryption as text content
+    // Encrypt chunk using V3 format (random salt + random IV + 600k iterations)
     async encryptChunk(chunkBytes, password = null, urlSecret = null) {
         try {
-            FILE_UPLOAD_DEBUG && console.log('🔐 Starting chunk encryption...');
-            
-            const key = await this.generateEncryptionKey(password, urlSecret);
-            FILE_UPLOAD_DEBUG && console.log('✅ Encryption key generated, usages:', key.usages);
-            
-            // Generate IV for this chunk
-            let iv;
-            if (password) {
-                iv = await this.deriveIV(password, urlSecret);
-            } else {
-                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1'); // Use same salt as download
-            }
-            FILE_UPLOAD_DEBUG && console.log('✅ IV generated, length:', iv.length);
-            
-            // Ensure chunkBytes is a Uint8Array
+            FILE_UPLOAD_DEBUG && console.log('🔐 Starting V3 chunk encryption...');
+
             const chunkArray = chunkBytes instanceof Uint8Array ? chunkBytes : new Uint8Array(chunkBytes);
-            
-            // Encrypt the chunk
-            FILE_UPLOAD_DEBUG && console.log('🔒 Encrypting chunk of size:', chunkArray.length);
+
+            // V3: random salt + random IV
+            const salt = new Uint8Array(32);
+            window.crypto.getRandomValues(salt);
+            const iv = new Uint8Array(12);
+            window.crypto.getRandomValues(iv);
+
+            const key = await this.generateKeyV3(password, urlSecret, salt);
+            FILE_UPLOAD_DEBUG && console.log('✅ V3 key generated, encrypting chunk of size:', chunkArray.length);
+
             const encryptedData = await window.crypto.subtle.encrypt(
                 { name: 'AES-GCM', iv: iv },
                 key,
                 chunkArray
             );
             FILE_UPLOAD_DEBUG && console.log('✅ Chunk encrypted successfully');
-            
-            // Combine IV + encrypted data
+
             const encryptedBytes = new Uint8Array(encryptedData);
-            const ivBytes = new Uint8Array(iv);
-            
-            const combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
-            combined.set(ivBytes, 0);
-            combined.set(encryptedBytes, ivBytes.length);
-            
-            FILE_UPLOAD_DEBUG && console.log('✅ Combined IV + encrypted data, total size:', combined.length);
+
+            // V3 payload: [version:1][salt:32][IV:12][ciphertext]
+            const combined = new Uint8Array(1 + salt.length + iv.length + encryptedBytes.length);
+            combined[0] = 0x03;
+            combined.set(salt, 1);
+            combined.set(iv, 1 + salt.length);
+            combined.set(encryptedBytes, 1 + salt.length + iv.length);
+
+            FILE_UPLOAD_DEBUG && console.log('✅ V3 combined payload, total size:', combined.length);
             return combined;
         } catch (error) {
             console.error('❌ Encryption error:', error);
@@ -1913,19 +1943,19 @@ class FileUploadManager {
             false,
             ['deriveBits']
         );
-        
+
         const derivedBits = await window.crypto.subtle.deriveBits(
             {
                 name: 'PBKDF2',
                 salt: encoder.encode(salt),
-                iterations: 100000,
+                iterations: 600000,
                 hash: 'SHA-512'
             },
             keyMaterial,
             512 // 64 bytes = 512 bits
         );
-        
-        return Array.from(new Uint8Array(derivedBits), byte => 
+
+        return Array.from(new Uint8Array(derivedBits), byte =>
             byte.toString(16).padStart(2, '0')
         ).join('');
     }
@@ -2112,32 +2142,44 @@ class FileDownloadManager {
                 requestTime: downloadRequestTime.toFixed(2) + 'ms'
             });
             
-            // Use compatible decryption based on secret type
-            FILE_UPLOAD_DEBUG && console.log(`🔓 Starting compatible decryption for ${secretType} format...`);
+            // Detect V3 vs legacy format and decrypt accordingly
+            const encryptedBytes = new Uint8Array(encryptedData);
+            FILE_UPLOAD_DEBUG && console.log(`🔓 Starting decryption for ${secretType} format...`);
             const decryptionStart = performance.now();
-            
-            const decryptionKey = await this.generateCompatibleEncryptionKey(password, compatibleSecret);
-            const iv = await this.deriveCompatibleIV(password || '', compatibleSecret);
-            
+
+            let decryptionKey, iv, ciphertext;
+
+            if (encryptedBytes[0] === 0x03 && encryptedBytes.length >= 45 + 16) {
+                // V3 format: [version:1][salt:32][IV:12][ciphertext]
+                FILE_UPLOAD_DEBUG && console.log('🔑 Detected V3 encryption format');
+                const fileSalt = encryptedBytes.slice(1, 33);
+                iv = encryptedBytes.slice(33, 45);
+                ciphertext = encryptedBytes.slice(45);
+                decryptionKey = await this.generateKeyV3(password, compatibleSecret, fileSalt);
+            } else {
+                // Legacy format: [IV:12][ciphertext]
+                FILE_UPLOAD_DEBUG && console.log('🔑 Detected legacy encryption format');
+                decryptionKey = await this.generateCompatibleEncryptionKey(password, compatibleSecret);
+                iv = await this.deriveCompatibleIV(password || '', compatibleSecret);
+                ciphertext = encryptedData;
+            }
+
             const keyGenTime = performance.now() - decryptionStart;
-            
+
             FILE_UPLOAD_DEBUG && console.log('🔑 Decryption keys prepared:', {
                 secretType,
                 keyGenerationTime: keyGenTime.toFixed(2) + 'ms',
                 ivLength: iv.length
             });
-            
+
             // Decrypt the file
             FILE_UPLOAD_DEBUG && console.log('🔓 Decrypting file data...');
             const fileDecryptionStart = performance.now();
-            
+
             const decryptedData = await window.crypto.subtle.decrypt(
-                {
-                    name: 'AES-GCM',
-                    iv: iv
-                },
+                { name: 'AES-GCM', iv: iv },
                 decryptionKey,
-                encryptedData
+                ciphertext
             );
             
             const fileDecryptionTime = performance.now() - fileDecryptionStart;
@@ -2270,27 +2312,37 @@ class FileDownloadManager {
                 matchesOriginal: (4 + encryptedMetadata.length + fileData.length) === fileWithMetadata.length
             });
             
-            // Decrypt metadata using compatible key derivation
-            FILE_UPLOAD_DEBUG && console.log('🔓 Decrypting metadata with compatible keys...');
+            // Detect V3 metadata format and decrypt accordingly
+            FILE_UPLOAD_DEBUG && console.log('🔓 Decrypting metadata...');
             const keyGenStart = performance.now();
-            const metadataKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
-            const metadataIV = await this.deriveCompatibleIV(null, compatibleSecret, 'qopy-metadata-salt');
+            let metadataKey, metadataIV, metadataCiphertext;
+
+            if (encryptedMetadata[0] === 0x03 && encryptedMetadata.length >= 45 + 16) {
+                // V3 metadata: [version:1][salt:32][IV:12][ciphertext]
+                FILE_UPLOAD_DEBUG && console.log('🔑 Detected V3 metadata format');
+                const metaSalt = encryptedMetadata.slice(1, 33);
+                metadataIV = encryptedMetadata.slice(33, 45);
+                metadataCiphertext = encryptedMetadata.slice(45);
+                metadataKey = await this.generateKeyV3(null, compatibleSecret, metaSalt);
+            } else {
+                // Legacy metadata: deterministic key + IV
+                FILE_UPLOAD_DEBUG && console.log('🔑 Detected legacy metadata format');
+                metadataKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
+                metadataIV = await this.deriveCompatibleIV(null, compatibleSecret, 'qopy-metadata-salt');
+                metadataCiphertext = encryptedMetadata;
+            }
             const keyGenTime = performance.now() - keyGenStart;
-            
+
             FILE_UPLOAD_DEBUG && console.log('🔑 Metadata decryption keys generated:', {
                 keyGenerationTime: keyGenTime.toFixed(2) + 'ms',
-                ivLength: metadataIV.length,
-                salt: 'qopy-metadata-salt'
+                ivLength: metadataIV.length
             });
-            
+
             const decryptionStart = performance.now();
             const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(
-                {
-                    name: 'AES-GCM',
-                    iv: metadataIV
-                },
+                { name: 'AES-GCM', iv: metadataIV },
                 metadataKey,
-                encryptedMetadata
+                metadataCiphertext
             );
             const decryptionTime = performance.now() - decryptionStart;
             
@@ -2414,7 +2466,35 @@ class FileDownloadManager {
         }
     }
 
-    // Compatible key generation methods
+    // V3 key derivation: per-clip random salt, 600k iterations
+    async generateKeyV3(password, urlSecret, saltBytes) {
+        const encoder = new TextEncoder();
+        let secret;
+        if (password && urlSecret) {
+            secret = urlSecret + ':' + password;
+        } else if (urlSecret) {
+            secret = urlSecret;
+        } else {
+            throw new Error('Either password or urlSecret must be provided');
+        }
+
+        const keyMaterial = await window.crypto.subtle.importKey(
+            'raw',
+            encoder.encode(secret),
+            'PBKDF2',
+            false,
+            ['deriveKey']
+        );
+        return await window.crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: saltBytes, iterations: 600000, hash: 'SHA-256' },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
+    }
+
+    // Compatible key generation methods (legacy — backward compat)
     async generateCompatibleEncryptionKey(password = null, secret = null) {
         try {
             const encoder = new TextEncoder();

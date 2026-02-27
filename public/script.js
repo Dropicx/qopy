@@ -23,8 +23,11 @@ const CLIP_CONFIG = {
     URL_SECRET_LENGTH: 16,
     CHAR_LIMIT: 50000,
     CLIP_ID_CHARS: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-    PBKDF2_ITERATIONS: 100000,
+    PBKDF2_ITERATIONS: 100000,         // Legacy — kept for backward-compat decryption
+    PBKDF2_ITERATIONS_V3: 600000,      // V3 — OWASP 2025 recommendation
     AES_IV_LENGTH: 12,
+    SALT_LENGTH_V3: 32,
+    FORMAT_VERSION_V3: 0x03,
     MAX_CONTENT_SIZE: 5 * 1024 * 1024,
 };
 
@@ -2132,30 +2135,28 @@ class ClipboardApp {
         }
     }
 
-    // Enhanced key derivation with URL secret + password
+    // Legacy key derivation (backward compatibility for decryption)
     async generateKey(password = null, urlSecret = null) {
         // Input validation
         if (password !== null && (typeof password !== 'string' || password.length === 0)) {
             throw new Error('Password must be a non-empty string or null');
         }
-        
+
         if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
             throw new Error('URL secret must be a non-empty string or null');
         }
-        
+
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.subtle) {
             throw new Error('Web Crypto API not available. Please use HTTPS.');
         }
-        
+
         if (password) {
-            // Combine URL secret with password for enhanced security
             let combinedSecret = password;
             if (urlSecret) {
                 combinedSecret = urlSecret + ':' + password;
             }
-            
-            // Derive key from combined secret using PBKDF2
+
             const encoder = new TextEncoder();
             const salt = encoder.encode('qopy-salt-v1');
             const keyMaterial = await window.crypto.subtle.importKey(
@@ -2178,12 +2179,10 @@ class ClipboardApp {
                 ['encrypt', 'decrypt']
             );
         } else {
-            // For non-password clips, derive key from URL secret for enhanced security
             if (!urlSecret) {
                 throw new Error('URL secret is required for non-password clips');
             }
 
-            // Derive key from URL secret using PBKDF2
             const encoder = new TextEncoder();
             const salt = encoder.encode('qopy-salt-v1');
             const keyMaterial = await window.crypto.subtle.importKey(
@@ -2206,6 +2205,42 @@ class ClipboardApp {
                 ['encrypt', 'decrypt']
             );
         }
+    }
+
+    // V3 key derivation: per-clip random salt, 600k iterations
+    async generateKeyV3(password, urlSecret, saltBytes) {
+        if (!window.crypto || !window.crypto.subtle) {
+            throw new Error('Web Crypto API not available. Please use HTTPS.');
+        }
+        let secret;
+        if (password && urlSecret) {
+            secret = urlSecret + ':' + password;
+        } else if (urlSecret) {
+            secret = urlSecret;
+        } else {
+            throw new Error('Either password or urlSecret must be provided');
+        }
+
+        const encoder = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            'raw',
+            encoder.encode(secret),
+            { name: 'PBKDF2' },
+            false,
+            ['deriveKey']
+        );
+        return await window.crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: saltBytes,
+                iterations: CLIP_CONFIG.PBKDF2_ITERATIONS_V3,
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
     }
 
     // Enhanced IV derivation with URL secret + password or URL secret only
@@ -2262,54 +2297,49 @@ class ClipboardApp {
             if (typeof content !== 'string' || content.length === 0) {
                 throw new Error('Content must be a non-empty string');
             }
-            
+
             if (content.length > 400000) {
                 throw new Error('Content too large (max 400,000 characters)');
             }
-            
+
             if (password !== null && (typeof password !== 'string' || password.length === 0)) {
                 throw new Error('Password must be a non-empty string or null');
             }
-            
+
             if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
                 throw new Error('URL secret must be a non-empty string or null');
             }
-            
+
             // Check if content is already encrypted
             if (this.isEncrypted(content)) {
                 return content; // Already encrypted, return as-is
             }
-            
-            const key = await this.generateKey(password, urlSecret);
+
             const encoder = new TextEncoder();
             const data = encoder.encode(content);
-            
-            // Generate IV: deterministic for all clips using URL secret
-            let iv;
-            if (password) {
-                iv = await this.deriveIV(password, urlSecret);
-            } else {
-                // For non-password clips, derive IV from URL secret
-                iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
-            }
-            
-            // Encrypt the content
+
+            // V3 format: random salt, random IV, 600k iterations
+            const salt = new Uint8Array(CLIP_CONFIG.SALT_LENGTH_V3);
+            window.crypto.getRandomValues(salt);
+            const iv = new Uint8Array(CLIP_CONFIG.AES_IV_LENGTH);
+            window.crypto.getRandomValues(iv);
+
+            const key = await this.generateKeyV3(password, urlSecret, salt);
             const encryptedData = await window.crypto.subtle.encrypt(
                 { name: 'AES-GCM', iv: iv },
                 key,
                 data
             );
-            
-            // Direct byte concatenation: IV + encrypted data (no key storage needed)
+
             const encryptedBytes = new Uint8Array(encryptedData);
-            const ivBytes = new Uint8Array(iv);
-            
-            // All clips: IV + encrypted data (key derived from URL secret/password)
-            const combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
-            combined.set(ivBytes, 0);
-            combined.set(encryptedBytes, ivBytes.length);
-            
-            // Return raw bytes
+
+            // V3 payload: [version:1][salt:32][IV:12][ciphertext]
+            const combined = new Uint8Array(1 + salt.length + iv.length + encryptedBytes.length);
+            combined[0] = CLIP_CONFIG.FORMAT_VERSION_V3;
+            combined.set(salt, 1);
+            combined.set(iv, 1 + salt.length);
+            combined.set(encryptedBytes, 1 + salt.length + iv.length);
+
             return combined;
         } catch (error) {
             throw new Error('Failed to encrypt content');
@@ -2354,31 +2384,28 @@ class ClipboardApp {
             if (encryptedContent === null || encryptedContent === undefined) {
                 throw new Error('Encrypted content cannot be null or undefined');
             }
-            
+
             if (password !== null && (typeof password !== 'string' || password.length === 0)) {
                 throw new Error('Password must be a non-empty string or null');
             }
-            
+
             if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
                 throw new Error('URL secret must be a non-empty string or null');
             }
-            
+
             // Check if content is actually encrypted
             if (!this.isEncrypted(encryptedContent)) {
                 return encryptedContent;
             }
-            
+
             let bytes;
-            
+
             // Handle multiple formats: Uint8Array, Array, and base64 string
             if (encryptedContent instanceof Uint8Array) {
-                // New format: raw bytes
                 bytes = encryptedContent;
             } else if (Array.isArray(encryptedContent)) {
-                // Array format from server
                 bytes = new Uint8Array(encryptedContent);
             } else if (typeof encryptedContent === 'string') {
-                // Old format: base64 string
                 const decoded = atob(encryptedContent);
                 bytes = new Uint8Array(decoded.length);
                 for (let i = 0; i < decoded.length; i++) {
@@ -2387,46 +2414,35 @@ class ClipboardApp {
             } else {
                 throw new Error('Invalid encrypted content format');
             }
-            
-            // Extract IV (first 12 bytes)
+
             if (bytes.length < 12) {
                 throw new Error('Invalid encrypted data: too short');
             }
-            const iv = bytes.slice(0, 12);
-            const encryptedData = bytes.slice(12);
-            
-            let key;
-            if (password) {
-                // Password-protected: derive key from password + URL secret
-                key = await this.generateKey(password, urlSecret);
-                
-                // Decrypt password-protected content
-                const decryptedData = await window.crypto.subtle.decrypt(
-                    { name: 'AES-GCM', iv: iv },
-                    key,
-                    encryptedData
-                );
-                
-                const decoder = new TextDecoder();
-                return decoder.decode(decryptedData);
+
+            const V3_HEADER = 1 + CLIP_CONFIG.SALT_LENGTH_V3 + CLIP_CONFIG.AES_IV_LENGTH; // 45
+            let iv, encryptedData, key;
+
+            if (bytes[0] === CLIP_CONFIG.FORMAT_VERSION_V3 && bytes.length >= V3_HEADER + 16) {
+                // V3 format: [version:1][salt:32][IV:12][ciphertext]
+                const salt = bytes.slice(1, 1 + CLIP_CONFIG.SALT_LENGTH_V3);
+                iv = bytes.slice(1 + CLIP_CONFIG.SALT_LENGTH_V3, V3_HEADER);
+                encryptedData = bytes.slice(V3_HEADER);
+                key = await this.generateKeyV3(password, urlSecret, salt);
             } else {
-                // Non-password: derive key from URL secret
-                if (!urlSecret) {
-                    throw new Error('URL secret is required for non-password clips');
-                }
-                
-                key = await this.generateKey(null, urlSecret);
-                
-                // Decrypt the content
-                const decryptedData = await window.crypto.subtle.decrypt(
-                    { name: 'AES-GCM', iv: iv },
-                    key,
-                    encryptedData
-                );
-                
-                const decoder = new TextDecoder();
-                return decoder.decode(decryptedData);
+                // Legacy format: [IV:12][ciphertext]
+                iv = bytes.slice(0, 12);
+                encryptedData = bytes.slice(12);
+                key = await this.generateKey(password, urlSecret);
             }
+
+            const decryptedData = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                encryptedData
+            );
+
+            const decoder = new TextDecoder();
+            return decoder.decode(decryptedData);
         } catch (error) {
             throw new Error('Failed to decrypt content. The content may be corrupted or the password is incorrect.');
         }
@@ -2786,19 +2802,19 @@ class ClipboardApp {
             false,
             ['deriveBits']
         );
-        
+
         const derivedBits = await window.crypto.subtle.deriveBits(
             {
                 name: 'PBKDF2',
                 salt: encoder.encode(salt),
-                iterations: CLIP_CONFIG.PBKDF2_ITERATIONS,
+                iterations: CLIP_CONFIG.PBKDF2_ITERATIONS_V3,
                 hash: 'SHA-512'
             },
             keyMaterial,
             512 // 64 bytes = 512 bits
         );
-        
-        return Array.from(new Uint8Array(derivedBits), byte => 
+
+        return Array.from(new Uint8Array(derivedBits), byte =>
             byte.toString(16).padStart(2, '0')
         ).join('');
     }
@@ -2829,19 +2845,26 @@ class ClipboardApp {
         }
 
         try {
-            // Check if data is large enough to contain IV + encrypted data
             if (encryptedBytes.length < 12) {
                 throw new Error('File too small to be encrypted');
             }
 
-            // Extract IV from first 12 bytes and encrypted data from remaining bytes
-            const iv = encryptedBytes.slice(0, 12);
-            const encryptedData = encryptedBytes.slice(12);
+            const V3_HEADER = 1 + CLIP_CONFIG.SALT_LENGTH_V3 + CLIP_CONFIG.AES_IV_LENGTH;
+            let iv, encryptedData, key;
 
-            // Generate decryption key
-            const key = await this.generateDecryptionKey(password, urlSecret);
+            if (encryptedBytes[0] === CLIP_CONFIG.FORMAT_VERSION_V3 && encryptedBytes.length >= V3_HEADER + 16) {
+                // V3 format: [version:1][salt:32][IV:12][ciphertext]
+                const salt = encryptedBytes.slice(1, 1 + CLIP_CONFIG.SALT_LENGTH_V3);
+                iv = encryptedBytes.slice(1 + CLIP_CONFIG.SALT_LENGTH_V3, V3_HEADER);
+                encryptedData = encryptedBytes.slice(V3_HEADER);
+                key = await this.generateKeyV3(password, urlSecret, salt);
+            } else {
+                // Legacy format: [IV:12][ciphertext]
+                iv = encryptedBytes.slice(0, 12);
+                encryptedData = encryptedBytes.slice(12);
+                key = await this.generateDecryptionKey(password, urlSecret);
+            }
 
-            // Decrypt the data
             const decryptedData = await window.crypto.subtle.decrypt(
                 { name: 'AES-GCM', iv: iv },
                 key,
@@ -2867,15 +2890,25 @@ class ClipboardApp {
         }
 
         try {
-            // File structure: IV (12 bytes) + encrypted([metadata_length][encrypted_metadata][file_data])
             if (encryptedBytes.length < 12) {
                 throw new Error('File too small to contain IV');
             }
 
-            const iv = encryptedBytes.slice(0, 12);
-            const encryptedData = encryptedBytes.slice(12);
+            const V3_HEADER = 1 + CLIP_CONFIG.SALT_LENGTH_V3 + CLIP_CONFIG.AES_IV_LENGTH;
+            let iv, encryptedData, key;
 
-            const key = await this.generateDecryptionKey(password, urlSecret);
+            if (encryptedBytes[0] === CLIP_CONFIG.FORMAT_VERSION_V3 && encryptedBytes.length >= V3_HEADER + 16) {
+                // V3 format: [version:1][salt:32][IV:12][ciphertext]
+                const salt = encryptedBytes.slice(1, 1 + CLIP_CONFIG.SALT_LENGTH_V3);
+                iv = encryptedBytes.slice(1 + CLIP_CONFIG.SALT_LENGTH_V3, V3_HEADER);
+                encryptedData = encryptedBytes.slice(V3_HEADER);
+                key = await this.generateKeyV3(password, urlSecret, salt);
+            } else {
+                // Legacy format: [IV:12][ciphertext]
+                iv = encryptedBytes.slice(0, 12);
+                encryptedData = encryptedBytes.slice(12);
+                key = await this.generateDecryptionKey(password, urlSecret);
+            }
 
             const decryptedData = await window.crypto.subtle.decrypt(
                 { name: 'AES-GCM', iv: iv },
@@ -2904,15 +2937,24 @@ class ClipboardApp {
                 const encryptedMetadata = decryptedBytes.slice(4, 4 + metadataLength);
                 const fileData = decryptedBytes.slice(4 + metadataLength);
 
-                // Decrypt metadata using metadata-specific parameters
+                // Decrypt metadata — detect V3 vs legacy format
                 try {
-                    const metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
-                    const metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
-                    
+                    let metadataKey, metadataIV, metadataCiphertext;
+                    if (encryptedMetadata[0] === CLIP_CONFIG.FORMAT_VERSION_V3 && encryptedMetadata.length >= 45 + 16) {
+                        const metaSalt = encryptedMetadata.slice(1, 33);
+                        metadataIV = encryptedMetadata.slice(33, 45);
+                        metadataCiphertext = encryptedMetadata.slice(45);
+                        metadataKey = await this.generateKeyV3(null, urlSecret, metaSalt);
+                    } else {
+                        metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
+                        metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
+                        metadataCiphertext = encryptedMetadata;
+                    }
+
                     const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(
                         { name: 'AES-GCM', iv: metadataIV },
                         metadataKey,
-                        encryptedMetadata
+                        metadataCiphertext
                     );
                     
                     const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
@@ -3151,16 +3193,27 @@ class ClipboardApp {
             const encryptedMetadata = fileWithMetadata.slice(4, 4 + metadataLength);
             const fileData = fileWithMetadata.slice(4 + metadataLength);
 
-            // Decrypt metadata using compatible key generation (same as upload)
-            const metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
-            const metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
+            // Detect V3 metadata format and decrypt accordingly
+            let metadataKey, metadataIV, metadataCiphertext;
+            if (encryptedMetadata[0] === CLIP_CONFIG.FORMAT_VERSION_V3 && encryptedMetadata.length >= 45 + 16) {
+                // V3: [version:1][salt:32][IV:12][ciphertext]
+                const metaSalt = encryptedMetadata.slice(1, 33);
+                metadataIV = encryptedMetadata.slice(33, 45);
+                metadataCiphertext = encryptedMetadata.slice(45);
+                metadataKey = await this.generateKeyV3(null, urlSecret, metaSalt);
+            } else {
+                // Legacy
+                metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
+                metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
+                metadataCiphertext = encryptedMetadata;
+            }
 
             const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(
                 { name: 'AES-GCM', iv: metadataIV },
                 metadataKey,
-                encryptedMetadata
+                metadataCiphertext
             );
-            
+
             const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
             const metadata = JSON.parse(metadataJson);
             
