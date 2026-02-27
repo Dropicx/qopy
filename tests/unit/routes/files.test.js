@@ -43,13 +43,15 @@ function createApp(overrides = {}) {
   const mockFileDownloadLimiter = (req, res, next) => next();
   const mockAccessValidationMiddleware = (req, res, next) => next();
   const mockUpdateStatistics = jest.fn().mockResolvedValue();
+  const storagePath = overrides.storagePath !== undefined ? overrides.storagePath : '/storage';
 
   registerFileRoutes(app, {
     pool: mockPool,
     fileService: mockFileService,
     fileDownloadLimiter: overrides.fileDownloadLimiter || mockFileDownloadLimiter,
     accessValidationMiddleware: overrides.accessValidationMiddleware || mockAccessValidationMiddleware,
-    updateStatistics: overrides.updateStatistics || mockUpdateStatistics
+    updateStatistics: overrides.updateStatistics || mockUpdateStatistics,
+    storagePath
   });
 
   return { app, mockPool, mockFileService, mockUpdateStatistics };
@@ -188,6 +190,21 @@ describe('File Routes', () => {
       expect(res.body.error).toBe('File not found on storage');
     });
 
+    test('should return 404 when file_path is outside storage (path canonicalization)', async () => {
+      const clip = makeFileClipRow({ file_path: '/etc/passwd' });
+      const { app, mockPool, mockFileService } = createApp({ storagePath: '/storage' });
+      mockPool.query.mockResolvedValue({ rows: [clip] });
+
+      const res = await request(app)
+        .post('/api/file/ABCDEF1234')
+        .send({});
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('File not found');
+      expect(mockFileService.fileExists).not.toHaveBeenCalled();
+      expect(mockFileService.streamFile).not.toHaveBeenCalled();
+    });
+
     test('should handle one-time file access and delete clip', async () => {
       const clip = makeFileClipRow({ one_time: true });
       const { app, mockPool, mockFileService } = createApp();
@@ -202,7 +219,7 @@ describe('File Routes', () => {
 
       expect(res.status).toBe(200);
       expect(mockFileService.streamFile).toHaveBeenCalledWith(
-        clip.file_path,
+        expect.any(String),
         expect.anything(),
         { deleteAfterSend: true }
       );

@@ -21,6 +21,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { createLimiter } = require('./utils/concurrencyLimiter');
 const { safeDeleteFile } = require('./utils/fileOperations');
+const { resolvePathUnderBase } = require('./utils/pathSafety');
 
 /**
  * CleanupService - Handles periodic cleanup of expired clips, uploads, and orphaned files.
@@ -58,12 +59,17 @@ class CleanupService extends BaseService {
             for (const clip of expiredClipsWithFiles.rows) {
                 if (clip.file_path) {
                     try {
+                        resolvePathUnderBase(clip.file_path, this.storagePath);
                         const result = await safeDeleteFile(clip.file_path);
                         if (result.success) {
                             deletedFilesCount++;
                         }
                     } catch (fileError) {
-                        console.error(`❌ Error deleting file for clip ${clip.clip_id}:`, fileError.message);
+                        if (fileError.message === 'Path outside storage') {
+                            this.logError(`Skipping file outside storage for clip ${clip.clip_id}`, fileError);
+                        } else {
+                            console.error(`❌ Error deleting file for clip ${clip.clip_id}:`, fileError.message);
+                        }
                     }
                 }
             }
@@ -170,7 +176,18 @@ class CleanupService extends BaseService {
             if (orphanedFiles.rows.length > 0) {
                 const limit = createLimiter(10);
                 const deleteTasks = orphanedFiles.rows.map(file =>
-                    limit(async () => safeDeleteFile(file.file_path))
+                    limit(async () => {
+                        try {
+                            resolvePathUnderBase(file.file_path, this.storagePath);
+                            return await safeDeleteFile(file.file_path);
+                        } catch (pathError) {
+                            if (pathError.message === 'Path outside storage') {
+                                this.logError('Skipping orphaned file outside storage', { file_path: file.file_path });
+                                return { success: false, reason: 'path_outside_storage' };
+                            }
+                            throw pathError;
+                        }
+                    })
                 );
                 await Promise.all(deleteTasks);
             }

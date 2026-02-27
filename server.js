@@ -549,10 +549,22 @@ async function getUploadSession(uploadId) {
     }
 }
 
+// Sanitize filename for path safety: no path separators or traversal (prevents path traversal when building finalPath)
+function sanitizeFilenameForPath(name) {
+    if (typeof name !== 'string' || !name.length) return 'file';
+    return name
+        .replace(/[/\\]/g, '_')
+        .replace(/\0/g, '')
+        .replace(/\.\./g, '')
+        .replace(/[\x00-\x1f\x7f]/g, '')
+        .substring(0, 255) || 'file';
+}
+
 // File assembly (used by upload routes via UploadCompletionService)
 async function assembleFile(uploadId, session) {
     try {
-        const finalPath = path.join(STORAGE_PATH, 'files', `${uploadId}_${session.filename}`);
+        const safeFilename = sanitizeFilenameForPath(session.filename || 'file');
+        const finalPath = path.join(STORAGE_PATH, 'files', `${uploadId}_${safeFilename}`);
         await fs.mkdir(path.dirname(finalPath), { recursive: true });
         
         const writeStream = require('fs').createWriteStream(finalPath);
@@ -635,7 +647,7 @@ registerUploadRoutes(app, {
 
 // File routes (info, download, legacy)
 const { registerFileRoutes } = require('./routes/files');
-registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, accessValidationMiddleware, updateStatistics });
+registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, accessValidationMiddleware, updateStatistics, storagePath: STORAGE_PATH });
 
 // Upload system routes are in routes/uploads.js
 // Clip retrieval routes are in routes/clips.js

@@ -169,6 +169,10 @@ POST /api/upload/complete/:uploadId → assemble & validate
 - Random IV per encryption operation (no IV reuse risk)
 - Per-clip random salts (NIST SP 800-132 compliant)
 
+**Two separate PBKDF2/salt uses (do not confuse)**:
+1. **Content encryption (V3)** — Derives the AES key that encrypts/decrypts clip content. Uses a **random 32-byte salt per clip** (and random IV). Salt is stored in the payload; no shared secret with the server.
+2. **Access-code hashing** — Hashes the optional access-code (password) before sending to the server so the server can verify "correct code?" without ever seeing the plain code. Uses a **shared fixed salt** (default `qopy-access-salt-v1` or `PBKDF2_SALT` from `/api/config`) so client and server hashes match. This salt is **not** used for content encryption.
+
 ## Testing Strategy
 
 ### Test Organization
@@ -253,7 +257,7 @@ tests/
 - `REDIS_URL` - Redis connection string (auto-set by Railway; falls back to PostgreSQL-only)
 - `REDISCLOUD_URL` - Alternative Redis URL (checked if `REDIS_URL` is not set)
 - `DATABASE_SSL_REJECT_UNAUTHORIZED` - TLS certificate verification for PostgreSQL. Defaults to `false` (Railway uses self-signed certs). Set to `true` for providers with CA-signed certs
-- `PBKDF2_SALT` - Custom salt for PBKDF2 key derivation (default: built-in salt). Used in zero-knowledge client-side hashing via `/api/config`
+- `PBKDF2_SALT` - Salt for **access-code hashing only** (default: built-in). Client and server both use this so the hash sent by the client matches what the server compares. Not used for content encryption (content uses per-clip random salt). Exposed via `/api/config`.
 - `LOG_LEVEL` - Logging verbosity (default: `info`)
 
 **Payment System Variables** (required only if Stripe integration is enabled):

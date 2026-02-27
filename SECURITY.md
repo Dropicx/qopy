@@ -43,6 +43,10 @@ Please include the following information in your report:
 - We will notify you when the vulnerability is fixed
 - We may publicly acknowledge your contribution to improving our security (with your permission)
 
+## Security Review
+
+A detailed **security review** (threat model, controls, and recommendations) is in [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md). It covers authentication, input validation, SQL injection prevention, rate limiting, path traversal mitigation, and deployment guidance.
+
 ## Security Measures Implemented
 
 ### Application Security
@@ -109,6 +113,14 @@ MAX_FILE_SIZE=10485760
 RATE_LIMIT_WINDOW=900000
 RATE_LIMIT_MAX=100
 ```
+
+### Dependency security (process)
+- Run `npm audit` before releases and in CI. The main CI pipeline runs `npm audit --omit=dev --audit-level=high`; the Security Audit workflow runs `npm audit --audit-level=high --production`. Treat high and critical vulnerabilities as blocking unless documented and accepted.
+- Optional Snyk scans run when `SNYK_TOKEN` is set (see CI/CD Secrets). Keep dependencies updated and address advisories within the timelines in the Response Timeline above.
+
+### Admin token and Redis
+- **Admin token**: Use a strong, unique `ADMIN_TOKEN` per environment (e.g. 32+ random characters). Consider rotation and a secrets manager in production; do not commit the token.
+- **Redis**: When Redis is used, keep the Redis URL and credentials in environment variables only. Use TLS for Redis when available in your deployment environment.
 
 ### Production Deployment
 - Use HTTPS/TLS certificates from a trusted CA

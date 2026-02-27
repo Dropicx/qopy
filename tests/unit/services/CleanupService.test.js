@@ -52,6 +52,7 @@ jest.mock('../../../services/core/BaseService', () => {
   };
 });
 
+const path = require('path');
 const CleanupService = require('../../../services/CleanupService');
 const { safeDeleteFile } = require('../../../services/utils/fileOperations');
 const { createLimiter } = require('../../../services/utils/concurrencyLimiter');
@@ -141,8 +142,8 @@ describe('CleanupService', () => {
     // Step 1: Delete files for expired clips
     test('should delete files for expired clips with file_path', async () => {
       const expiredRows = [
-        { clip_id: 'abc123', file_path: '/storage/files/abc123.enc' },
-        { clip_id: 'def456', file_path: '/storage/files/def456.enc' }
+        { clip_id: 'abc123', file_path: path.join(storagePath, 'files', 'abc123.enc') },
+        { clip_id: 'def456', file_path: path.join(storagePath, 'files', 'def456.enc') }
       ];
       mockPool.query
         .mockResolvedValueOnce({ rows: expiredRows }) // step 1: fetch expired clips with files
@@ -155,8 +156,8 @@ describe('CleanupService', () => {
       await service.cleanupExpiredClips();
 
       expect(safeDeleteFile).toHaveBeenCalledTimes(2);
-      expect(safeDeleteFile).toHaveBeenCalledWith('/storage/files/abc123.enc');
-      expect(safeDeleteFile).toHaveBeenCalledWith('/storage/files/def456.enc');
+      expect(safeDeleteFile).toHaveBeenCalledWith(path.join(storagePath, 'files', 'abc123.enc'));
+      expect(safeDeleteFile).toHaveBeenCalledWith(path.join(storagePath, 'files', 'def456.enc'));
     });
 
     test('should handle clips without file_path (null file_path in row)', async () => {
@@ -189,7 +190,7 @@ describe('CleanupService', () => {
 
     test('should handle safeDeleteFile returning failure (non-critical)', async () => {
       const expiredRows = [
-        { clip_id: 'abc123', file_path: '/storage/files/abc123.enc' }
+        { clip_id: 'abc123', file_path: path.join(storagePath, 'files', 'abc123.enc') }
       ];
       mockPool.query
         .mockResolvedValueOnce({ rows: expiredRows })
@@ -209,8 +210,8 @@ describe('CleanupService', () => {
 
     test('should handle safeDeleteFile throwing error (non-critical)', async () => {
       const expiredRows = [
-        { clip_id: 'abc123', file_path: '/storage/files/abc123.enc' },
-        { clip_id: 'def456', file_path: '/storage/files/def456.enc' }
+        { clip_id: 'abc123', file_path: path.join(storagePath, 'files', 'abc123.enc') },
+        { clip_id: 'def456', file_path: path.join(storagePath, 'files', 'def456.enc') }
       ];
       mockPool.query
         .mockResolvedValueOnce({ rows: expiredRows })
@@ -230,6 +231,25 @@ describe('CleanupService', () => {
         expect.stringContaining('Error deleting file for clip abc123'),
         expect.any(String)
       );
+    });
+
+    test('should skip file when file_path is outside storage (path canonicalization)', async () => {
+      const expiredRows = [
+        { clip_id: 'abc123', file_path: path.join(storagePath, 'files', 'valid.enc') },
+        { clip_id: 'bad456', file_path: '/etc/passwd' }
+      ];
+      mockPool.query
+        .mockResolvedValueOnce({ rows: expiredRows })
+        .mockResolvedValueOnce({ rowCount: 0 })
+        .mockResolvedValueOnce({ rowCount: 0 })
+        .mockResolvedValueOnce({ rows: [{ last_value: '100' }] });
+
+      safeDeleteFile.mockResolvedValue({ success: true });
+
+      await service.cleanupExpiredClips();
+
+      expect(safeDeleteFile).toHaveBeenCalledTimes(1);
+      expect(safeDeleteFile).toHaveBeenCalledWith(path.join(storagePath, 'files', 'valid.enc'));
     });
 
     test('should handle query error in step 1 (fetch expired clips with files)', async () => {
@@ -583,8 +603,8 @@ describe('CleanupService', () => {
     test('should handle orphaned files cleanup', async () => {
       const orphanedFiles = {
         rows: [
-          { file_path: '/storage/files/orphan1.enc' },
-          { file_path: '/storage/files/orphan2.enc' }
+          { file_path: path.join(storagePath, 'files', 'orphan1.enc') },
+          { file_path: path.join(storagePath, 'files', 'orphan2.enc') }
         ]
       };
 
@@ -598,8 +618,8 @@ describe('CleanupService', () => {
 
       expect(createLimiter).toHaveBeenCalledWith(10);
       expect(safeDeleteFile).toHaveBeenCalledTimes(2);
-      expect(safeDeleteFile).toHaveBeenCalledWith('/storage/files/orphan1.enc');
-      expect(safeDeleteFile).toHaveBeenCalledWith('/storage/files/orphan2.enc');
+      expect(safeDeleteFile).toHaveBeenCalledWith(path.join(storagePath, 'files', 'orphan1.enc'));
+      expect(safeDeleteFile).toHaveBeenCalledWith(path.join(storagePath, 'files', 'orphan2.enc'));
     });
 
     test('should handle no orphaned files', async () => {

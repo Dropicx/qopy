@@ -473,8 +473,8 @@
 
                         <h4>Step 1: Initiate Upload (POST /api/upload/initiate)</h4>
                         <pre><code>curl -X POST https://qopy.app/api/upload/initiate  -H "Content-Type: application/json"  -d '{
-    "fileName": "message.txt",
-    "fileSize": 26,
+    "filename": "message.txt",
+    "filesize": 26,
     "totalChunks": 1,
     "expiration": "1hr",
     "oneTime": false,
@@ -482,25 +482,27 @@
   }'</code></pre>
 
                         <h4>Step 2: Upload Chunk (POST /api/upload/chunk/:uploadId/:chunkNumber)</h4>
+                        <p>Send the file as plaintext (no client-side encryption when using the API). Use the <code>uploadId</code> from step 1.</p>
                         <pre><code>curl -X POST https://qopy.app/api/upload/chunk/YOUR_UPLOAD_ID/0  -F "chunk=@message.txt"</code></pre>
 
                         <h4>Step 3: Complete Upload (POST /api/upload/complete/:uploadId)</h4>
                         <pre><code>curl -X POST https://qopy.app/api/upload/complete/YOUR_UPLOAD_ID  -H "Content-Type: application/json"  -d '{}'</code></pre>
 
                         <h4>Retrieving Clips</h4>
+                        <p>Use <code>GET /api/clip/:clipId</code> to get JSON (including <code>redirectTo</code> for the file URL). File download requires <strong>POST</strong> (GET /api/file/:clipId returns 410).</p>
                         <pre><code># Get clip metadata
 curl https://qopy.app/api/clip/X8K2M9/info
 
-# Get clip content
+# Get clip (returns JSON with redirectTo for file content)
 curl https://qopy.app/api/clip/X8K2M9
 
-# Download file content
-curl -X POST https://qopy.app/api/file/X8K2M9</code></pre>
+# Download file content (must use POST; optional body: {"accessCode": "..."} if protected)
+curl -X POST https://qopy.app/api/file/X8K2M9  -H "Content-Type: application/json"  -d '{}'</code></pre>
 
                         <h4>Upload Parameters:</h4>
                         <ul>
-                            <li><strong>fileName</strong> - Name of the file being uploaded</li>
-                            <li><strong>fileSize</strong> - Size of the file in bytes</li>
+                            <li><strong>filename</strong> - Name of the file being uploaded</li>
+                            <li><strong>filesize</strong> - Size of the file in bytes</li>
                             <li><strong>totalChunks</strong> - Number of chunks (1 for small files)</li>
                             <li><strong>expiration</strong> - "5min", "15min", "30min", "1hr", "6hr", "24hr"</li>
                             <li><strong>oneTime</strong> - Boolean, deletes clip after first access</li>
@@ -536,6 +538,11 @@ curl -X POST https://qopy.app/api/file/X8K2M9</code></pre>
                         </ul>
 
                         <p><strong>Perfect for:</strong> Automation scripts, integrations, mobile apps, and programmatic content sharing!</p>
+
+                        <h4>Test the API with the included script</h4>
+                        <p>From the Qopy repo you can run a full store-and-retrieve test against qopy.app or your own server:</p>
+                        <pre><code>./scripts/test-api-curl.sh https://qopy.app</code></pre>
+                        <p>The script uses curl for all HTTP calls: it uploads plaintext "Hello from Qopy API test", then retrieves it and verifies the content matches. Requires <code>curl</code> and <code>node</code> (for JSON parsing).</p>
                     </div>
                 </div>
 

@@ -158,7 +158,7 @@ ADMIN_TOKEN=your-secret-token    # Required for admin dashboard access
 # Optional
 REDISCLOUD_URL=redis://...       # Alternative Redis URL (checked if REDIS_URL is not set)
 DATABASE_SSL_REJECT_UNAUTHORIZED=false  # Default; see "Database SSL Configuration" below
-PBKDF2_SALT=your-custom-salt     # Custom salt for PBKDF2 key derivation (has built-in default)
+PBKDF2_SALT=your-custom-salt     # Salt for access-code hashing only (client+server must match). Not used for content encryption. Built-in default if unset.
 LOG_LEVEL=info                   # Logging verbosity (default: info)
 
 # Stripe payment integration (only if payments are enabled)
@@ -326,6 +326,8 @@ In development (`NODE_ENV` not `production`), SSL is disabled entirely.
 - [ ] XSS protection enabled
 - [ ] SQL injection prevention verified
 - [ ] Path traversal protection active
+- [ ] Strong, unique `ADMIN_TOKEN` per environment (consider rotation and a secrets manager)
+- [ ] Redis URL/credentials in env only; use TLS for Redis when available
 
 ### Recommended Security Headers
 ```javascript
@@ -341,6 +343,9 @@ app.use(helmet({
   },
 }));
 ```
+
+### Content Security Policy (CSP)
+The app uses Helmet with `style-src` including `'unsafe-inline'` for compatibility with existing inline styles in static HTML. Tightening CSP by moving to nonce- or hash-based inline styles is a future improvement: generate a nonce per request, inject it into the CSP header and into every `<style>` and `style=""` in served HTML (e.g. via a template or response post-processor). See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for details.
 
 ## Performance Optimization
 

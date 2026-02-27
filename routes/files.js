@@ -6,13 +6,14 @@
 const { body, validationResult } = require('express-validator');
 const path = require('path');
 const { clipIdValidator } = require('./shared/validators');
+const { resolvePathUnderBase } = require('../services/utils/pathSafety');
 
 /**
  * Register file-related routes
  * @param {import('express').Application} app
- * @param {{ pool: import('pg').Pool, fileService: object, fileDownloadLimiter: object, accessValidationMiddleware: Function, updateStatistics: Function }} deps
+ * @param {{ pool: import('pg').Pool, fileService: object, fileDownloadLimiter: object, accessValidationMiddleware: Function, updateStatistics: Function, storagePath: string }} deps
  */
-function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, accessValidationMiddleware, updateStatistics }) {
+function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, accessValidationMiddleware, updateStatistics, storagePath }) {
 
     // ==========================================
     // FILE SHARING ENDPOINTS
@@ -108,8 +109,19 @@ function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, acces
 
             const clip = result.rows[0];
 
+            // Ensure file_path is under storage root (path canonicalization)
+            let safeFilePath;
+            try {
+                safeFilePath = storagePath ? resolvePathUnderBase(clip.file_path, storagePath) : clip.file_path;
+            } catch (pathError) {
+                return res.status(404).json({
+                    error: 'File not found',
+                    message: 'The requested file does not exist or has expired'
+                });
+            }
+
             // Check if file exists on storage
-            if (!(await fileService.fileExists(clip.file_path))) {
+            if (!(await fileService.fileExists(safeFilePath))) {
                 return res.status(404).json({
                     error: 'File not found on storage',
                     message: 'The file has been removed from storage'
@@ -138,9 +150,9 @@ function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, acces
                 deleteFileAfterSend = true;
             }
 
-            // Set download headers and stream file
+            // Set download headers and stream file (use safeFilePath from path check above)
             fileService.setDownloadHeaders(res, clip);
-            await fileService.streamFile(clip.file_path, res, { deleteAfterSend: deleteFileAfterSend });
+            await fileService.streamFile(safeFilePath, res, { deleteAfterSend: deleteFileAfterSend });
 
         } catch (error) {
             console.error('❌ File download error:', { method: req.method, path: req.path, error: error.message });

@@ -16,9 +16,9 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 
 ### Advanced Security Architecture
 - **URL secrets** - High-entropy random secrets in URL fragments (256-bit for Enhanced, 31-bit for Quick Share)
-- **Password protection** - Optional access codes hashed with 600,000 PBKDF2-SHA-512 iterations before leaving the browser
+- **Password protection** - Optional access codes hashed with 600,000 PBKDF2-SHA-512 iterations before leaving the browser (using a shared salt so server can verify without seeing the code)
 - **Combined secrets** - URL secret + access code combined for maximum security
-- **No plaintext password transmission** - only a PBKDF2-SHA-512 hash is sent to the server for access validation (the server cannot reverse this to recover the original code)
+- **No plaintext password transmission** - only a PBKDF2-SHA-512 hash is sent to the server for access validation (the server cannot reverse this to recover the original code). This access-code hashing uses a separate salt from content encryption (content uses per-clip random salt).
 - **Defense in depth** - Even weak access codes protected by URL secret
 - **Automatic expiration** with cleanup every minute
 - **One-time access** option for sensitive content
@@ -145,42 +145,103 @@ railway variables set ADMIN_TOKEN=your-secure-admin-token
 ## API Documentation
 
 ### Upload Content (3-Step Flow)
+
+When using the API directly, content is sent as **plaintext** (no client-side encryption). The server stores it as provided.
+
+**Step 1: Initiate upload**
 ```http
-# Step 1: Initiate upload
 POST /api/upload/initiate
 Content-Type: application/json
 
 {
-  "fileName": "message.txt",
-  "fileSize": 26,
+  "filename": "message.txt",
+  "filesize": 26,
   "totalChunks": 1,
-  "expiration": "30min",
+  "expiration": "1hr",
   "oneTime": false,
   "hasPassword": false
 }
+```
+Response includes `uploadId` (16 chars). Use it in step 2.
 
-# Step 2: Upload chunk
-POST /api/upload/chunk/{uploadId}/0
+**Step 2: Upload chunk**
+```http
+POST /api/upload/chunk/{uploadId}/{chunkNumber}
 Content-Type: multipart/form-data
+```
+Body: form field `chunk` = the file (plaintext). Example: `curl -F "chunk=@message.txt"`.
 
-# Step 3: Complete upload
+**Step 3: Complete upload**
+```http
 POST /api/upload/complete/{uploadId}
 Content-Type: application/json
+Body: {}
 ```
+Response includes `clipId` and `url`.
 
-### Get Clip Info
+### Retrieving Clips
+
+**Get clip metadata**
 ```http
 GET /api/clip/{clipId}/info
 ```
 
-### Retrieve Clip
+**Get clip (returns JSON with redirectTo for file content)**
 ```http
 GET /api/clip/{clipId}
 ```
 
+**Download file content** — use **POST** (GET /api/file/:clipId returns 410 Gone). For unprotected clips, send empty JSON.
+```http
+POST /api/file/{clipId}
+Content-Type: application/json
+Body: {}
+```
+For password-protected clips, include `"accessCode": "your-code"` in the body.
+
 ### Health Check
 ```http
 GET /health
+```
+
+### Testing the API with the included script
+
+A shell script runs a full store-and-retrieve test using the plaintext API: it uploads the text "Hello from Qopy API test", then retrieves it and verifies the content.
+
+**Prerequisites:** `curl` and `node` (for JSON parsing).
+
+**Run against qopy.app:**
+```bash
+./scripts/test-api-curl.sh https://qopy.app
+```
+
+**Run against local server:**
+```bash
+./scripts/test-api-curl.sh http://localhost:8080
+```
+
+Example output when all steps succeed:
+```
+Qopy API test (curl, plaintext per FAQ)
+Base URL: https://qopy.app
+
+1. Health check
+   OK
+2. Initiate upload
+   uploadId: ...
+   Before upload (plaintext): Hello from Qopy API test
+3. Upload chunk (plaintext)
+   chunk uploaded
+4. Complete upload
+   clipId: ...
+5. Get clip
+   redirectTo: /api/file/...
+6. Get file
+   After retrieve (plaintext): Hello from Qopy API test
+7. Verify
+   Match: OK
+
+All steps OK (plaintext API).
 ```
 
 ## Important Security Note
@@ -271,10 +332,10 @@ Think of Qopy like a locked box system:
 ### Zero-Knowledge Guarantees
 - **Server never sees plaintext content** — all encryption happens in your browser before upload
 - **Server never sees URL secrets** — kept in the URL fragment (`#`), which browsers never transmit
-- **Server never sees plaintext access codes** — only a PBKDF2-SHA-512 hash (600,000 iterations) is sent for access validation. The server cannot reverse this hash to recover your code.
+- **Server never sees plaintext access codes** — only a PBKDF2-SHA-512 hash (600,000 iterations) is sent for access validation. The server cannot reverse this hash to recover your code. (Access-code hashing uses a shared fixed salt so client and server hashes match; it is separate from content encryption, which uses a random salt per clip.)
 - **Server cannot decrypt content** — it would need the URL secret (which it never receives) to derive the decryption key
 - **Random IV per encryption** — a fresh 96-bit IV is generated for every clip, eliminating IV reuse risks
-- **Per-clip random salts** — 256-bit cryptographically random salt per clip prevents rainbow table attacks
+- **Per-clip random salts** — 256-bit cryptographically random salt per clip for **content** key derivation prevents rainbow table attacks
 - **Hybrid security** — URL secret + access code combined means even a weak access code is protected by the high-entropy URL secret
 - **Automatic data expiration** — encrypted content is permanently deleted after your chosen expiration time
 
