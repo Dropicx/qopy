@@ -21,7 +21,7 @@ flowchart TB
         A10[POST /api/upload/initiate<br/>metadata only, no plaintext]
         A11[POST /api/upload/chunk/:id/:n<br/>one request per chunk]
         A12[POST /api/upload/complete/:id<br/>optional: accessCodeHash for validation]
-        A13[Receive clipId + build share URL<br/>/clip/{clipId}#{urlSecret}]
+        A13["Receive clipId + build share URL<br/>/clip/clipId + fragment (urlSecret)"]
         A1 --> A2
         A2 --> A3
         A3 --> A4
@@ -54,7 +54,7 @@ flowchart TB
     end
 
     subgraph RECIPIENT["👤 Recipient (Browser)"]
-        C1[Open share link<br/>URL secret stays in fragment #]
+        C1["Open share link<br/>URL secret stays in fragment (not sent to server)"]
         C2[GET /api/clip/:clipId/info<br/>expiry, requiresAccessCode]
         C3{Access code required?}
         C4[Hash access code client-side<br/>send accessCodeHash only]
