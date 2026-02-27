@@ -11,14 +11,14 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-// Test-Konfiguration (Legacy format — production uses V3 with 600k iterations + random salts)
+// Test-Konfiguration (V3 only: random salt, random IV, 600k PBKDF2 iterations)
 const TEST_CONFIG = {
-    iterations: 100000, // Legacy — V3 production uses 600000
-    salt: 'qopy-salt-v1',
-    ivSalt: 'qopy-iv-salt-v1',
+    iterations: 600000,
+    formatVersionV3: 0x03,
+    saltLength: 32,
+    ivLength: 12,
     algorithm: 'aes-256-gcm',
     keyLength: 32, // 256 bits
-    ivLength: 12   // 96 bits
 };
 
 class ServerEncryptionTester {
@@ -27,100 +27,85 @@ class ServerEncryptionTester {
         this.testData = [];
     }
 
-    // PBKDF2 Schlüsselableitung
-    async deriveKey(password, salt, iterations = TEST_CONFIG.iterations) {
+    // PBKDF2 Schlüsselableitung (V3: per-operation random salt, 600k iterations)
+    async deriveKey(secret, saltBuffer) {
         return new Promise((resolve, reject) => {
-            crypto.pbkdf2(password, salt, iterations, TEST_CONFIG.keyLength, 'sha256', (err, key) => {
+            crypto.pbkdf2(secret, saltBuffer, TEST_CONFIG.iterations, TEST_CONFIG.keyLength, 'sha256', (err, key) => {
                 if (err) reject(err);
                 else resolve(key);
             });
         });
     }
 
-    // IV ableiten
-    async deriveIV(primarySecret, secondarySecret = null, salt = TEST_CONFIG.ivSalt) {
-        let combinedSecret = primarySecret;
-        if (secondarySecret) {
-            combinedSecret = secondarySecret + ':' + primarySecret;
-        }
-
-        return new Promise((resolve, reject) => {
-            crypto.pbkdf2(combinedSecret, salt, 50000, TEST_CONFIG.ivLength, 'sha256', (err, iv) => {
-                if (err) reject(err);
-                else resolve(iv);
-            });
-        });
-    }
-
-    // Verschlüsseln
+    // Verschlüsseln (V3 format: [version:1][salt:32][IV:12][ciphertext])
     async encrypt(content, password = null, urlSecret = null) {
         try {
             if (typeof content !== 'string' || content.length === 0) {
                 throw new Error('Content must be a non-empty string');
             }
 
-            let key, iv;
+            const salt = crypto.randomBytes(TEST_CONFIG.saltLength);
+            const iv = crypto.randomBytes(TEST_CONFIG.ivLength);
 
-            if (password) {
-                // Passwort + URL Secret kombinieren
-                const combinedSecret = urlSecret ? urlSecret + ':' + password : password;
-                key = await this.deriveKey(combinedSecret, TEST_CONFIG.salt);
-                iv = await this.deriveIV(password, urlSecret);
+            let secret;
+            if (password && urlSecret) {
+                secret = urlSecret + ':' + password;
+            } else if (urlSecret) {
+                secret = urlSecret;
             } else {
-                // Nur URL Secret
-                if (!urlSecret) {
-                    throw new Error('URL secret is required for non-password clips');
-                }
-                key = await this.deriveKey(urlSecret, TEST_CONFIG.salt);
-                iv = await this.deriveIV(urlSecret, null, TEST_CONFIG.ivSalt);
+                throw new Error('URL secret is required for non-password clips');
             }
 
-            const cipher = crypto.createCipher(TEST_CONFIG.algorithm, key);
-            cipher.setAAD(Buffer.from('qopy-aad', 'utf8'));
-            
-            let encrypted = cipher.update(content, 'utf8', 'hex');
-            encrypted += cipher.final('hex');
-            
+            const key = await this.deriveKey(secret, salt);
+
+            const cipher = crypto.createCipheriv(TEST_CONFIG.algorithm, key, iv);
+            let encrypted = cipher.update(content, 'utf8');
+            encrypted = Buffer.concat([encrypted, cipher.final()]);
             const authTag = cipher.getAuthTag();
 
-            // Format: IV + AuthTag + EncryptedData
-            const result = Buffer.concat([
+            // V3 payload: [version:1][salt:32][IV:12][ciphertext with authTag]
+            const ciphertext = Buffer.concat([encrypted, authTag]);
+            return Buffer.concat([
+                Buffer.from([TEST_CONFIG.formatVersionV3]),
+                salt,
                 iv,
-                authTag,
-                Buffer.from(encrypted, 'hex')
+                ciphertext
             ]);
-
-            return result;
         } catch (error) {
             throw new Error(`Encryption failed: ${error.message}`);
         }
     }
 
-    // Entschlüsseln
+    // Entschlüsseln (V3 format only)
     async decrypt(encryptedData, password = null, urlSecret = null) {
         try {
-            if (encryptedData.length < TEST_CONFIG.ivLength + 16) { // IV + AuthTag
+            const minLen = 1 + TEST_CONFIG.saltLength + TEST_CONFIG.ivLength + 16;
+            if (encryptedData.length < minLen) {
                 throw new Error('Invalid encrypted data: too short');
             }
-
-            const iv = encryptedData.slice(0, TEST_CONFIG.ivLength);
-            const authTag = encryptedData.slice(TEST_CONFIG.ivLength, TEST_CONFIG.ivLength + 16);
-            const encrypted = encryptedData.slice(TEST_CONFIG.ivLength + 16);
-
-            let key;
-
-            if (password) {
-                const combinedSecret = urlSecret ? urlSecret + ':' + password : password;
-                key = await this.deriveKey(combinedSecret, TEST_CONFIG.salt);
-            } else {
-                if (!urlSecret) {
-                    throw new Error('URL secret is required for non-password clips');
-                }
-                key = await this.deriveKey(urlSecret, TEST_CONFIG.salt);
+            if (encryptedData[0] !== TEST_CONFIG.formatVersionV3) {
+                throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
             }
 
-            const decipher = crypto.createDecipher(TEST_CONFIG.algorithm, key);
-            decipher.setAAD(Buffer.from('qopy-aad', 'utf8'));
+            const salt = encryptedData.slice(1, 1 + TEST_CONFIG.saltLength);
+            const iv = encryptedData.slice(1 + TEST_CONFIG.saltLength, 1 + TEST_CONFIG.saltLength + TEST_CONFIG.ivLength);
+            const ciphertextWithTag = encryptedData.slice(1 + TEST_CONFIG.saltLength + TEST_CONFIG.ivLength);
+
+            let secret;
+            if (password && urlSecret) {
+                secret = urlSecret + ':' + password;
+            } else if (urlSecret) {
+                secret = urlSecret;
+            } else {
+                throw new Error('URL secret is required for non-password clips');
+            }
+
+            const key = await this.deriveKey(secret, salt);
+
+            const authTag = ciphertextWithTag.slice(-16);
+            const encrypted = ciphertextWithTag.slice(0, -16);
+
+            const decipher = crypto.createDecipheriv(TEST_CONFIG.algorithm, key, iv);
             decipher.setAuthTag(authTag);
 
             let decrypted = decipher.update(encrypted, null, 'utf8');

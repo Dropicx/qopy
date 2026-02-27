@@ -92,23 +92,18 @@ class FileAssemblyService {
     }
 
     /**
-     * Legacy wrapper for backward compatibility
-     * @param {string} uploadId - Upload session ID 
+     * Assemble file using a delegate function
+     * @param {string} uploadId - Upload session ID
      * @param {Object} session - Upload session data
      * @param {Function} assembleFileFn - The assembleFile function from main server
      * @returns {Promise<string>} - Path to assembled file
      */
-    static async assembleFileLegacy(uploadId, session, assembleFileFn) {
-        logger.log('Legacy assembly wrapper', { uploadId });
-        
+    static async assembleFileWithDelegate(uploadId, session, assembleFileFn) {
         if (!assembleFileFn) {
             throw new Error('assembleFile function not provided');
         }
-        
-        const filePath = await assembleFileFn(uploadId, session);
-        logger.logSuccess('Legacy assembly completed', { filePath });
-        
-        return filePath;
+
+        return await assembleFileFn(uploadId, session);
     }
 
     /**
@@ -257,7 +252,7 @@ class FileAssemblyService {
     }
 
     /**
-     * Validate chunk completeness (legacy method)
+     * Validate chunk completeness (simple validation method)
      * @param {number} uploadedChunks - Number of uploaded chunks
      * @param {number} totalChunks - Total expected chunks
      * @returns {boolean} - Whether all chunks are uploaded

@@ -407,47 +407,6 @@ class FileUploadManager {
         return finalFile;
     }
 
-    // Extract metadata from file during download
-    async extractMetadata(fileWithMetadata, securePassphrase) {
-        try {
-            if (fileWithMetadata.length < 4) {
-                return { metadata: null, fileData: fileWithMetadata };
-            }
-            
-            // Read metadata length
-            const metadataLength = new DataView(fileWithMetadata.buffer.slice(0, 4)).getUint32(0, false);
-            
-            if (metadataLength > fileWithMetadata.length - 4 || metadataLength > 1024) { // Sanity check
-                FILE_UPLOAD_DEBUG && console.log('📦 No valid metadata found, treating as raw file');
-                return { metadata: null, fileData: fileWithMetadata };
-            }
-            
-            // Extract encrypted metadata
-            const encryptedMetadata = fileWithMetadata.slice(4, 4 + metadataLength);
-            const fileData = fileWithMetadata.slice(4 + metadataLength);
-            
-            // Decrypt metadata using same key as file content
-            const metadataKey = await this.generateEnhancedEncryptionKey(null, securePassphrase);
-            const metadataIV = await this.deriveEnhancedIV(securePassphrase, null, 'qopy-metadata-salt');
-            
-            const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(
-                { name: 'AES-GCM', iv: metadataIV },
-                metadataKey,
-                encryptedMetadata
-            );
-            
-            const metadataJson = new TextDecoder().decode(decryptedMetadataBuffer);
-            const metadata = JSON.parse(metadataJson);
-            
-            FILE_UPLOAD_DEBUG && console.log(`🔓 Extracted encrypted metadata: ${metadataJson}`);
-            return { metadata, fileData };
-            
-        } catch (error) {
-            FILE_UPLOAD_DEBUG && console.warn('⚠️ Failed to extract metadata (wrong key or corrupted):', error.message);
-            return { metadata: null, fileData: fileWithMetadata };
-        }
-    }
-
     // Generate secure passphrase (like Proton Drive's recovery phrases) for enhanced security
     generateSecurePassphrase() {
         FILE_UPLOAD_DEBUG && console.log('🔐 [ENTROPY] Generating enhanced secure passphrase...');
@@ -509,233 +468,21 @@ class FileUploadManager {
         return wordPassphrase;
     }
 
-    // Enhanced key derivation with backward compatibility + extensive logging
-    async generateCompatibleEncryptionKey(password = null, secret = null) {
-        try {
-            const encoder = new TextEncoder();
-            
-            // Detect if this is an old URL secret (16 chars) or new enhanced passphrase (43+ chars)
-            const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
-            const isEnhancedPassphrase = secret && secret.length >= 40;
-            
-            let keyMaterial;
-            let salt;
-            let iterations;
-            let mode;
-            
-            if (password && secret) {
-                // Combined mode
-                if (isOldUrlSecret) {
-                    // Legacy format: urlSecret:password (compatible with script.js)
-                    const combined = secret + ':' + password;
-                    mode = 'LEGACY_COMBINED';
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(combined),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    salt = 'qopy-salt-v1';           // Legacy salt
-                    iterations = 100000;             // Legacy iterations
-                } else if (isEnhancedPassphrase) {
-                    // Enhanced format: passphrase:password
-                    const combined = secret + ':' + password;
-                    mode = 'ENHANCED_COMBINED';
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(combined),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    salt = 'qopy-enhanced-salt-v2';   // Enhanced salt
-                    iterations = 250000;             // Enhanced iterations
-                } else {
-                    throw new Error(`Invalid secret format: length=${secret.length}, pattern=${secret.substring(0, 8)}...`);
-                }
-            } else if (secret) {
-                // Secret-only mode
-                if (isOldUrlSecret) {
-                    mode = 'LEGACY_SECRET_ONLY';
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(secret),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    salt = 'qopy-salt-v1';
-                    iterations = 100000;
-                } else if (isEnhancedPassphrase) {
-                    mode = 'ENHANCED_SECRET_ONLY';
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(secret),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    salt = 'qopy-enhanced-salt-v2';
-                    iterations = 250000;
-                } else {
-                    throw new Error(`Invalid secret format: length=${secret.length}, pattern=${secret.substring(0, 8)}...`);
-                }
-            } else {
-                throw new Error('Either password or secret must be provided');
-            }
-            
-            // Derive key using appropriate parameters
-            const derivationStart = performance.now();
-            const derivedKey = await window.crypto.subtle.deriveKey(
-                {
-                    name: 'PBKDF2',
-                    salt: encoder.encode(salt),
-                    iterations: iterations,
-                    hash: 'SHA-256'
-                },
-                keyMaterial,
-                { name: 'AES-GCM', length: 256 },
-                false,
-                ['encrypt', 'decrypt']
-            );
-            const derivationTime = performance.now() - derivationStart;
-            
-            return derivedKey;
-        } catch (error) {
-            console.error('❌ Compatible key generation error:', error.message);
-            throw new Error('Failed to generate compatible encryption key: ' + error.message);
-        }
-    }
-
-    // Legacy IV derivation (kept for backward-compat decryption; V3 uses random IVs)
-    async deriveCompatibleIV(password, secret = null, customSalt = null) {
-        try {
-            const encoder = new TextEncoder();
-            
-            // Detect format
-            const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
-            const isEnhancedPassphrase = secret && secret.length >= 40;
-            
-            let keyMaterial;
-            let salt;
-            let iterations;
-            let mode;
-            
-            if (password && secret) {
-                // Combined mode
-                if (isOldUrlSecret) {
-                    // Legacy format: urlSecret:password
-                    const combined = secret + ':' + password;
-                    mode = 'LEGACY_COMBINED_IV';
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(combined),
-                        'PBKDF2',
-                        false,
-                        ['deriveBits']
-                    );
-                    salt = customSalt || 'qopy-iv-salt-v1';
-                    iterations = 100000;
-                } else if (isEnhancedPassphrase) {
-                    // Enhanced format: passphrase:password
-                    const combined = secret + ':' + password;
-                    mode = 'ENHANCED_COMBINED_IV';
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(combined),
-                        'PBKDF2',
-                        false,
-                        ['deriveBits']
-                    );
-                    salt = customSalt || 'qopy-enhanced-iv-salt-v2';
-                    iterations = 100000;
-                } else {
-                    throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
-                }
-            } else if (secret) {
-                // Secret-only mode
-                if (isOldUrlSecret) {
-                    mode = 'LEGACY_SECRET_ONLY_IV';
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(secret),
-                        'PBKDF2',
-                        false,
-                        ['deriveBits']
-                    );
-                    salt = customSalt || 'qopy-iv-salt-v1';
-                    iterations = 100000;
-                } else if (isEnhancedPassphrase) {
-                    mode = 'ENHANCED_SECRET_ONLY_IV';
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(secret),
-                        'PBKDF2',
-                        false,
-                        ['deriveBits']
-                    );
-                    salt = customSalt || 'qopy-enhanced-iv-salt-v2';
-                    iterations = 100000;
-                } else {
-                    throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
-                }
-            } else {
-                throw new Error('Either password or secret must be provided for IV derivation');
-            }
-            
-            // Derive IV using appropriate parameters
-            const derivationStart = performance.now();
-            const ivBytes = await window.crypto.subtle.deriveBits(
-                {
-                    name: 'PBKDF2',
-                    salt: encoder.encode(salt),
-                    iterations: iterations,
-                    hash: 'SHA-256'
-                },
-                keyMaterial,
-                96 // 12 bytes = 96 bits for AES-GCM IV
-            );
-            const derivationTime = performance.now() - derivationStart;
-            
-            const iv = new Uint8Array(ivBytes);
-            return iv;
-        } catch (error) {
-            console.error('❌ Compatible IV derivation error:', error.message);
-            throw new Error('Failed to derive compatible IV: ' + error.message);
-        }
-    }
-
-    // Generate backward-compatible secret with extensive logging
+    // Generate enhanced passphrase for uploads (V3 only)
     generateCompatibleSecret(enhanced = true) {
         FILE_UPLOAD_DEBUG && console.group('🎲 [SECRET GENERATION] Compatible Secret Creation');
         
         const startTime = performance.now();
         
         try {
-            let secret;
-            let secretType;
-            
-            if (enhanced) {
-                // Generate enhanced passphrase (new default)
-                secret = this.generateSecurePassphrase();
-                secretType = 'ENHANCED_PASSPHRASE';
-                FILE_UPLOAD_DEBUG && console.log('🔐 Generated enhanced passphrase for maximum security');
-            } else {
-                // Generate legacy URL secret (for compatibility)
-                secret = this.generateLegacyUrlSecret();
-                secretType = 'LEGACY_URL_SECRET';
-                FILE_UPLOAD_DEBUG && console.log('🔑 Generated legacy URL secret for backward compatibility');
-            }
-            
+            const secret = this.generateSecurePassphrase();
             const totalTime = performance.now() - startTime;
             
             FILE_UPLOAD_DEBUG && console.log('✅ Compatible secret generated:', {
-                type: secretType,
+                type: 'ENHANCED_PASSPHRASE',
                 length: secret.length,
                 preview: secret.substring(0, 8) + '...',
-                enhanced,
-                entropy: enhanced ? '256-bit' : '128-bit',
+                entropy: '256-bit',
                 generationTime: totalTime.toFixed(2) + 'ms'
             });
             
@@ -745,93 +492,10 @@ class FileUploadManager {
             const totalTime = performance.now() - startTime;
             console.error('❌ Secret generation error:', {
                 error: error.message,
-                enhanced,
                 totalTime: totalTime.toFixed(2) + 'ms'
             });
             FILE_UPLOAD_DEBUG && console.groupEnd();
             throw error;
-        }
-    }
-
-    // Legacy URL secret generation — uses the same alphanumeric format as script.js
-    // for backward compatibility with existing share URLs. Called "legacy" because
-    // newer code paths use crypto.getRandomValues() directly via generateUrlSecret().
-    generateLegacyUrlSecret() {
-        FILE_UPLOAD_DEBUG && console.log('🔑 [LEGACY] Generating backward-compatible URL secret...');
-
-        // SECURITY: Use crypto.getRandomValues() instead of Math.random() for
-        // cryptographically secure URL secrets. Math.random() is predictable and
-        // unsuitable for security-sensitive token generation.
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        const randomValues = crypto.getRandomValues(new Uint32Array(16));
-        let result = '';
-        for (let i = 0; i < 16; i++) {
-            result += chars.charAt(randomValues[i] % chars.length);
-        }
-        
-        FILE_UPLOAD_DEBUG && console.log('✅ Legacy URL secret generated:', {
-            type: 'ALPHANUMERIC',
-            entropyBits: 128,
-            length: result.length,
-            preview: result.substring(0, 8) + '...',
-            format: 'script.js compatible'
-        });
-        
-        return result;
-    }
-
-    // Enhanced key derivation with longer passphrase (like Proton Drive)
-    async generateEnhancedEncryptionKey(password = null, securePassphrase = null) {
-        try {
-            const encoder = new TextEncoder();
-            
-            let keyMaterial;
-            if (password && securePassphrase) {
-                // Combined mode: password + secure passphrase (like Proton's system)
-                const combined = securePassphrase + ':' + password;
-                FILE_UPLOAD_DEBUG && console.log('🔑 Using password + secure passphrase mode (Proton-style)');
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(combined),
-                    'PBKDF2',
-                    false,
-                    ['deriveKey']
-                );
-            } else if (securePassphrase) {
-                // Secure passphrase only mode
-                FILE_UPLOAD_DEBUG && console.log('🔑 Using secure passphrase only mode');
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(securePassphrase),
-                    'PBKDF2',
-                    false,
-                    ['deriveKey']
-                );
-            } else {
-                throw new Error('Either password or secure passphrase must be provided');
-            }
-            
-            FILE_UPLOAD_DEBUG && console.log('✅ Key material imported successfully');
-            
-            // Enhanced PBKDF2 with more iterations for longer passphrase
-            const derivedKey = await window.crypto.subtle.deriveKey(
-                {
-                    name: 'PBKDF2',
-                    salt: encoder.encode('qopy-enhanced-salt-v2'), // New salt for enhanced security
-                    iterations: 250000, // Increased from 100k to 250k for longer passphrases
-                    hash: 'SHA-256'
-                },
-                keyMaterial,
-                { name: 'AES-GCM', length: 256 },
-                false,
-                ['encrypt', 'decrypt']
-            );
-            
-            FILE_UPLOAD_DEBUG && console.log('✅ Enhanced key derived successfully with 250k iterations');
-            return derivedKey;
-        } catch (error) {
-            console.error('❌ Enhanced key generation error:', error);
-            throw new Error('Failed to generate enhanced encryption key: ' + error.message);
         }
     }
 
@@ -861,48 +525,6 @@ class FileUploadManager {
             false,
             ['encrypt', 'decrypt']
         );
-    }
-
-    // Enhanced IV derivation with secure passphrase (legacy — V3 uses random IVs)
-    async deriveEnhancedIV(password, securePassphrase = null, salt = 'qopy-enhanced-iv-salt-v2') {
-        const encoder = new TextEncoder();
-        
-        let keyMaterial;
-        if (password && securePassphrase) {
-            // MUST match enhanced encryption format
-            const combined = securePassphrase + ':' + password;
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(combined),
-                'PBKDF2',
-                false,
-                ['deriveBits']
-            );
-        } else if (securePassphrase) {
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(securePassphrase),
-                'PBKDF2',
-                false,
-                ['deriveBits']
-            );
-        } else {
-            throw new Error('Either password or secure passphrase must be provided for enhanced IV derivation');
-        }
-        
-        // Enhanced IV derivation with more iterations
-        const ivBytes = await window.crypto.subtle.deriveBits(
-            {
-                name: 'PBKDF2',
-                salt: encoder.encode(salt),
-                iterations: 100000, // Enhanced iterations for IV
-                hash: 'SHA-256'
-            },
-            keyMaterial,
-            96 // 12 bytes = 96 bits for AES-GCM IV
-        );
-        
-        return new Uint8Array(ivBytes);
     }
 
     async initiateUpload(file, options = {}) {
@@ -1401,109 +1023,6 @@ class FileUploadManager {
             console.error('❌ Encryption error:', error);
             throw new Error('Failed to encrypt chunk: ' + error.message);
         }
-    }
-
-    // Generate encryption key (same algorithm as main app)
-    async generateEncryptionKey(password = null, urlSecret = null) {
-        try {
-            const encoder = new TextEncoder();
-            
-            let keyMaterial;
-            if (password && urlSecret) {
-                // Password + URL secret mode - MUST match script.js format
-                const combined = urlSecret + ':' + password;
-                FILE_UPLOAD_DEBUG && console.log('🔑 Using password + URL secret mode');
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(combined),
-                    'PBKDF2',
-                    false,
-                    ['deriveKey']
-                );
-            } else if (urlSecret) {
-                // URL secret only mode
-                FILE_UPLOAD_DEBUG && console.log('🔑 Using URL secret only mode');
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(urlSecret),
-                    'PBKDF2',
-                    false,
-                    ['deriveKey']
-                );
-            } else {
-                throw new Error('Either password or URL secret must be provided');
-            }
-            
-            FILE_UPLOAD_DEBUG && console.log('✅ Key material imported successfully');
-            
-            // Derive key using PBKDF2
-            const derivedKey = await window.crypto.subtle.deriveKey(
-                {
-                    name: 'PBKDF2',
-                    salt: encoder.encode('qopy-salt-v1'),
-                    iterations: 100000,
-                    hash: 'SHA-256'
-                },
-                keyMaterial,
-                { name: 'AES-GCM', length: 256 },
-                false,
-                ['encrypt', 'decrypt']
-            );
-            
-            FILE_UPLOAD_DEBUG && console.log('✅ Key derived successfully, usages:', derivedKey.usages);
-            
-            // Verify key has correct usages
-            if (!derivedKey.usages.includes('encrypt')) {
-                throw new Error('Derived key does not support encryption');
-            }
-            
-            return derivedKey;
-        } catch (error) {
-            console.error('❌ Key generation error:', error);
-            throw new Error('Failed to generate encryption key: ' + error.message);
-        }
-    }
-
-    // Derive IV (same as main app)
-    async deriveIV(password, urlSecret = null, salt = 'qopy-iv-salt-v1') {
-        const encoder = new TextEncoder();
-        
-        let keyMaterial;
-        if (password && urlSecret) {
-            // MUST match script.js format
-            const combined = urlSecret + ':' + password;
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(combined),
-                'PBKDF2',
-                false,
-                ['deriveBits']
-            );
-        } else if (password || urlSecret) {
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(password || urlSecret),
-                'PBKDF2',
-                false,
-                ['deriveBits']
-            );
-        } else {
-            throw new Error('Either password or URL secret must be provided for IV derivation');
-        }
-        
-        // Generate IV bytes
-        const ivBytes = await window.crypto.subtle.deriveBits(
-            {
-                name: 'PBKDF2',
-                salt: encoder.encode(salt),
-                iterations: 50000,
-                hash: 'SHA-256'
-            },
-            keyMaterial,
-            96 // 12 bytes = 96 bits for AES-GCM IV
-        );
-        
-        return new Uint8Array(ivBytes);
     }
 
     async completeUpload(uploadId) {
@@ -2156,11 +1675,7 @@ class FileDownloadManager {
                 ciphertext = encryptedBytes.slice(45);
                 decryptionKey = await this.generateKeyV3(password, compatibleSecret, fileSalt);
             } else {
-                // Legacy format: [IV:12][ciphertext]
-                FILE_UPLOAD_DEBUG && console.log('🔑 Detected legacy encryption format');
-                decryptionKey = await this.generateCompatibleEncryptionKey(password, compatibleSecret);
-                iv = await this.deriveCompatibleIV(password || '', compatibleSecret);
-                ciphertext = encryptedData;
+                throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
             }
 
             const keyGenTime = performance.now() - decryptionStart;
@@ -2324,11 +1839,7 @@ class FileDownloadManager {
                 metadataCiphertext = encryptedMetadata.slice(45);
                 metadataKey = await this.generateKeyV3(null, compatibleSecret, metaSalt);
             } else {
-                // Legacy metadata: deterministic key + IV
-                FILE_UPLOAD_DEBUG && console.log('🔑 Detected legacy metadata format');
-                metadataKey = await this.generateCompatibleEncryptionKey(null, compatibleSecret);
-                metadataIV = await this.deriveCompatibleIV(null, compatibleSecret, 'qopy-metadata-salt');
-                metadataCiphertext = encryptedMetadata;
+                throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
             }
             const keyGenTime = performance.now() - keyGenStart;
 
@@ -2491,177 +2002,6 @@ class FileDownloadManager {
             false,
             ['encrypt', 'decrypt']
         );
-    }
-
-    // Compatible key generation methods (legacy — backward compat)
-    async generateCompatibleEncryptionKey(password = null, secret = null) {
-        try {
-            const encoder = new TextEncoder();
-            
-            // Detect secret format
-            const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
-            const isEnhancedPassphrase = secret && secret.length >= 40;
-            
-            let keyMaterial;
-            let salt;
-            let iterations;
-            
-            if (password && secret) {
-                // Combined mode
-                if (isOldUrlSecret) {
-                    // Legacy format: urlSecret:password (compatible with script.js)
-                    const combined = secret + ':' + password;
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(combined),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    salt = 'qopy-salt-v1';           // Legacy salt
-                    iterations = 100000;             // Legacy iterations
-                } else if (isEnhancedPassphrase) {
-                    // Enhanced format: passphrase:password  
-                    const combined = secret + ':' + password;
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(combined),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    salt = 'qopy-enhanced-salt-v2';   // Enhanced salt
-                    iterations = 250000;             // Enhanced iterations
-                } else {
-                    throw new Error('Invalid secret format');
-                }
-            } else if (secret) {
-                // Secret-only mode
-                if (isOldUrlSecret) {
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(secret),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    salt = 'qopy-salt-v1';
-                    iterations = 100000;
-                } else if (isEnhancedPassphrase) {
-                    keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(secret),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    salt = 'qopy-enhanced-salt-v2';
-                    iterations = 250000;
-                } else {
-                    throw new Error('Invalid secret format');
-                }
-            } else {
-                throw new Error('Either password or secret must be provided');
-            }
-            
-            const derivedKey = await window.crypto.subtle.deriveKey(
-                {
-                    name: 'PBKDF2',
-                    salt: encoder.encode(salt),
-                    iterations: iterations,
-                    hash: 'SHA-256'
-                },
-                keyMaterial,
-                { name: 'AES-GCM', length: 256 },
-                false,
-                ['encrypt', 'decrypt']
-            );
-            
-            return derivedKey;
-        } catch (error) {
-            throw new Error('Failed to generate compatible encryption key: ' + error.message);
-        }
-    }
-
-    async deriveCompatibleIV(password, secret = null, customSalt = null) {
-        const encoder = new TextEncoder();
-        
-        // Detect format
-        const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
-        const isEnhancedPassphrase = secret && secret.length >= 40;
-        
-        let keyMaterial;
-        let salt;
-        let iterations;
-        
-        if (password && secret) {
-            // Combined mode
-            if (isOldUrlSecret) {
-                const combined = secret + ':' + password;
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(combined),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-iv-salt-v1';
-                iterations = 100000;
-            } else if (isEnhancedPassphrase) {
-                const combined = secret + ':' + password;
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(combined),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-enhanced-iv-salt-v2';
-                iterations = 100000;
-            } else {
-                throw new Error('Invalid secret format for IV derivation');
-            }
-        } else if (secret) {
-            // Secret-only mode
-            if (isOldUrlSecret) {
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(secret),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-iv-salt-v1';
-                iterations = 100000;
-            } else if (isEnhancedPassphrase) {
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(secret),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-enhanced-iv-salt-v2';
-                iterations = 100000;
-            } else {
-                throw new Error('Invalid secret format for IV derivation');
-            }
-        } else {
-            throw new Error('Either password or secret must be provided for IV derivation');
-        }
-        
-        const ivBytes = await window.crypto.subtle.deriveBits(
-            {
-                name: 'PBKDF2',
-                salt: encoder.encode(salt),
-                iterations: iterations,
-                hash: 'SHA-256'
-            },
-            keyMaterial,
-            96
-        );
-        
-        return new Uint8Array(ivBytes);
     }
 
     // Show download success message (updated for compatibility info)

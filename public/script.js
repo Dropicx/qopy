@@ -23,7 +23,6 @@ const CLIP_CONFIG = {
     URL_SECRET_LENGTH: 16,
     CHAR_LIMIT: 50000,
     CLIP_ID_CHARS: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-    PBKDF2_ITERATIONS: 100000,         // Legacy — kept for backward-compat decryption
     PBKDF2_ITERATIONS_V3: 600000,      // V3 — OWASP 2025 recommendation
     AES_IV_LENGTH: 12,
     SALT_LENGTH_V3: 32,
@@ -1044,22 +1043,22 @@ class ClipboardApp {
         return await this.encryptBinaryData(uint8Array, password, urlSecret);
     }
 
-    // Encrypt binary data (for file chunks)
+    // Encrypt binary data (for file chunks) — V3 format
     async encryptBinaryData(data, password = null, urlSecret = null) {
         try {
             // Input validation
             if (!(data instanceof Uint8Array)) {
                 throw new Error('Data must be a Uint8Array');
             }
-            
+
             if (data.length === 0) {
                 throw new Error('Data cannot be empty');
             }
-            
+
             if (password !== null && (typeof password !== 'string' || password.length === 0)) {
                 throw new Error('Password must be a non-empty string or null');
             }
-            
+
             if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
                 throw new Error('URL secret must be a non-empty string or null');
             }
@@ -1068,38 +1067,25 @@ class ClipboardApp {
             if (!password && !urlSecret) {
                 throw new Error('Either password or urlSecret must be provided for encryption');
             }
-            
-            
-            // Use Enhanced encryption parameters (same as download)
-            const key = await this.generateCompatibleEncryptionKey(password, urlSecret);
-            
-            
-            // Generate IV: Enhanced derivation for compatibility with download
-            let iv;
-            if (password) {
-                iv = await this.deriveCompatibleIV(password, urlSecret);
-            } else {
-                // For non-password clips, derive IV from URL secret using Enhanced parameters
-                iv = await this.deriveCompatibleIV(null, urlSecret, 'qopy-enhanced-iv-salt-v2');
-            }
-            
-            
-            // Encrypt the data
-            const encryptedData = await window.crypto.subtle.encrypt(
-                { name: 'AES-GCM', iv: iv },
-                key,
-                data
-            );
-            
-            const encryptedBytes = new Uint8Array(encryptedData);
-            const ivBytes = new Uint8Array(iv);
-            
-            // All clips: IV + encrypted data (key derived from URL secret/password)
-            const combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
-            combined.set(ivBytes, 0);
-            combined.set(encryptedBytes, ivBytes.length);
 
-            // Return raw bytes
+            // V3: random salt + random IV
+            const salt = new Uint8Array(CLIP_CONFIG.SALT_LENGTH_V3);
+            window.crypto.getRandomValues(salt);
+            const iv = new Uint8Array(CLIP_CONFIG.AES_IV_LENGTH);
+            window.crypto.getRandomValues(iv);
+
+            const key = await this.generateKeyV3(password, urlSecret, salt);
+            const encryptedData = await window.crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: iv }, key, data
+            );
+
+            const encryptedBytes = new Uint8Array(encryptedData);
+            // V3 payload: [version:1][salt:32][IV:12][ciphertext]
+            const combined = new Uint8Array(1 + salt.length + iv.length + encryptedBytes.length);
+            combined[0] = CLIP_CONFIG.FORMAT_VERSION_V3;
+            combined.set(salt, 1);
+            combined.set(iv, 1 + salt.length);
+            combined.set(encryptedBytes, 1 + salt.length + iv.length);
             return combined;
         } catch (error) {
             console.error('🔐 [EncryptBinaryData] ❌ Encryption failed:', error);
@@ -1122,12 +1108,13 @@ class ClipboardApp {
     // Generate 6-character alphanumeric secret for Quick Share (zero-knowledge)
     generateQuickShareSecret() {
         const chars = CLIP_CONFIG.CLIP_ID_CHARS;
-        const secretLength = CLIP_CONFIG.QUICK_SHARE_ID_LENGTH;
-        const array = new Uint8Array(secretLength);
-        window.crypto.getRandomValues(array);
+        const reject = 256 - (256 % chars.length); // 252 for 36 chars
         let secret = '';
-        for (let i = 0; i < secretLength; i++) {
-            secret += chars[array[i] % chars.length];
+        while (secret.length < CLIP_CONFIG.QUICK_SHARE_ID_LENGTH) {
+            const byte = crypto.getRandomValues(new Uint8Array(1))[0];
+            if (byte < reject) {
+                secret += chars[byte % chars.length];
+            }
         }
         return secret;
     }
@@ -1204,11 +1191,13 @@ class ClipboardApp {
     generateClipId(quickShare = false) {
         const chars = CLIP_CONFIG.CLIP_ID_CHARS;
         const length = quickShare ? CLIP_CONFIG.QUICK_SHARE_ID_LENGTH : CLIP_CONFIG.NORMAL_ID_LENGTH;
-        const randomValues = new Uint8Array(length);
-        crypto.getRandomValues(randomValues);
+        const reject = 256 - (256 % chars.length); // 252 for 36 chars
         let result = '';
-        for (let i = 0; i < length; i++) {
-            result += chars.charAt(randomValues[i] % chars.length);
+        while (result.length < length) {
+            const byte = crypto.getRandomValues(new Uint8Array(1))[0];
+            if (byte < reject) {
+                result += chars.charAt(byte % chars.length);
+            }
         }
         return result;
     }
@@ -2136,77 +2125,6 @@ class ClipboardApp {
     }
 
     // Legacy key derivation (backward compatibility for decryption)
-    async generateKey(password = null, urlSecret = null) {
-        // Input validation
-        if (password !== null && (typeof password !== 'string' || password.length === 0)) {
-            throw new Error('Password must be a non-empty string or null');
-        }
-
-        if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
-            throw new Error('URL secret must be a non-empty string or null');
-        }
-
-        // Check if Web Crypto API is available
-        if (!window.crypto || !window.crypto.subtle) {
-            throw new Error('Web Crypto API not available. Please use HTTPS.');
-        }
-
-        if (password) {
-            let combinedSecret = password;
-            if (urlSecret) {
-                combinedSecret = urlSecret + ':' + password;
-            }
-
-            const encoder = new TextEncoder();
-            const salt = encoder.encode('qopy-salt-v1');
-            const keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(combinedSecret),
-                { name: 'PBKDF2' },
-                false,
-                ['deriveBits', 'deriveKey']
-            );
-            return await window.crypto.subtle.deriveKey(
-                {
-                    name: 'PBKDF2',
-                    salt: salt,
-                    iterations: CLIP_CONFIG.PBKDF2_ITERATIONS,
-                    hash: 'SHA-256'
-                },
-                keyMaterial,
-                { name: 'AES-GCM', length: 256 },
-                true,
-                ['encrypt', 'decrypt']
-            );
-        } else {
-            if (!urlSecret) {
-                throw new Error('URL secret is required for non-password clips');
-            }
-
-            const encoder = new TextEncoder();
-            const salt = encoder.encode('qopy-salt-v1');
-            const keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(urlSecret),
-                { name: 'PBKDF2' },
-                false,
-                ['deriveBits', 'deriveKey']
-            );
-            return await window.crypto.subtle.deriveKey(
-                {
-                    name: 'PBKDF2',
-                    salt: salt,
-                    iterations: CLIP_CONFIG.PBKDF2_ITERATIONS,
-                    hash: 'SHA-256'
-                },
-                keyMaterial,
-                { name: 'AES-GCM', length: 256 },
-                true,
-                ['encrypt', 'decrypt']
-            );
-        }
-    }
-
     // V3 key derivation: per-clip random salt, 600k iterations
     async generateKeyV3(password, urlSecret, saltBytes) {
         if (!window.crypto || !window.crypto.subtle) {
@@ -2241,54 +2159,6 @@ class ClipboardApp {
             false,
             ['encrypt', 'decrypt']
         );
-    }
-
-    // Legacy IV derivation with URL secret + password (kept for backward-compat decryption; V3 uses random IVs)
-    async deriveIV(primarySecret, secondarySecret = null, salt = 'qopy-iv-salt-v1') {
-        // Input validation
-        if (typeof primarySecret !== 'string' || primarySecret.length === 0) {
-            throw new Error('Primary secret must be a non-empty string');
-        }
-        
-        if (secondarySecret !== null && (typeof secondarySecret !== 'string' || secondarySecret.length === 0)) {
-            throw new Error('Secondary secret must be a non-empty string or null');
-        }
-        
-        if (typeof salt !== 'string' || salt.length === 0) {
-            throw new Error('Salt must be a non-empty string');
-        }
-        
-        // Combine secrets for enhanced security
-        let combinedSecret = primarySecret;
-        if (secondarySecret) {
-            combinedSecret = secondarySecret + ':' + primarySecret;
-        }
-        
-        const encoder = new TextEncoder();
-        const saltBytes = encoder.encode(salt);
-        const secretBytes = encoder.encode(combinedSecret);
-        
-        // Use PBKDF2 to derive IV bytes
-        const keyMaterial = await window.crypto.subtle.importKey(
-            'raw',
-            secretBytes,
-            { name: 'PBKDF2' },
-            false,
-            ['deriveBits']
-        );
-        
-        const ivBytes = await window.crypto.subtle.deriveBits(
-            {
-                name: 'PBKDF2',
-                salt: saltBytes,
-                iterations: 50000, // Lower iterations for IV derivation
-                hash: 'SHA-256'
-            },
-            keyMaterial,
-            96 // 12 bytes = 96 bits for AES-GCM IV
-        );
-        
-        return new Uint8Array(ivBytes);
     }
 
     async encryptContent(content, password = null, urlSecret = null) {
@@ -2429,10 +2299,7 @@ class ClipboardApp {
                 encryptedData = bytes.slice(V3_HEADER);
                 key = await this.generateKeyV3(password, urlSecret, salt);
             } else {
-                // Legacy format: [IV:12][ciphertext]
-                iv = bytes.slice(0, 12);
-                encryptedData = bytes.slice(12);
-                key = await this.generateKey(password, urlSecret);
+                throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
             }
 
             const decryptedData = await window.crypto.subtle.decrypt(
@@ -2859,10 +2726,7 @@ class ClipboardApp {
                 encryptedData = encryptedBytes.slice(V3_HEADER);
                 key = await this.generateKeyV3(password, urlSecret, salt);
             } else {
-                // Legacy format: [IV:12][ciphertext]
-                iv = encryptedBytes.slice(0, 12);
-                encryptedData = encryptedBytes.slice(12);
-                key = await this.generateDecryptionKey(password, urlSecret);
+                throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
             }
 
             const decryptedData = await window.crypto.subtle.decrypt(
@@ -2904,10 +2768,7 @@ class ClipboardApp {
                 encryptedData = encryptedBytes.slice(V3_HEADER);
                 key = await this.generateKeyV3(password, urlSecret, salt);
             } else {
-                // Legacy format: [IV:12][ciphertext]
-                iv = encryptedBytes.slice(0, 12);
-                encryptedData = encryptedBytes.slice(12);
-                key = await this.generateDecryptionKey(password, urlSecret);
+                throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
             }
 
             const decryptedData = await window.crypto.subtle.decrypt(
@@ -2946,9 +2807,7 @@ class ClipboardApp {
                         metadataCiphertext = encryptedMetadata.slice(45);
                         metadataKey = await this.generateKeyV3(null, urlSecret, metaSalt);
                     } else {
-                        metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
-                        metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
-                        metadataCiphertext = encryptedMetadata;
+                        throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
                     }
 
                     const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(
@@ -2986,194 +2845,6 @@ class ClipboardApp {
         }
     }
 
-    // Generate decryption key (same as upload - use generateKey for compatibility)
-    async generateDecryptionKey(password = null, urlSecret = null) {
-        // Use the compatible enhanced encryption key generation for file downloads
-        return await this.generateCompatibleEncryptionKey(password, urlSecret);
-    }
-
-    // Derive compatible IV (same as upload system)
-    async deriveCompatibleIV(password = null, secret = null, customSalt = null) {
-        const encoder = new TextEncoder();
-        
-        // Detect format (same as upload)
-        const isOldUrlSecret = secret && secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
-        const isEnhancedPassphrase = secret && secret.length >= 40;
-        const isQuickShareSecret = secret && secret.length === 32 && /^[0-9a-f]{32}$/.test(secret);
-        const isQuickShareUrlSecret = secret && secret.length === 6 && /^[A-Z0-9]{6}$/.test(secret);
-        
-        let keyMaterial;
-        let salt;
-        let iterations;
-        
-        if (password && secret) {
-            // Combined mode
-            if (isOldUrlSecret) {
-                // Legacy format: urlSecret:password
-                const combined = secret + ':' + password;
-                
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(combined),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-iv-salt-v1';
-                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
-            } else if (isEnhancedPassphrase) {
-                // Enhanced format: passphrase:password
-                const combined = secret + ':' + password;
-                
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(combined),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-enhanced-iv-salt-v2';
-                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
-            } else if (isQuickShareSecret) {
-                // Quick Share format: secret:password
-                const combined = secret + ':' + password;
-                
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(combined),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-quickshare-iv-salt-v1';
-                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
-            } else {
-                throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
-            }
-        } else if (secret) {
-            // Secret-only mode
-            if (isOldUrlSecret) {
-                
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(secret),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-iv-salt-v1';
-                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
-            } else if (isEnhancedPassphrase) {
-                
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(secret),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-enhanced-iv-salt-v2';
-                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
-            } else if (isQuickShareSecret) {
-
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(secret),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-quickshare-iv-salt-v1';
-                iterations = CLIP_CONFIG.PBKDF2_ITERATIONS;
-            } else if (isQuickShareUrlSecret) {
-
-                keyMaterial = await window.crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(secret),
-                    'PBKDF2',
-                    false,
-                    ['deriveBits']
-                );
-                salt = customSalt || 'qopy-quickshare-zk-iv-salt-v1';
-                iterations = 250000;
-            } else {
-                throw new Error(`Invalid secret format for IV derivation: length=${secret.length}`);
-            }
-        } else {
-            throw new Error('Either password or secret must be provided for IV derivation');
-        }
-
-        // Derive IV using PBKDF2
-        const ivBits = await window.crypto.subtle.deriveBits(
-            {
-                name: 'PBKDF2',
-                salt: encoder.encode(salt),
-                iterations: iterations,
-                hash: 'SHA-256'
-            },
-            keyMaterial,
-            96 // 12 bytes = 96 bits
-        );
-
-        const iv = new Uint8Array(ivBits);
-
-        return iv;
-    }
-
-    // Generate compatible encryption key (same as upload system)
-    async generateCompatibleEncryptionKey(password = null, secret = null) {
-        const encoder = new TextEncoder();
-        
-        let keyMaterial;
-        if (password && secret) {
-            // Combined mode
-            const combined = secret + ':' + password;
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(combined),
-                'PBKDF2',
-                false,
-                ['deriveKey']
-            );
-        } else if (secret) {
-            // Secret-only mode (Enhanced Files)
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(secret),
-                'PBKDF2',
-                false,
-                ['deriveKey']
-            );
-        } else if (password) {
-            // Password-only mode
-            keyMaterial = await window.crypto.subtle.importKey(
-                'raw',
-                encoder.encode(password),
-                'PBKDF2',
-                false,
-                ['deriveKey']
-            );
-        } else {
-            throw new Error('Either password or secret must be provided for key generation');
-        }
-
-        // Derive key using PBKDF2
-        const derivedKey = await window.crypto.subtle.deriveKey(
-            {
-                name: 'PBKDF2',
-                salt: encoder.encode('qopy-enhanced-salt-v2'),
-                iterations: 250000, // Same as upload system
-                hash: 'SHA-256'
-            },
-            keyMaterial,
-            { name: 'AES-GCM', length: 256 },
-            false,
-            ['encrypt', 'decrypt']
-        );
-
-        return derivedKey;
-    }
-
     // Extract metadata from file during download (compatible with upload system)
     async extractMetadata(fileWithMetadata, urlSecret) {
         try {
@@ -3202,10 +2873,7 @@ class ClipboardApp {
                 metadataCiphertext = encryptedMetadata.slice(45);
                 metadataKey = await this.generateKeyV3(null, urlSecret, metaSalt);
             } else {
-                // Legacy
-                metadataKey = await this.generateCompatibleEncryptionKey(null, urlSecret);
-                metadataIV = await this.deriveCompatibleIV(null, urlSecret, 'qopy-metadata-salt');
-                metadataCiphertext = encryptedMetadata;
+                throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
             }
 
             const decryptedMetadataBuffer = await window.crypto.subtle.decrypt(

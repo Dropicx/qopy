@@ -128,56 +128,49 @@ class LiveEncryptionTester {
         }
     }
 
-    // Simuliere client-seitige Verschlüsselung (Legacy format — production uses V3 with 600k iterations + random salts)
+    // Simuliere client-seitige Verschlüsselung (V3: random salt, random IV, 600k PBKDF2)
     async simulateClientEncryption(content, password, urlSecret) {
-        // PBKDF2 Schlüsselableitung (Legacy: 100k iterations; V3 production: 600k)
-        const deriveKey = (secret, salt, iterations) => {
+        const FORMAT_VERSION_V3 = 0x03;
+        const SALT_LENGTH = 32;
+        const IV_LENGTH = 12;
+        const ITERATIONS_V3 = 600000;
+
+        const deriveKey = (secret, saltBuffer) => {
             return new Promise((resolve, reject) => {
-                crypto.pbkdf2(secret, salt, iterations, 32, 'sha256', (err, key) => {
+                crypto.pbkdf2(secret, saltBuffer, ITERATIONS_V3, 32, 'sha256', (err, key) => {
                     if (err) reject(err);
                     else resolve(key);
                 });
             });
         };
 
-        // IV ableiten
-        const deriveIV = (primarySecret, secondarySecret, salt) => {
-            let combinedSecret = primarySecret;
-            if (secondarySecret) {
-                combinedSecret = secondarySecret + ':' + primarySecret;
-            }
+        const salt = crypto.randomBytes(SALT_LENGTH);
+        const iv = crypto.randomBytes(IV_LENGTH);
 
-            return new Promise((resolve, reject) => {
-                crypto.pbkdf2(combinedSecret, salt, 50000, 12, 'sha256', (err, iv) => {
-                    if (err) reject(err);
-                    else resolve(iv);
-                });
-            });
-        };
-
-        // Schlüssel generieren
-        let key, iv;
-        if (password) {
-            const combinedSecret = urlSecret ? urlSecret + ':' + password : password;
-            key = await deriveKey(combinedSecret, 'qopy-salt-v1', 100000);
-            iv = await deriveIV(password, urlSecret, 'qopy-iv-salt-v1');
+        let secret;
+        if (password && urlSecret) {
+            secret = urlSecret + ':' + password;
+        } else if (urlSecret) {
+            secret = urlSecret;
         } else {
-            key = await deriveKey(urlSecret, 'qopy-salt-v1', 100000);
-            iv = await deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
+            throw new Error('URL secret required');
         }
 
-        // Verschlüsseln
-        const cipher = crypto.createCipher('aes-256-gcm', key);
-        let encrypted = cipher.update(content, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
+        const key = await deriveKey(secret, salt);
+
+        const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+        let encrypted = cipher.update(content, 'utf8');
+        encrypted = Buffer.concat([encrypted, cipher.final()]);
         const authTag = cipher.getAuthTag();
 
-        // Format: IV + verschlüsselte Daten (ohne AuthTag für Kompatibilität)
-        const ivBuffer = Buffer.from(iv);
-        const encryptedBuffer = Buffer.from(encrypted, 'hex');
-        const result = Buffer.concat([ivBuffer, encryptedBuffer]);
-
-        return result;
+        // V3 format: [version:1][salt:32][IV:12][ciphertext+authTag]
+        const ciphertext = Buffer.concat([encrypted, authTag]);
+        return Buffer.concat([
+            Buffer.from([FORMAT_VERSION_V3]),
+            salt,
+            iv,
+            ciphertext
+        ]);
     }
 
     // Analysiere Verschlüsselung

@@ -181,13 +181,18 @@
     </div>
 
     <script>
-        // Qopy Verschlüsselungsfunktionen (aus script.js kopiert)
+        // Qopy Verschlüsselungsfunktionen (V3 only: random salt, random IV, 600k iterations)
+        const FORMAT_VERSION_V3 = 0x03;
+        const SALT_LENGTH_V3 = 32;
+        const IV_LENGTH = 12;
+        const V3_HEADER = 1 + SALT_LENGTH_V3 + IV_LENGTH;
+        const ITERATIONS_V3 = 600000;
+
         class EncryptionTester {
             constructor() {
                 this.results = [];
             }
 
-            // URL Secret generieren
             generateUrlSecret() {
                 const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
                 let result = '';
@@ -197,7 +202,6 @@
                 return result;
             }
 
-            // Random Secret für Quick Share
             generateRandomSecret() {
                 const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
                 let result = '';
@@ -207,187 +211,88 @@
                 return result;
             }
 
-            // Schlüssel generieren
-            async generateKey(password = null, urlSecret = null) {
-                if (password !== null && (typeof password !== 'string' || password.length === 0)) {
-                    throw new Error('Password must be a non-empty string or null');
-                }
-                
-                if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
-                    throw new Error('URL secret must be a non-empty string or null');
-                }
-                
-                if (!window.crypto || !window.crypto.subtle) {
-                    throw new Error('Web Crypto API not available. Please use HTTPS.');
-                }
-                
-                if (password) {
-                    let combinedSecret = password;
-                    if (urlSecret) {
-                        combinedSecret = urlSecret + ':' + password;
-                    }
-                    
-                    const encoder = new TextEncoder();
-                    const salt = encoder.encode('qopy-salt-v1');
-                    const keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(combinedSecret),
-                        { name: 'PBKDF2' },
-                        false,
-                        ['deriveBits', 'deriveKey']
-                    );
-                    return await window.crypto.subtle.deriveKey(
-                        {
-                            name: 'PBKDF2',
-                            salt: salt,
-                            iterations: 100000,
-                            hash: 'SHA-256'
-                        },
-                        keyMaterial,
-                        { name: 'AES-GCM', length: 256 },
-                        true,
-                        ['encrypt', 'decrypt']
-                    );
-                } else {
-                    if (!urlSecret) {
-                        throw new Error('URL secret is required for non-password clips');
-                    }
-                    
-                    const encoder = new TextEncoder();
-                    const salt = encoder.encode('qopy-salt-v1');
-                    const keyMaterial = await window.crypto.subtle.importKey(
-                        'raw',
-                        encoder.encode(urlSecret),
-                        { name: 'PBKDF2' },
-                        false,
-                        ['deriveBits', 'deriveKey']
-                    );
-                    return await window.crypto.subtle.deriveKey(
-                        {
-                            name: 'PBKDF2',
-                            salt: salt,
-                            iterations: 100000,
-                            hash: 'SHA-256'
-                        },
-                        keyMaterial,
-                        { name: 'AES-GCM', length: 256 },
-                        true,
-                        ['encrypt', 'decrypt']
-                    );
-                }
-            }
-
-            // IV ableiten
-            async deriveIV(primarySecret, secondarySecret = null, salt = 'qopy-iv-salt-v1') {
-                if (typeof primarySecret !== 'string' || primarySecret.length === 0) {
-                    throw new Error('Primary secret must be a non-empty string');
-                }
-                
-                if (secondarySecret !== null && (typeof secondarySecret !== 'string' || secondarySecret.length === 0)) {
-                    throw new Error('Secondary secret must be a non-empty string or null');
-                }
-                
-                if (typeof salt !== 'string' || salt.length === 0) {
-                    throw new Error('Salt must be a non-empty string');
-                }
-                
-                let combinedSecret = primarySecret;
-                if (secondarySecret) {
-                    combinedSecret = secondarySecret + ':' + primarySecret;
-                }
-                
+            async generateKeyV3(password, urlSecret, saltBytes) {
                 const encoder = new TextEncoder();
-                const saltBytes = encoder.encode(salt);
-                const secretBytes = encoder.encode(combinedSecret);
-                
+                let secret;
+                if (password && urlSecret) {
+                    secret = urlSecret + ':' + password;
+                } else if (urlSecret) {
+                    secret = urlSecret;
+                } else {
+                    throw new Error('Either password or urlSecret must be provided');
+                }
                 const keyMaterial = await window.crypto.subtle.importKey(
                     'raw',
-                    secretBytes,
+                    encoder.encode(secret),
                     { name: 'PBKDF2' },
                     false,
-                    ['deriveBits']
+                    ['deriveKey']
                 );
-                
-                const ivBytes = await window.crypto.subtle.deriveBits(
-                    {
-                        name: 'PBKDF2',
-                        salt: saltBytes,
-                        iterations: 50000,
-                        hash: 'SHA-256'
-                    },
+                return await window.crypto.subtle.deriveKey(
+                    { name: 'PBKDF2', salt: saltBytes, iterations: ITERATIONS_V3, hash: 'SHA-256' },
                     keyMaterial,
-                    96
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['encrypt', 'decrypt']
                 );
-                
-                return new Uint8Array(ivBytes);
             }
 
-            // Inhalt verschlüsseln
             async encryptContent(content, password = null, urlSecret = null) {
                 try {
                     if (typeof content !== 'string' || content.length === 0) {
                         throw new Error('Content must be a non-empty string');
                     }
-                    
                     if (content.length > 400000) {
                         throw new Error('Content too large (max 400,000 characters)');
                     }
-                    
                     if (password !== null && (typeof password !== 'string' || password.length === 0)) {
                         throw new Error('Password must be a non-empty string or null');
                     }
-                    
                     if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
                         throw new Error('URL secret must be a non-empty string or null');
                     }
-                    
-                    const key = await this.generateKey(password, urlSecret);
+                    if (!urlSecret && !password) {
+                        throw new Error('Either password or urlSecret must be provided');
+                    }
+
+                    const salt = new Uint8Array(SALT_LENGTH_V3);
+                    window.crypto.getRandomValues(salt);
+                    const iv = new Uint8Array(IV_LENGTH);
+                    window.crypto.getRandomValues(iv);
+
+                    const key = await this.generateKeyV3(password, urlSecret, salt);
                     const encoder = new TextEncoder();
                     const data = encoder.encode(content);
-                    
-                    let iv;
-                    if (password) {
-                        iv = await this.deriveIV(password, urlSecret);
-                    } else {
-                        iv = await this.deriveIV(urlSecret, null, 'qopy-iv-salt-v1');
-                    }
-                    
                     const encryptedData = await window.crypto.subtle.encrypt(
                         { name: 'AES-GCM', iv: iv },
                         key,
                         data
                     );
-                    
                     const encryptedBytes = new Uint8Array(encryptedData);
-                    const ivBytes = new Uint8Array(iv);
-                    
-                    const combined = new Uint8Array(ivBytes.length + encryptedBytes.length);
-                    combined.set(ivBytes, 0);
-                    combined.set(encryptedBytes, ivBytes.length);
-                    
+                    const combined = new Uint8Array(1 + salt.length + iv.length + encryptedBytes.length);
+                    combined[0] = FORMAT_VERSION_V3;
+                    combined.set(salt, 1);
+                    combined.set(iv, 1 + salt.length);
+                    combined.set(encryptedBytes, 1 + salt.length + iv.length);
                     return combined;
                 } catch (error) {
                     throw new Error('Failed to encrypt content: ' + error.message);
                 }
             }
 
-            // Inhalt entschlüsseln
             async decryptContent(encryptedContent, password = null, urlSecret = null) {
                 try {
                     if (encryptedContent === null || encryptedContent === undefined) {
                         throw new Error('Encrypted content cannot be null or undefined');
                     }
-                    
                     if (password !== null && (typeof password !== 'string' || password.length === 0)) {
                         throw new Error('Password must be a non-empty string or null');
                     }
-                    
                     if (urlSecret !== null && (typeof urlSecret !== 'string' || urlSecret.length === 0)) {
                         throw new Error('URL secret must be a non-empty string or null');
                     }
-                    
+
                     let bytes;
-                    
                     if (encryptedContent instanceof Uint8Array) {
                         bytes = encryptedContent;
                     } else if (Array.isArray(encryptedContent)) {
@@ -401,28 +306,25 @@
                     } else {
                         throw new Error('Invalid encrypted content format');
                     }
-                    
-                    if (bytes.length < 12) {
+
+                    if (bytes.length < V3_HEADER + 16) {
                         throw new Error('Invalid encrypted data: too short');
                     }
-                    const iv = bytes.slice(0, 12);
-                    const encryptedData = bytes.slice(12);
-                    
-                    let key;
-                    if (password) {
-                        key = await this.generateKey(password, urlSecret);
-                    } else {
-                        key = await this.generateKey(null, urlSecret);
+                    if (bytes[0] !== FORMAT_VERSION_V3) {
+                        throw new Error('Unsupported encryption format (legacy V1/V2 no longer supported)');
                     }
-                    
+
+                    const salt = bytes.slice(1, 1 + SALT_LENGTH_V3);
+                    const iv = bytes.slice(1 + SALT_LENGTH_V3, V3_HEADER);
+                    const encryptedData = bytes.slice(V3_HEADER);
+
+                    const key = await this.generateKeyV3(password, urlSecret, salt);
                     const decryptedData = await window.crypto.subtle.decrypt(
                         { name: 'AES-GCM', iv: iv },
                         key,
                         encryptedData
                     );
-                    
-                    const decoder = new TextDecoder();
-                    return decoder.decode(decryptedData);
+                    return new TextDecoder().decode(decryptedData);
                 } catch (error) {
                     throw new Error('Failed to decrypt content: ' + error.message);
                 }
@@ -541,11 +443,12 @@
                 }
 
                 // Detaillierte Analyse
-                const iv = encrypted.slice(0, 12);
-                const encryptedData = encrypted.slice(12);
+                const salt = encrypted.slice(1, 33);
+                const iv = encrypted.slice(33, 45);
+                const encryptedData = encrypted.slice(45);
                 
                 tester.addResult('Detaillierte Analyse', 
-                    `IV (12 Bytes): ${tester.bytesToHex(iv)}\nVerschlüsselte Daten: ${encryptedData.length} Bytes\nFormat: IV + verschlüsselte Daten\nAlgorithmus: AES-256-GCM\nSchlüsselableitung: PBKDF2 (Legacy-Test: 100.000 Iterationen, Produktion: 600.000 Iterationen)`, 'info');
+                    `Version: V3 (0x03)\nSalt (32 Bytes): ${tester.bytesToHex(salt)}\nIV (12 Bytes): ${tester.bytesToHex(iv)}\nVerschlüsselte Daten: ${encryptedData.length} Bytes\nFormat: [version][salt][IV][ciphertext]\nAlgorithmus: AES-256-GCM\nSchlüsselableitung: PBKDF2 (600.000 Iterationen, zufälliger Salt)`, 'info');
 
             } catch (error) {
                 tester.addResult('Fehler', `Verschlüsselungstest fehlgeschlagen: ${error.message}`, 'error');
