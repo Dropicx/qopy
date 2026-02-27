@@ -1101,68 +1101,91 @@ class FileUploadManager {
                 encryptionTime: fileEncryptionTime.toFixed(2) + 'ms'
             });
 
-            // Upload chunks with detailed progress tracking
-            FILE_UPLOAD_DEBUG && console.log('📦 Starting chunk upload process...');
+            // Upload chunks with parallel concurrency for speed
+            FILE_UPLOAD_DEBUG && console.log('📦 Starting chunk upload process (parallel, concurrency=3)...');
             const chunkUploadStart = performance.now();
             let totalBytesUploaded = 0;
-            
-            for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-                const chunkStart = performance.now();
-                const start = chunkIndex * chunkSize;
-                const end = Math.min(start + chunkSize, finalData.length);
-                const chunk = finalData.slice(start, end);
-                
-                FILE_UPLOAD_DEBUG && console.log(`📦 [CHUNK ${chunkIndex + 1}/${totalChunks}] Uploading chunk:`, {
-                    chunkIndex,
-                    start,
-                    end,
-                    chunkSize: chunk.length,
-                    chunkSizeFormatted: this.formatFileSize(chunk.length)
-                });
+            let completedChunks = 0;
+            let uploadAborted = false;
+            let uploadError = null;
 
-                const formData = new FormData();
-                formData.append('chunk', new Blob([chunk], { type: 'application/octet-stream' }));
-                formData.append('chunkIndex', chunkIndex.toString());
+            // Concurrency-limited parallel upload (max 3 in flight)
+            const UPLOAD_CONCURRENCY = 3;
+            const chunkIndices = Array.from({ length: totalChunks }, (_, i) => i);
+            let nextIndex = 0;
 
-                const chunkRequestStart = performance.now();
-                const response = await this.fetchWithRetry(
-                    `/api/upload/chunk/${uploadId}/${chunkIndex}`,
-                    { method: 'POST', body: formData },
-                    { chunkLabel: `Chunk ${chunkIndex + 1}/${totalChunks}` }
-                );
-                const chunkRequestTime = performance.now() - chunkRequestStart;
+            const uploadOneChunk = async () => {
+                while (nextIndex < chunkIndices.length && !uploadAborted) {
+                    const chunkIndex = nextIndex++;
+                    const chunkStart = performance.now();
+                    const start = chunkIndex * chunkSize;
+                    const end = Math.min(start + chunkSize, finalData.length);
+                    const chunk = finalData.slice(start, end);
 
-                if (!response.ok) {
-                    const error = await response.json();
-                    console.error(`❌ [CHUNK ${chunkIndex + 1}] Upload failed:`, {
+                    FILE_UPLOAD_DEBUG && console.log(`📦 [CHUNK ${chunkIndex + 1}/${totalChunks}] Uploading chunk:`, {
                         chunkIndex,
-                        status: response.status,
-                        error: error.message,
+                        start,
+                        end,
+                        chunkSize: chunk.length,
+                        chunkSizeFormatted: this.formatFileSize(chunk.length)
+                    });
+
+                    const formData = new FormData();
+                    formData.append('chunk', new Blob([chunk], { type: 'application/octet-stream' }));
+                    formData.append('chunkIndex', chunkIndex.toString());
+
+                    const chunkRequestStart = performance.now();
+                    const response = await this.fetchWithRetry(
+                        `/api/upload/chunk/${uploadId}/${chunkIndex}`,
+                        { method: 'POST', body: formData },
+                        { chunkLabel: `Chunk ${chunkIndex + 1}/${totalChunks}` }
+                    );
+                    const chunkRequestTime = performance.now() - chunkRequestStart;
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        console.error(`❌ [CHUNK ${chunkIndex + 1}] Upload failed:`, {
+                            chunkIndex,
+                            status: response.status,
+                            error: error.message,
+                            requestTime: chunkRequestTime.toFixed(2) + 'ms'
+                        });
+                        uploadAborted = true;
+                        uploadError = new Error(`Chunk upload failed: ${error.message}`);
+                        return;
+                    }
+
+                    totalBytesUploaded += chunk.length;
+                    completedChunks++;
+                    const progressRaw = (completedChunks / totalChunks) * 100;
+                    const progress = Math.min(100, Math.max(0, Math.round(progressRaw)));
+                    const chunkTime = performance.now() - chunkStart;
+
+                    FILE_UPLOAD_DEBUG && console.log(`✅ [CHUNK ${chunkIndex + 1}/${totalChunks}] Upload successful:`, {
+                        progress: progress + '%',
+                        bytesUploaded: totalBytesUploaded,
+                        bytesUploadedFormatted: this.formatFileSize(totalBytesUploaded),
+                        chunkTime: chunkTime.toFixed(2) + 'ms',
                         requestTime: chunkRequestTime.toFixed(2) + 'ms'
                     });
-                    throw new Error(`Chunk upload failed: ${error.message}`);
+
+                    this.updateUploadProgress(progress);
                 }
+            };
 
-                totalBytesUploaded += chunk.length;
-                // Calculate progress with proper bounds checking
-                const progressRaw = ((chunkIndex + 1) / totalChunks) * 100;
-                const progress = Math.min(100, Math.max(0, Math.round(progressRaw)));
-                const chunkTime = performance.now() - chunkStart;
-                
-                FILE_UPLOAD_DEBUG && console.log(`✅ [CHUNK ${chunkIndex + 1}/${totalChunks}] Upload successful:`, {
-                    progress: progress + '%',
-                    bytesUploaded: totalBytesUploaded,
-                    bytesUploadedFormatted: this.formatFileSize(totalBytesUploaded),
-                    chunkTime: chunkTime.toFixed(2) + 'ms',
-                    requestTime: chunkRequestTime.toFixed(2) + 'ms'
-                });
-
-                // Update progress
-                this.updateUploadProgress(progress);
+            // Launch up to UPLOAD_CONCURRENCY workers
+            const workers = [];
+            for (let i = 0; i < Math.min(UPLOAD_CONCURRENCY, totalChunks); i++) {
+                workers.push(uploadOneChunk());
             }
-            
+            await Promise.all(workers);
+
+            if (uploadError) {
+                throw uploadError;
+            }
+
             const chunkUploadTime = performance.now() - chunkUploadStart;
-            
+
             FILE_UPLOAD_DEBUG && console.log('📦 All chunks uploaded successfully:', {
                 totalChunks,
                 totalBytesUploaded,

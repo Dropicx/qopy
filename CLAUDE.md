@@ -243,6 +243,9 @@ tests/
 - `ADMIN_TOKEN` - For admin dashboard access
 - `RAILWAY_VOLUME_MOUNT_PATH` - Volume path for file storage
 
+**Optional Environment Variables**:
+- `DATABASE_SSL_REJECT_UNAUTHORIZED` - Controls TLS certificate verification for PostgreSQL. Defaults to `false` (Railway uses self-signed certs). Set to `true` for providers with CA-signed certs (AWS RDS, GCP Cloud SQL, etc.)
+
 **Volume Setup**:
 1. Add Volume plugin in Railway dashboard
 2. Mount at persistent path (e.g., `/var/lib/containers/railwayapp/bind-mounts/...`)

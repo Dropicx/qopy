@@ -267,11 +267,13 @@ function registerUploadRoutes(app, {
             const { uploadId, chunkNumber } = req.params;
             const chunkNum = parseInt(chunkNumber);
 
-            // Verify upload session exists and is active — only fetch columns used for validation and chunk processing
-            const sessionResult = await pool.query(
-                'SELECT upload_id, total_chunks, uploaded_chunks, chunk_size, is_text_content, status FROM upload_sessions WHERE upload_id = $1 AND status = $2',
-                [uploadId, 'uploading']
-            );
+            // Verify session + check duplicate chunk in a single query (reduces 2 DB round trips to 1)
+            const sessionResult = await pool.query(`
+                SELECT s.upload_id, s.total_chunks, s.uploaded_chunks, s.chunk_size, s.is_text_content, s.status,
+                       EXISTS(SELECT 1 FROM file_chunks WHERE upload_id = $1 AND chunk_number = $3) AS chunk_exists
+                FROM upload_sessions s
+                WHERE s.upload_id = $1 AND s.status = $2
+            `, [uploadId, 'uploading', chunkNum]);
 
             if (sessionResult.rows.length === 0) {
                 return res.status(404).json({
@@ -290,13 +292,8 @@ function registerUploadRoutes(app, {
                 });
             }
 
-            // Check if chunk already exists (only need to know if a row exists)
-            const existingChunk = await pool.query(
-                'SELECT 1 FROM file_chunks WHERE upload_id = $1 AND chunk_number = $2',
-                [uploadId, chunkNum]
-            );
-
-            if (existingChunk.rows.length > 0) {
+            // Check if chunk already exists (from combined query above)
+            if (session.chunk_exists) {
                 return res.status(409).json({
                     error: 'Chunk already uploaded',
                     message: 'This chunk has already been uploaded'
@@ -311,8 +308,8 @@ function registerUploadRoutes(app, {
                 });
             }
 
-            // Read chunk data from uploaded file
-            const chunkData = await fs.readFile(req.file.path);
+            // Get chunk data from memory buffer (multer memoryStorage)
+            const chunkData = req.file.buffer;
 
             // Validate chunk size
             let sizeValidationPassed = true;
@@ -340,8 +337,6 @@ function registerUploadRoutes(app, {
             }
 
             if (!sizeValidationPassed) {
-                // Clean up uploaded file
-                await fs.unlink(req.file.path);
                 return res.status(400).json({
                     error: 'Chunk too large',
                     message: validationMessage
@@ -354,31 +349,34 @@ function registerUploadRoutes(app, {
             const chunkPath = path.join(chunkDir, `chunk_${chunkNum}`);
             await fs.writeFile(chunkPath, chunkData);
 
-            // Clean up temporary uploaded file
-            await fs.unlink(req.file.path);
-
             // Store chunk metadata in database (no checksum needed)
             await pool.query(`
                 INSERT INTO file_chunks (upload_id, chunk_number, chunk_size, storage_path, created_at)
                 VALUES ($1, $2, $3, $4, $5)
             `, [uploadId, chunkNum, chunkData.length, chunkPath, Date.now()]);
 
-            // Update upload session
-            await pool.query(`
+            // Update upload session and get new chunk count in one query
+            const updateResult = await pool.query(`
                 UPDATE upload_sessions
                 SET uploaded_chunks = uploaded_chunks + 1, last_activity = $1
                 WHERE upload_id = $2
+                RETURNING uploaded_chunks, total_chunks
             `, [Date.now(), uploadId]);
 
-            // Update cache - get fresh data from database to ensure consistency
-            const redis = getRedis();
-            if (redis) {
-                const updatedSessionResult = await pool.query(
-                    'SELECT upload_id, total_chunks, uploaded_chunks, chunk_size, is_text_content, status, expiration_time, last_activity, created_at FROM upload_sessions WHERE upload_id = $1',
-                    [uploadId]
-                );
-                if (updatedSessionResult.rows[0]) {
-                    await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(updatedSessionResult.rows[0]));
+            const updatedChunks = updateResult.rows[0].uploaded_chunks;
+            const isLastChunk = updatedChunks >= updateResult.rows[0].total_chunks;
+
+            // Only refresh Redis cache on the final chunk (avoid per-chunk DB read + Redis write)
+            if (isLastChunk) {
+                const redis = getRedis();
+                if (redis) {
+                    const updatedSessionResult = await pool.query(
+                        'SELECT upload_id, total_chunks, uploaded_chunks, chunk_size, is_text_content, status, expiration_time, last_activity, created_at FROM upload_sessions WHERE upload_id = $1',
+                        [uploadId]
+                    );
+                    if (updatedSessionResult.rows[0]) {
+                        await redis.setEx(`upload:${uploadId}`, 3600, JSON.stringify(updatedSessionResult.rows[0]));
+                    }
                 }
             }
 
@@ -386,7 +384,7 @@ function registerUploadRoutes(app, {
                 success: true,
                 chunkNumber: chunkNum,
                 received: true,
-                uploadedChunks: session.uploaded_chunks + 1,
+                uploadedChunks: updatedChunks,
                 totalChunks: session.total_chunks
             });
 

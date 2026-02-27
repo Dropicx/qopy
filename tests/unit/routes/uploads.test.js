@@ -231,7 +231,7 @@ describe('Upload Routes', () => {
       const { app, mockPool } = createApp({
         upload: {
           single: jest.fn().mockReturnValue((req, res, next) => {
-            req.file = { path: '/tmp/chunk_0', size: 1024 };
+            req.file = { buffer: Buffer.alloc(1024), size: 1024 };
             next();
           })
         }
@@ -259,14 +259,13 @@ describe('Upload Routes', () => {
       const { app, mockPool } = createApp({
         upload: {
           single: jest.fn().mockReturnValue((req, res, next) => {
-            req.file = { path: '/tmp/chunk_5', size: 1024 };
+            req.file = { buffer: Buffer.alloc(1024), size: 1024 };
             next();
           })
         }
       });
       mockPool.query
-        .mockResolvedValueOnce({ rows: [session] })   // session lookup
-        .mockResolvedValueOnce({ rows: [] });          // existing chunk check
+        .mockResolvedValueOnce({ rows: [{ ...session, chunk_exists: false }] });   // combined session + chunk check
 
       const res = await request(app)
         .post(`/api/upload/chunk/${uploadId}/5`)
@@ -289,14 +288,13 @@ describe('Upload Routes', () => {
       const { app, mockPool } = createApp({
         upload: {
           single: jest.fn().mockReturnValue((req, res, next) => {
-            req.file = { path: '/tmp/chunk_0', size: 1024 };
+            req.file = { buffer: Buffer.alloc(1024), size: 1024 };
             next();
           })
         }
       });
       mockPool.query
-        .mockResolvedValueOnce({ rows: [session] })                      // session lookup
-        .mockResolvedValueOnce({ rows: [{ chunk_number: 0 }] });         // existing chunk found
+        .mockResolvedValueOnce({ rows: [{ ...session, chunk_exists: true }] });    // combined query: chunk exists
 
       const res = await request(app)
         .post(`/api/upload/chunk/${uploadId}/0`)
@@ -318,8 +316,7 @@ describe('Upload Routes', () => {
       };
       const { app, mockPool } = createApp();
       mockPool.query
-        .mockResolvedValueOnce({ rows: [session] })   // session lookup
-        .mockResolvedValueOnce({ rows: [] });          // no existing chunk
+        .mockResolvedValueOnce({ rows: [{ ...session, chunk_exists: false }] });   // combined session + chunk check
 
       const res = await request(app)
         .post(`/api/upload/chunk/${uploadId}/0`)

@@ -50,25 +50,10 @@ const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
 // MAX_FILE_SIZE: Hard cap enforced both client-side and server-side during assembly
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
-// Configure multer for file uploads
+// Configure multer for file uploads — use memory storage to avoid double disk writes
+// Chunks are max 6MB which is safe for memory; eliminates temp file write/read/delete cycle
 const upload = multer({
-    storage: multer.diskStorage({
-        destination: async function (req, file, cb) {
-            // Use a temporary directory for chunk uploads
-            const tempDir = path.join(STORAGE_PATH, 'temp');
-            try {
-                await fs.ensureDir(tempDir);
-                cb(null, tempDir);
-            } catch (error) {
-                cb(error);
-            }
-        },
-        filename: function (req, file, cb) {
-            // Generate unique filename for temporary storage
-            const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-            cb(null, uniqueName);
-        }
-    }),
+    storage: multer.memoryStorage(),
     limits: {
         fileSize: CHUNK_SIZE + (1024 * 1024) // 5MB chunk + 1MB buffer for encryption overhead
     }
@@ -177,10 +162,11 @@ if (!DATABASE_URL) {
 // Create PostgreSQL connection pool with optimized configuration
 const pool = new Pool({
     connectionString: DATABASE_URL,
-    // SSL: verify certificates by default in production to prevent MitM attacks.
-    // Set DATABASE_SSL_REJECT_UNAUTHORIZED=false only if using self-signed certs (e.g., some Railway configs).
+    // SSL: Railway and many managed Postgres providers use self-signed certs, so
+    // rejectUnauthorized defaults to false. Set DATABASE_SSL_REJECT_UNAUTHORIZED=true
+    // when using a provider with CA-signed certs for full MitM protection.
     ssl: process.env.NODE_ENV === 'production'
-        ? { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false' }
+        ? { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true' }
         : false,
     
     // Connection pool sizing: Optimal formula = (average_concurrent_requests * 1.5)

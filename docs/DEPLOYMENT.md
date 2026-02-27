@@ -159,6 +159,9 @@ NODE_ENV=production
 MAX_FILE_SIZE=104857600          # 100MB in bytes
 CHUNK_SIZE=5242880               # 5MB in bytes
 SESSION_TIMEOUT=3600000          # 1 hour in milliseconds
+
+# Database SSL (see "Database SSL Configuration" section below)
+DATABASE_SSL_REJECT_UNAUTHORIZED=false  # Default; Railway uses self-signed certs
 ```
 
 #### Step 4: Deploy Application
@@ -239,6 +242,11 @@ SESSION_TIMEOUT=3600000          # 1 hour in milliseconds
    - Solution: Upgrade Railway plan for more memory
    - Alternative: Reduce CHUNK_SIZE in environment variables
 
+5. **Database SSL Errors**
+   - Symptom: "self-signed certificate in certificate chain"
+   - Solution: Ensure `DATABASE_SSL_REJECT_UNAUTHORIZED` is not set to `true` (or omit it entirely — defaults to `false`)
+   - See: "Database SSL Configuration" section below
+
 #### Debug Commands
 ```bash
 # View logs
@@ -287,6 +295,19 @@ docker-compose up -d
 4. Clone repository
 5. Set environment variables
 6. Run with PM2 or systemd
+
+## Database SSL Configuration
+
+In production (`NODE_ENV=production`), Qopy always connects to PostgreSQL over TLS. The `DATABASE_SSL_REJECT_UNAUTHORIZED` environment variable controls whether the server verifies the database certificate chain:
+
+| Value | Behavior | Use When |
+|-------|----------|----------|
+| `false` (default) | TLS enabled, certificate chain not verified | Railway, Supabase, Neon, or any provider with self-signed certs |
+| `true` | TLS enabled, certificate chain fully verified | AWS RDS, Azure, GCP Cloud SQL, or any provider with CA-signed certs |
+
+**Railway uses self-signed certificates**, so the default (`false`) is correct. The connection is still encrypted — only certificate chain verification is skipped. If you deploy to a provider with CA-signed certificates, set `DATABASE_SSL_REJECT_UNAUTHORIZED=true` for full MitM protection.
+
+In development (`NODE_ENV` not `production`), SSL is disabled entirely.
 
 ## Security Considerations
 
