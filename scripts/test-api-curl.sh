@@ -81,7 +81,7 @@ if [ -z "$REDIRECT" ]; then
 fi
 echo "   redirectTo: $REDIRECT"
 
-# 6) Get file (POST – GET /api/file returns 410; use POST per API)
+# 6) Get file (POST required – GET /api/file returns 410; for protected clips send body {"accessCode":"<128-char-hex-hash>"} only, never plaintext)
 echo "6. Get file"
 HTTP_CODE=$(curl -s -o "$TMP_DIR/retrieved.txt" -w "%{http_code}" -X POST "$BASE_URL$REDIRECT" -H "Content-Type: application/json" -d '{}')
 if [ "$HTTP_CODE" != "200" ]; then

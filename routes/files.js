@@ -77,7 +77,7 @@ function registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, acces
         res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
     });
 
-    // Authenticated file download API (POST with token) - Refactored with services
+    // Authenticated file download API (POST with optional access code hash in body) - Refactored with services
     app.post('/api/file/:clipId', fileDownloadLimiter, [
         clipIdValidator,
         body('accessCode').optional().isString().withMessage('Access code must be a string'),

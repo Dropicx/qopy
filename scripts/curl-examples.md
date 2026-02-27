@@ -82,7 +82,7 @@ The JSON includes `redirectTo: "/api/file/CLIP_ID"`. Use that path for the file 
 
 ## Download file (must use POST)
 
-GET `/api/file/:clipId` returns 410 Gone. Use **POST** with optional JSON body (e.g. `{}` for unprotected clips, or `{"accessCode":"..."}` if protected).
+GET `/api/file/:clipId` returns 410 Gone. Use **POST** with optional JSON body: `{}` for unprotected clips, or `{"accessCode":"<128-char-hex-hash>"}` for protected clips (the access code must be sent as the client-computed PBKDF2-SHA-512 hash, never plaintext).
 
 ```bash
 curl -s -o retrieved.txt -X POST "https://qopy.app/api/file/CLIP_ID" \

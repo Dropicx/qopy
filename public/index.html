@@ -496,7 +496,7 @@ curl https://qopy.app/api/clip/X8K2M9/info
 # Get clip (returns JSON with redirectTo for file content)
 curl https://qopy.app/api/clip/X8K2M9
 
-# Download file content (must use POST; optional body: {"accessCode": "..."} if protected)
+# Download file content (must use POST; optional body: {"accessCode": "<128-char-hex-hash>"} if protected — hash only, never plaintext)
 curl -X POST https://qopy.app/api/file/X8K2M9  -H "Content-Type: application/json"  -d '{}'</code></pre>
 
                         <h4>Upload Parameters:</h4>

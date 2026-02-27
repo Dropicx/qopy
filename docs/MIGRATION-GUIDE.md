@@ -7,7 +7,7 @@ After merging `dev` into `main`, comprehensive file-sharing features have been a
 ### File-Sharing Capabilities
 - **Multi-Part Upload System** - Efficient uploading of large files in chunks
 - **Encrypted File Storage** - Client-side encryption before upload
-- **Download Token System** - Secure authentication for file downloads
+- **File download auth** - POST `/api/file/:clipId` with optional access code hash in body (zero-knowledge: hash only, no tokens in URL)
 - **Enhanced Clip Management** - Support for both text and file content
 
 ### New Database Tables

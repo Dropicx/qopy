@@ -11,7 +11,7 @@ flowchart LR
     subgraph SENDER["👤 Sender"]
         direction TB
         A1[Enter text or file]
-        A2[Generate URL secret]
+        A2[URL secret in fragment only]
         A3[Encrypt: PBKDF2 + AES-256-GCM]
         A4[V3 payload]
         A5{File large?}
@@ -43,9 +43,9 @@ flowchart LR
         C1[Open link]
         C2[GET clip info]
         C3{Access code?}
-        C4[POST with hash]
-        C5[GET clip metadata]
-        C6[GET file bytes]
+        C4[POST with hash only]
+        C5[Get clip or file]
+        C6[POST file with hash only]
         C7[Decrypt in browser]
         C8[Show or download]
         C1 --> C2 --> C3
@@ -269,7 +269,7 @@ POST /api/file/{clipId}
 Content-Type: application/json
 Body: {}
 ```
-For password-protected clips, include `"accessCode": "your-code"` in the body.
+For password-protected clips, send the client-computed PBKDF2-SHA-512 hash only: `"accessCode": "<128-char-hex-hash>"` (never send plaintext; the web UI computes this hash in the browser).
 
 ### Health Check
 ```http

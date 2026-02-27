@@ -19,7 +19,8 @@ Use this checklist when adding or changing client–server flows to ensure we ne
 | Upload complete (file) | `public/file-upload.js` | `urlSecret`, plaintext password |
 | Upload complete (text) | `public/script.js` (`uploadTextAsFile`) | `urlSecret`, plaintext password |
 | Clip retrieval | `public/script.js` | URL secret (fragment only); if password needed, send hash only |
-| File download | `public/script.js` (`downloadFile`, text-file redirect) | URL secret; if password needed, send hash only |
+| File download (main app) | `public/script.js` (`downloadFile`, text-file redirect) | URL secret; if password needed, send hash only |
+| File download (file UI) | `public/file-upload.js` (`FileDownloadManager.downloadFile`) | URL secret; if password needed, send hash only. Use POST `/api/file/:clipId` with `accessCode` (hash), not token in URL. |
 
 ## Reference
 

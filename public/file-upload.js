@@ -1599,7 +1599,7 @@ class FileDownloadManager {
         FILE_UPLOAD_DEBUG && console.group('📥 [DOWNLOAD] Starting V3 Zero-Knowledge Download');
         
         try {
-            // Extract compatible secret from current URL
+            // Extract compatible secret from current URL (never sent to server)
             const compatibleSecret = this.extractCompatibleSecret();
             const password = this.getPasswordFromUser();
             
@@ -1618,23 +1618,20 @@ class FileDownloadManager {
                 throw new Error('No compatible secret found in URL - required for zero-knowledge decryption');
             }
             
-            // Generate download token for authentication
-            FILE_UPLOAD_DEBUG && console.log('🎫 Generating download authentication token...');
-            const tokenStart = performance.now();
-            const downloadToken = await this.generateDownloadToken(clipId, password, compatibleSecret);
-            const tokenTime = performance.now() - tokenStart;
+            // Zero-knowledge: send only PBKDF2-SHA-512 hash of access code, never plaintext or URL secret
+            const requestBody = {};
+            if (password) {
+                requestBody.accessCode = await this._generateAccessCodeHashForDownload(password);
+            }
             
-            FILE_UPLOAD_DEBUG && console.log('✅ Download token generated:', {
-                tokenLength: downloadToken.length,
-                tokenPreview: downloadToken.substring(0, 8) + '...',
-                generationTime: tokenTime.toFixed(2) + 'ms'
-            });
-            
-            // Download encrypted file
-            FILE_UPLOAD_DEBUG && console.log('📡 Requesting encrypted file from server...');
+            FILE_UPLOAD_DEBUG && console.log('📡 Requesting encrypted file from server (POST /api/file, hash-only auth)...');
             const downloadRequestStart = performance.now();
             
-            const downloadResponse = await fetch(`/api/download/${clipId}/${downloadToken}`);
+            const downloadResponse = await fetch(`/api/file/${clipId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
             
             const downloadRequestTime = performance.now() - downloadRequestStart;
             
@@ -2048,6 +2045,37 @@ class FileDownloadManager {
     getPasswordFromUser() {
         const passwordInput = document.getElementById('retrieve-password-input');
         return passwordInput ? passwordInput.value.trim() : null;
+    }
+
+    // Generate access code hash for download auth (zero-knowledge: only hash sent to server)
+    async _getPbkdf2SaltForDownload() {
+        if (this._pbkdf2Salt) return this._pbkdf2Salt;
+        try {
+            const res = await fetch('/api/config');
+            const cfg = await res.json();
+            this._pbkdf2Salt = cfg.pbkdf2Salt || 'qopy-access-salt-v1';
+        } catch {
+            this._pbkdf2Salt = 'qopy-access-salt-v1';
+        }
+        return this._pbkdf2Salt;
+    }
+
+    async _generateAccessCodeHashForDownload(password) {
+        const salt = await this._getPbkdf2SaltForDownload();
+        const encoder = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            'raw',
+            encoder.encode(password),
+            'PBKDF2',
+            false,
+            ['deriveBits']
+        );
+        const derivedBits = await window.crypto.subtle.deriveBits(
+            { name: 'PBKDF2', salt: encoder.encode(salt), iterations: 600000, hash: 'SHA-512' },
+            keyMaterial,
+            512
+        );
+        return Array.from(new Uint8Array(derivedBits), b => b.toString(16).padStart(2, '0')).join('');
     }
 
     // Format file size helper method
