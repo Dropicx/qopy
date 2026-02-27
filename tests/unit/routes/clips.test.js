@@ -46,17 +46,16 @@ function createApp(poolOverrides = {}, depsOverrides = {}) {
 function makeClipRow(overrides = {}) {
   return {
     clip_id: 'ABCDEF1234',
-    content: Buffer.from('encrypted-content'),
     content_type: 'text',
     expiration_time: Date.now() + 3600000,
     one_time: false,
     password_hash: null,
     requires_access_code: false,
     access_code_hash: null,
-    file_path: null,
-    original_filename: null,
-    filesize: null,
-    mime_type: null,
+    file_path: '/storage/files/default.enc',
+    original_filename: 'content.txt',
+    filesize: 1024,
+    mime_type: 'text/plain',
     file_metadata: null,
     access_count: 0,
     ...overrides
@@ -185,11 +184,14 @@ describe('Clip Routes', () => {
   // GET /api/clip/:clipId
   // ==========================================
   describe('GET /api/clip/:clipId', () => {
-    test('should return inline text content for clip without access code', async () => {
+    test('should redirect to file endpoint for text clip', async () => {
       const clip = makeClipRow({
         clip_id: 'ABCDEF1234',
-        content: 'encrypted-text-data',
-        content_type: 'text'
+        content_type: 'text',
+        file_path: '/storage/files/abc.enc',
+        original_filename: 'notes.txt',
+        filesize: 512,
+        mime_type: 'text/plain'
       });
       const { app, mockPool } = createApp();
       mockPool.query.mockResolvedValue({ rows: [clip] });
@@ -198,8 +200,8 @@ describe('Clip Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.content).toBe('encrypted-text-data');
       expect(res.body.contentType).toBe('text');
+      expect(res.body.redirectTo).toBe('/api/file/ABCDEF1234');
     });
 
     test('should return 404 for non-existent clip', async () => {
@@ -240,30 +242,14 @@ describe('Clip Routes', () => {
       expect(res.body.redirectTo).toBe('/api/file/ABCDEF1234');
     });
 
-    test('should handle one-time clip deletion', async () => {
+    test('should handle one-time file clip', async () => {
       const clip = makeClipRow({
-        content: 'one-time-secret',
-        content_type: 'text',
+        content_type: 'file',
+        file_path: '/storage/files/one-time.enc',
+        original_filename: 'secret.pdf',
+        filesize: 2048,
+        mime_type: 'application/pdf',
         one_time: true
-      });
-      const { app, mockPool } = createApp();
-      // First query: find clip, second: update access, third: updateStatistics internally, fourth: delete
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [clip] })          // SELECT clip
-        .mockResolvedValueOnce({ rows: [] })               // UPDATE access count
-        .mockResolvedValueOnce({ rows: [{ clip_id: 'ABCDEF1234' }], rowCount: 1 }); // DELETE for one_time
-
-      const res = await request(app).get('/api/clip/ABCDEF1234');
-
-      expect(res.status).toBe(200);
-      expect(res.body.content).toBe('one-time-secret');
-    });
-
-    test('should return binary content as array', async () => {
-      const binaryContent = Buffer.from([0x01, 0x02, 0x03, 0xFF]);
-      const clip = makeClipRow({
-        content: binaryContent,
-        content_type: 'binary'
       });
       const { app, mockPool } = createApp();
       mockPool.query.mockResolvedValue({ rows: [clip] });
@@ -271,8 +257,8 @@ describe('Clip Routes', () => {
       const res = await request(app).get('/api/clip/ABCDEF1234');
 
       expect(res.status).toBe(200);
-      expect(res.body.contentType).toBe('binary');
-      expect(Array.isArray(res.body.content)).toBe(true);
+      expect(res.body.contentType).toBe('file');
+      expect(res.body.redirectTo).toBe('/api/file/ABCDEF1234');
     });
 
     test('should return 500 on database error', async () => {
@@ -287,7 +273,6 @@ describe('Clip Routes', () => {
 
     test('should handle clip with file_path and text content_type', async () => {
       const clip = makeClipRow({
-        content: null,
         content_type: 'text',
         file_path: '/storage/files/abc.enc',
         original_filename: 'notes.txt',
@@ -312,7 +297,6 @@ describe('Clip Routes', () => {
   describe('POST /api/clip/:clipId', () => {
     test('should return clip content without access code when not required', async () => {
       const clip = makeClipRow({
-        content: 'public-data',
         content_type: 'text',
         requires_access_code: false
       });
@@ -345,7 +329,6 @@ describe('Clip Routes', () => {
       const hash = crypto.pbkdf2Sync('test-code', 'qopy-access-salt-v1', 100000, 64, 'sha512').toString('hex');
 
       const clip = makeClipRow({
-        content: 'secret-data',
         content_type: 'text',
         requires_access_code: true,
         access_code_hash: hash

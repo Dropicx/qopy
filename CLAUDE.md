@@ -244,7 +244,19 @@ tests/
 - `RAILWAY_VOLUME_MOUNT_PATH` - Volume path for file storage
 
 **Optional Environment Variables**:
-- `DATABASE_SSL_REJECT_UNAUTHORIZED` - Controls TLS certificate verification for PostgreSQL. Defaults to `false` (Railway uses self-signed certs). Set to `true` for providers with CA-signed certs (AWS RDS, GCP Cloud SQL, etc.)
+- `PORT` - Server port (default: `3000`, auto-set by Railway)
+- `REDIS_URL` - Redis connection string (auto-set by Railway; falls back to in-memory cache)
+- `REDISCLOUD_URL` - Alternative Redis URL (checked if `REDIS_URL` is not set)
+- `DATABASE_SSL_REJECT_UNAUTHORIZED` - TLS certificate verification for PostgreSQL. Defaults to `false` (Railway uses self-signed certs). Set to `true` for providers with CA-signed certs
+- `PBKDF2_SALT` - Custom salt for PBKDF2 key derivation (default: built-in salt). Used in zero-knowledge client-side hashing via `/api/config`
+- `LOG_LEVEL` - Logging verbosity (default: `info`)
+
+**Payment System Variables** (required only if Stripe integration is enabled):
+- `STRIPE_SECRET_KEY` - Stripe API secret key
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
+- `STRIPE_BASIC_PRICE_ID` - Stripe price ID for Basic plan
+- `STRIPE_PRO_PRICE_ID` - Stripe price ID for Pro plan
+- `STRIPE_ENTERPRISE_PRICE_ID` - Stripe price ID for Enterprise plan
 
 **Volume Setup**:
 1. Add Volume plugin in Railway dashboard

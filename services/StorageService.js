@@ -131,49 +131,22 @@ class StorageService extends BaseService {
      * @param {boolean} oneTime - One time access
      * @returns {Object} Storage result
      */
-    async storeInline(processedContent, clipId, contentType, mimeType, filesize, expirationTime, passwordHash, oneTime) {
-        try {
-            await this.pool.query(`
-                INSERT INTO clips (
-                    clip_id, content_type, content, mime_type, filesize,
-                    expiration_time, password_hash, one_time, created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            `, [
-                clipId, contentType, processedContent, mimeType, filesize,
-                expirationTime, passwordHash, oneTime || false, Date.now()
-            ]);
-
-            return { success: true };
-            
-        } catch (error) {
-            this.logError('Error storing inline', error);
-            throw error;
-        }
-    }
-
     /**
-     * Store clip with automatic file/inline decision
+     * Store clip (all content stored as files — inline storage removed)
      * @param {Object} params - Storage parameters
      * @returns {Object} Storage result
      */
     async storeClip(params) {
         const {
             processedContent, clipId, contentType, mimeType, filesize,
-            expirationTime, passwordHash, oneTime, shouldStoreAsFile
+            expirationTime, passwordHash, oneTime
         } = params;
 
         try {
-            if (shouldStoreAsFile) {
-                return await this.storeAsFile(
-                    processedContent, clipId, contentType, mimeType, filesize,
-                    expirationTime, passwordHash, oneTime
-                );
-            } else {
-                return await this.storeInline(
-                    processedContent, clipId, contentType, mimeType, filesize,
-                    expirationTime, passwordHash, oneTime
-                );
-            }
+            return await this.storeAsFile(
+                processedContent, clipId, contentType, mimeType, filesize,
+                expirationTime, passwordHash, oneTime
+            );
         } catch (dbError) {
             this.logError('Database error', dbError);
             if (dbError.message.includes('password_hash')) {

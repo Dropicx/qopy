@@ -146,22 +146,27 @@ Set the following environment variables in Railway Dashboard → Variables:
 
 ```bash
 # Automatic (set by Railway)
-DATABASE_URL=postgresql://...
-REDIS_URL=redis://...
-PORT=8080
+DATABASE_URL=postgresql://...    # PostgreSQL connection string
+REDIS_URL=redis://...            # Redis connection string (optional; falls back to in-memory)
+PORT=8080                        # Server port
 
 # Manual (must set these)
 RAILWAY_VOLUME_MOUNT_PATH=/var/lib/containers/railwayapp/bind-mounts/[VOLUME_ID]
-RAILWAY_RUN_UID=0                # Important for mkdir permissions
 NODE_ENV=production
+ADMIN_TOKEN=your-secret-token    # Required for admin dashboard access
 
-# Optional (for enhanced features)
-MAX_FILE_SIZE=104857600          # 100MB in bytes
-CHUNK_SIZE=5242880               # 5MB in bytes
-SESSION_TIMEOUT=3600000          # 1 hour in milliseconds
+# Optional
+REDISCLOUD_URL=redis://...       # Alternative Redis URL (checked if REDIS_URL is not set)
+DATABASE_SSL_REJECT_UNAUTHORIZED=false  # Default; see "Database SSL Configuration" below
+PBKDF2_SALT=your-custom-salt     # Custom salt for PBKDF2 key derivation (has built-in default)
+LOG_LEVEL=info                   # Logging verbosity (default: info)
 
-# Database SSL (see "Database SSL Configuration" section below)
-DATABASE_SSL_REJECT_UNAUTHORIZED=false  # Default; Railway uses self-signed certs
+# Stripe payment integration (only if payments are enabled)
+STRIPE_SECRET_KEY=sk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_BASIC_PRICE_ID=price_...
+STRIPE_PRO_PRICE_ID=price_...
+STRIPE_ENTERPRISE_PRICE_ID=price_...
 ```
 
 #### Step 4: Deploy Application

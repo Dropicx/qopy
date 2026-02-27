@@ -68,35 +68,6 @@ async function handleClipRetrieval(req, res, clip, clipId, { pool, updateStatist
           oneTime: clip.one_time
         });
       }
-    } else if (clip.content) {
-      // Content stored inline in database
-      if (clip.content_type === 'text') {
-        responseContent = clip.content; // Already a string
-        contentMetadata.contentType = 'text';
-      } else {
-        // Binary content
-        if (Buffer.isBuffer(clip.content)) {
-          responseContent = Array.from(clip.content);
-          contentMetadata.contentType = 'binary';
-        } else if (typeof clip.content === 'string') {
-          responseContent = clip.content;
-          contentMetadata.contentType = 'text';
-        } else {
-          responseContent = clip.content.toString();
-          contentMetadata.contentType = 'text';
-        }
-      }
-
-      // Handle one-time access for inline content
-      if (clip.one_time) {
-        const deleteResult = await pool.query('DELETE FROM clips WHERE clip_id = $1 AND is_expired = false RETURNING clip_id', [clipId]);
-        if (deleteResult.rowCount === 0) {
-            return res.status(410).json({
-                error: 'Content no longer available',
-                message: 'This one-time content has already been accessed'
-            });
-        }
-      }
     } else {
       return res.status(404).json({
         error: 'No content found',
@@ -239,7 +210,7 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
 
         // Fetch clip with all columns needed for access validation + content retrieval
         const result = await pool.query(
-          'SELECT clip_id, content, content_type, file_path, original_filename, filesize, mime_type, expiration_time, one_time, password_hash, requires_access_code, access_code_hash FROM clips WHERE clip_id = $1 AND is_expired = false',
+          'SELECT clip_id, content_type, file_path, original_filename, filesize, mime_type, expiration_time, one_time, password_hash, requires_access_code, access_code_hash FROM clips WHERE clip_id = $1 AND is_expired = false',
           [clipId]
         );
 
@@ -336,7 +307,7 @@ function registerClipRoutes(app, { pool, updateStatistics, getRedis }) {
 
         // Fetch clip with all columns needed for access check + content retrieval
         const result = await pool.query(
-          'SELECT clip_id, content, content_type, file_path, original_filename, filesize, mime_type, expiration_time, one_time, password_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
+          'SELECT clip_id, content_type, file_path, original_filename, filesize, mime_type, expiration_time, one_time, password_hash, requires_access_code FROM clips WHERE clip_id = $1 AND is_expired = false',
           [clipId]
         );
 

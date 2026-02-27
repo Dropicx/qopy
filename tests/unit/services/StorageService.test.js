@@ -310,128 +310,6 @@ describe('StorageService', () => {
     });
   });
 
-  describe('storeInline', () => {
-    const testParams = {
-      processedContent: 'test inline content',
-      clipId: 'inline-clip-123',
-      contentType: 'text/plain',
-      mimeType: 'text/plain',
-      filesize: 19,
-      expirationTime: Date.now() + 60000,
-      passwordHash: 'test-hash',
-      oneTime: true
-    };
-
-    beforeEach(() => {
-      mockPool.query.mockResolvedValue({ rows: [] });
-    });
-
-    test('should store content inline successfully', async () => {
-      const result = await storageService.storeInline(
-        testParams.processedContent,
-        testParams.clipId,
-        testParams.contentType,
-        testParams.mimeType,
-        testParams.filesize,
-        testParams.expirationTime,
-        testParams.passwordHash,
-        testParams.oneTime
-      );
-
-      expect(result.success).toBe(true);
-      expect(mockPool.query).toHaveBeenCalled();
-    });
-
-    test('should store with correct database values', async () => {
-      const now = Date.now();
-      jest.spyOn(Date, 'now').mockReturnValue(now);
-
-      await storageService.storeInline(
-        testParams.processedContent,
-        testParams.clipId,
-        testParams.contentType,
-        testParams.mimeType,
-        testParams.filesize,
-        testParams.expirationTime,
-        testParams.passwordHash,
-        testParams.oneTime
-      );
-
-      const call = mockPool.query.mock.calls[0];
-      const values = call[1];
-
-      expect(values[0]).toBe(testParams.clipId);
-      expect(values[1]).toBe(testParams.contentType);
-      expect(values[2]).toBe(testParams.processedContent);
-      expect(values[3]).toBe(testParams.mimeType);
-      expect(values[4]).toBe(testParams.filesize);
-      expect(values[5]).toBe(testParams.expirationTime);
-      expect(values[6]).toBe(testParams.passwordHash);
-      expect(values[7]).toBe(testParams.oneTime);
-      expect(values[8]).toBe(now);
-
-      Date.now.mockRestore();
-    });
-
-    test('should handle database error', async () => {
-      const dbError = new Error('Inline storage failed');
-      mockPool.query.mockRejectedValue(dbError);
-      console.error = jest.fn();
-
-      await expect(storageService.storeInline(
-        testParams.processedContent,
-        testParams.clipId,
-        testParams.contentType,
-        testParams.mimeType,
-        testParams.filesize,
-        testParams.expirationTime,
-        testParams.passwordHash,
-        testParams.oneTime
-      )).rejects.toThrow('Inline storage failed');
-
-      expect(console.error).toHaveBeenCalledWith(
-        '[StorageService] ❌ Error storing inline',
-        expect.objectContaining({ error: 'Inline storage failed' })
-      );
-    });
-
-    test('should handle oneTime parameter correctly', async () => {
-      await storageService.storeInline(
-        testParams.processedContent,
-        testParams.clipId,
-        testParams.contentType,
-        testParams.mimeType,
-        testParams.filesize,
-        testParams.expirationTime,
-        testParams.passwordHash,
-        null // oneTime null
-      );
-
-      const call = mockPool.query.mock.calls[0];
-      const values = call[1];
-      expect(values[7]).toBe(false); // Should default to false
-    });
-
-    test('should handle buffer content', async () => {
-      const bufferContent = Buffer.from('buffer test content');
-      
-      await storageService.storeInline(
-        bufferContent,
-        testParams.clipId,
-        testParams.contentType,
-        testParams.mimeType,
-        testParams.filesize,
-        testParams.expirationTime,
-        testParams.passwordHash,
-        testParams.oneTime
-      );
-
-      const call = mockPool.query.mock.calls[0];
-      const values = call[1];
-      expect(values[2]).toBe(bufferContent);
-    });
-  });
-
   describe('storeClip', () => {
     const baseParams = {
       processedContent: 'test content',
@@ -450,9 +328,9 @@ describe('StorageService', () => {
       mockGenerateUploadId.mockReturnValue('store-upload-id');
     });
 
-    test('should store as file when shouldStoreAsFile is true', async () => {
-      const params = { ...baseParams, shouldStoreAsFile: true };
-      
+    test('should always store as file', async () => {
+      const params = { ...baseParams };
+
       const result = await storageService.storeClip(params);
 
       expect(result.success).toBe(true);
@@ -460,32 +338,12 @@ describe('StorageService', () => {
       expect(fs.writeFile).toHaveBeenCalled();
     });
 
-    test('should store inline when shouldStoreAsFile is false', async () => {
-      const params = { ...baseParams, shouldStoreAsFile: false };
-      
-      const result = await storageService.storeClip(params);
-
-      expect(result.success).toBe(true);
-      expect(result.storagePath).toBeUndefined();
-      expect(fs.writeFile).not.toHaveBeenCalled();
-    });
-
-    test('should store inline when shouldStoreAsFile is undefined', async () => {
-      const params = { ...baseParams };
-      delete params.shouldStoreAsFile;
-      
-      const result = await storageService.storeClip(params);
-
-      expect(result.success).toBe(true);
-      expect(fs.writeFile).not.toHaveBeenCalled();
-    });
-
     test('should handle database error with password_hash message', async () => {
       const dbError = new Error('column "password_hash" is too small for Quick Share secrets');
       mockPool.query.mockRejectedValue(dbError);
       console.error = jest.fn();
 
-      const params = { ...baseParams, shouldStoreAsFile: false };
+      const params = { ...baseParams };
 
       const result = await storageService.storeClip(params);
 
@@ -502,7 +360,7 @@ describe('StorageService', () => {
       mockPool.query.mockRejectedValue(dbError);
       console.error = jest.fn();
 
-      const params = { ...baseParams, shouldStoreAsFile: false };
+      const params = { ...baseParams };
 
       await expect(storageService.storeClip(params)).rejects.toThrow('General database error');
       expect(console.error).toHaveBeenCalledWith(
@@ -515,16 +373,15 @@ describe('StorageService', () => {
       const fileError = new Error('File storage failed');
       fs.writeFile.mockRejectedValue(fileError);
 
-      const params = { ...baseParams, shouldStoreAsFile: true };
+      const params = { ...baseParams };
       
       await expect(storageService.storeClip(params)).rejects.toThrow('File storage failed');
     });
 
     test('should pass all parameters correctly to storeAsFile', async () => {
       const spy = jest.spyOn(storageService, 'storeAsFile').mockResolvedValue({ success: true });
-      const params = { 
-        ...baseParams, 
-        shouldStoreAsFile: true,
+      const params = {
+        ...baseParams,
         passwordHash: 'test-hash',
         oneTime: true
       };
@@ -545,30 +402,6 @@ describe('StorageService', () => {
       spy.mockRestore();
     });
 
-    test('should pass all parameters correctly to storeInline', async () => {
-      const spy = jest.spyOn(storageService, 'storeInline').mockResolvedValue({ success: true });
-      const params = { 
-        ...baseParams, 
-        shouldStoreAsFile: false,
-        passwordHash: 'inline-hash',
-        oneTime: true
-      };
-      
-      await storageService.storeClip(params);
-
-      expect(spy).toHaveBeenCalledWith(
-        params.processedContent,
-        params.clipId,
-        params.contentType,
-        params.mimeType,
-        params.filesize,
-        params.expirationTime,
-        params.passwordHash,
-        params.oneTime
-      );
-
-      spy.mockRestore();
-    });
   });
 
   describe('Error Handling and Edge Cases', () => {
@@ -597,9 +430,10 @@ describe('StorageService', () => {
     test('should handle concurrent operations', async () => {
       mockPool.query.mockResolvedValue({ rows: [] });
       fs.writeFile.mockResolvedValue();
+      mockGenerateUploadId.mockReturnValue('concurrent-id');
 
       const promises = Array(10).fill(null).map(async (_, i) => {
-        return storageService.storeInline(
+        return storageService.storeAsFile(
           `content-${i}`,
           `clip-${i}`,
           'text/plain',
@@ -617,14 +451,15 @@ describe('StorageService', () => {
       results.forEach(result => {
         expect(result.success).toBe(true);
       });
-      expect(mockPool.query).toHaveBeenCalledTimes(10);
     });
 
     test('should handle large content storage', async () => {
       const largeContent = 'x'.repeat(10000);
       mockPool.query.mockResolvedValue({ rows: [] });
+      fs.writeFile.mockResolvedValue();
+      mockGenerateUploadId.mockReturnValue('large-id');
 
-      const result = await storageService.storeInline(
+      const result = await storageService.storeAsFile(
         largeContent,
         'large-clip',
         'text/plain',

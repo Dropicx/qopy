@@ -1190,11 +1190,11 @@ footer p {
   display: grid;
   grid-template-columns: 2fr 1.5fr 1.5fr;
   border-bottom: 1px solid var(--border-color);
-  transition: background-color 0.3s ease;
+  position: relative;
 }
 
 .comparison-row:hover {
-  background: var(--accent-light);
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .comparison-row:last-child {
@@ -1215,7 +1215,7 @@ footer p {
   color: var(--text-primary);
   display: flex;
   align-items: center;
-  background: rgba(30, 215, 96, 0.05);
+  background: transparent;
   border-right: 1px solid var(--border-color);
 }
 
@@ -1224,21 +1224,7 @@ footer p {
   color: var(--text-secondary);
   display: flex;
   align-items: center;
-  background: rgba(255, 75, 87, 0.05);
-}
-
-.qopy-col::before {
-  content: '';
-  width: 3px;
-  height: 100%;
-  background: var(--accent-color);
-  position: absolute;
-  left: 0;
-  top: 0;
-}
-
-.comparison-row {
-  position: relative;
+  background: transparent;
 }
 
 /* Utility Classes */
