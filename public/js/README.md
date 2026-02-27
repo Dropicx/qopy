@@ -2,7 +2,7 @@
 
 ## Structure
 
-- **crypto/EncryptionService.js** - Shared client-side encryption (AES-256-GCM). Supports legacy (16-char) and enhanced (40+ char) formats. Attaches to `window.QopyCrypto`.
+- **crypto/EncryptionService.js** - Shared client-side encryption (AES-256-GCM). V3 only: random salt, random IV, 600k PBKDF2. Secret can be short (16-char) or enhanced (40+ char). Attaches to `window.QopyCrypto`.
 
 - **standalone/ErrorMessages.js** - Centralized error, success, and info messages. Attaches to `window.ERROR_MESSAGES`, `window.SUCCESS_MESSAGES`, `window.INFO_MESSAGES`.
 

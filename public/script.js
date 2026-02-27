@@ -548,7 +548,7 @@ class ClipboardApp {
                         this.showToast('🔐 Access denied: Invalid URL secret or password', 'error');
                     }
                 } else {
-                    // No URL secret - try without token first (for legacy clips or clips without URL secrets)
+                    // No URL secret - try without token first (for clips without URL secrets)
                     
                     let infoResponse = await fetch(`/api/clip/${clipId}/info`);
                     let infoData = await infoResponse.json();
@@ -2124,7 +2124,6 @@ class ClipboardApp {
         }
     }
 
-    // Legacy key derivation (backward compatibility for decryption)
     // V3 key derivation: per-clip random salt, 600k iterations
     async generateKeyV3(password, urlSecret, saltBytes) {
         if (!window.crypto || !window.crypto.subtle) {
@@ -2699,7 +2698,7 @@ class ClipboardApp {
         return this._pbkdf2Salt;
     }
 
-    // Get access code from user input (alias for backward compatibility)
+    // Get access code from user input (alias for getPasswordFromUser)
     getAccessCodeFromUser() {
         return this.getPasswordFromUser();
     }
@@ -2798,7 +2797,7 @@ class ClipboardApp {
                 const encryptedMetadata = decryptedBytes.slice(4, 4 + metadataLength);
                 const fileData = decryptedBytes.slice(4 + metadataLength);
 
-                // Decrypt metadata — detect V3 vs legacy format
+                // Decrypt metadata (V3 only)
                 try {
                     let metadataKey, metadataIV, metadataCiphertext;
                     if (encryptedMetadata[0] === CLIP_CONFIG.FORMAT_VERSION_V3 && encryptedMetadata.length >= 45 + 16) {

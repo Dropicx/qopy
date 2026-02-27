@@ -269,7 +269,7 @@ class FileUploadManager {
             // Initiate upload
             const uploadSession = await this.initiateUpload(this.selectedFile, {
                 expiration,
-                hasPassword: requiresAccessCode, // Keep backward compatibility
+                hasPassword: requiresAccessCode,
                 oneTime
             });
 
@@ -532,7 +532,7 @@ class FileUploadManager {
         FILE_UPLOAD_DEBUG && console.group('📤 [UPLOAD INIT] Starting Compatible File Upload');
         
         try {
-            // Generate enhanced passphrase for new uploads (but support legacy for downloads)
+            // Generate enhanced passphrase for new uploads (V3 only)
             FILE_UPLOAD_DEBUG && console.log('🔐 Generating compatible secret for upload...');
             const compatibleSecret = this.generateCompatibleSecret(true); // true = enhanced mode
             
@@ -590,7 +590,7 @@ class FileUploadManager {
             
             const uploadPreparationTime = performance.now() - uploadStartTime;
             
-            FILE_UPLOAD_DEBUG && console.log(`🔒 Backward-compatible zero-knowledge upload preparation completed:`, {
+            FILE_UPLOAD_DEBUG && console.log(`🔒 V3 zero-knowledge upload preparation completed:`, {
                 original: {
                     filename: file.name,
                     size: file.size,
@@ -604,7 +604,7 @@ class FileUploadManager {
                     serverMimeType: 'application/octet-stream'
                 },
                 security: {
-                    secretType: compatibleSecret.length >= 40 ? 'Enhanced' : 'Legacy',
+                    secretType: compatibleSecret.length >= 40 ? 'Enhanced' : 'Short',
                     secretLength: compatibleSecret.length,
                     paddingApplied,
                     metadataEncrypted: true
@@ -1159,13 +1159,13 @@ class FileUploadManager {
         // Hide progress and show success
         this.showProgressUI(false);
         
-        // Create URL with compatible secret (backward-compatible approach)
+        // Create URL with secret fragment (V3)
         let finalUrl = result.url;
         let urlFragment = '';
         
         if (this.currentUploadSession && this.currentUploadSession.compatibleSecret) {
             urlFragment = this.currentUploadSession.compatibleSecret;
-            const secretType = urlFragment.length >= 40 ? 'Enhanced' : 'Legacy';
+            const secretType = urlFragment.length >= 40 ? 'Enhanced' : 'Short';
             FILE_UPLOAD_DEBUG && console.log(`🔗 Compatible secret for link (${secretType}):`, urlFragment.substring(0, 8) + '...');
         }
         
@@ -1175,7 +1175,7 @@ class FileUploadManager {
         
         // Show success message using the main success modal
         const originalMetadata = this.currentUploadSession?.originalMetadata || {};
-        const secretType = urlFragment?.length >= 40 ? 'Enhanced (256-bit)' : 'Legacy (128-bit)';
+        const secretType = urlFragment?.length >= 40 ? 'Enhanced (256-bit)' : 'Short (128-bit)';
         const isEnhanced = urlFragment?.length >= 40;
         
         // Check if access code was used
@@ -1530,13 +1530,13 @@ class FileUploadManager {
     }
 }
 
-// File Download Manager with Backward-Compatible Security
+// File Download Manager (V3 zero-knowledge)
 class FileDownloadManager {
     constructor() {
         this.currentDownload = null;
     }
 
-    // Extract compatible secret from current URL fragment (supports both legacy and enhanced)
+    // Extract secret from URL fragment (short 16-char or enhanced 40+ char; V3 decryption only)
     extractCompatibleSecret() {
         FILE_UPLOAD_DEBUG && console.group('🔍 [SECRET EXTRACTION] Analyzing URL Fragment');
         
@@ -1547,19 +1547,19 @@ class FileDownloadManager {
                 const secret = hash.substring(1); // Remove the # symbol
                 
                 // Detect type for comprehensive logging
-                const isLegacy = secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
+                const isShort = secret.length === 16 && /^[A-Za-z0-9]{16}$/.test(secret);
                 const isEnhanced = secret.length >= 40;
-                const isUnknown = !isLegacy && !isEnhanced;
+                const isUnknown = !isShort && !isEnhanced;
                 
                 let detectedFormat;
                 let expectedSecurity;
                 let compatibility;
                 
-                if (isLegacy) {
-                    detectedFormat = 'LEGACY_URL_SECRET';
+                if (isShort) {
+                    detectedFormat = 'SHORT_URL_SECRET';
                     expectedSecurity = '128-bit entropy';
-                    compatibility = 'script.js compatible';
-                    FILE_UPLOAD_DEBUG && console.log('🔑 Detected legacy URL secret (16 chars)');
+                    compatibility = '16-char secret';
+                    FILE_UPLOAD_DEBUG && console.log('🔑 Detected short URL secret (16 chars)');
                 } else if (isEnhanced) {
                     detectedFormat = 'ENHANCED_PASSPHRASE';
                     expectedSecurity = '256-bit entropy';
@@ -1598,14 +1598,14 @@ class FileDownloadManager {
 
     async downloadFile(clipId, filename) {
         const downloadStartTime = performance.now();
-        FILE_UPLOAD_DEBUG && console.group('📥 [DOWNLOAD] Starting Backward-Compatible Zero-Knowledge Download');
+        FILE_UPLOAD_DEBUG && console.group('📥 [DOWNLOAD] Starting V3 Zero-Knowledge Download');
         
         try {
             // Extract compatible secret from current URL
             const compatibleSecret = this.extractCompatibleSecret();
             const password = this.getPasswordFromUser();
             
-            const secretType = compatibleSecret?.length >= 40 ? 'Enhanced' : compatibleSecret?.length === 16 ? 'Legacy' : 'Unknown';
+            const secretType = compatibleSecret?.length >= 40 ? 'Enhanced' : compatibleSecret?.length === 16 ? 'Short' : 'Unknown';
             
             FILE_UPLOAD_DEBUG && console.log('🔐 Download authentication analysis:', { 
                 hasCompatibleSecret: !!compatibleSecret, 
@@ -1660,7 +1660,7 @@ class FileDownloadManager {
                 requestTime: downloadRequestTime.toFixed(2) + 'ms'
             });
             
-            // Detect V3 vs legacy format and decrypt accordingly
+            // V3 format only: decrypt
             const encryptedBytes = new Uint8Array(encryptedData);
             FILE_UPLOAD_DEBUG && console.log(`🔓 Starting decryption for ${secretType} format...`);
             const decryptionStart = performance.now();
@@ -2004,9 +2004,9 @@ class FileDownloadManager {
         );
     }
 
-    // Show download success message (updated for compatibility info)
+    // Show download success message
     showDownloadSuccess(metadata, secretType) {
-        FILE_UPLOAD_DEBUG && console.log('🎉 Backward-compatible zero-knowledge download successful!');
+        FILE_UPLOAD_DEBUG && console.log('🎉 V3 zero-knowledge download successful!');
         
         let successDiv = document.getElementById('download-success');
         if (!successDiv) {
@@ -2028,12 +2028,12 @@ class FileDownloadManager {
         }
         
         successDiv.innerHTML = `
-            <h4>✅ Compatible Zero-Knowledge Download Successful!</h4>
+            <h4>✅ V3 Zero-Knowledge Download Successful!</h4>
             <p><strong>File:</strong> ${metadata?.filename || 'Unknown'}</p>
             <p><strong>Size:</strong> ${metadata?.size ? this.formatFileSize(metadata.size) : 'Unknown'}</p>
             <p><strong>Type:</strong> ${metadata?.mimeType || 'Unknown'}</p>
             <p><strong>Security:</strong> ${secretType} encryption verified ✓</p>
-            <p><strong>Version:</strong> ${metadata?.version || 'Legacy'}</p>
+            <p><strong>Version:</strong> ${metadata?.version || 'v3'}</p>
         `;
         
         // Auto-hide after 5 seconds
