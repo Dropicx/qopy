@@ -78,14 +78,31 @@ class AnonymousPayment {
                 ? plan.features
                 : JSON.parse(plan.features || '[]');
 
-            planCard.innerHTML = `
-                <div class="plan-name">${plan.name}</div>
-                <div class="plan-price">${plan.priceFormatted}/month</div>
-                <div class="plan-description">${plan.description || ''}</div>
-                <ul class="plan-features">
-                    ${features.map(feature => `<li>${feature}</li>`).join('')}
-                </ul>
-            `;
+            // Build DOM safely — plan data comes from server
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'plan-name';
+            nameDiv.textContent = plan.name;
+
+            const priceDiv = document.createElement('div');
+            priceDiv.className = 'plan-price';
+            priceDiv.textContent = `${plan.priceFormatted}/month`;
+
+            const descDiv = document.createElement('div');
+            descDiv.className = 'plan-description';
+            descDiv.textContent = plan.description || '';
+
+            const featuresList = document.createElement('ul');
+            featuresList.className = 'plan-features';
+            features.forEach(feature => {
+                const li = document.createElement('li');
+                li.textContent = feature;
+                featuresList.appendChild(li);
+            });
+
+            planCard.appendChild(nameDiv);
+            planCard.appendChild(priceDiv);
+            planCard.appendChild(descDiv);
+            planCard.appendChild(featuresList);
 
             planCard.addEventListener('click', () => this.selectPlan(plan));
             plansGrid.appendChild(planCard);

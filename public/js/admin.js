@@ -231,7 +231,9 @@ async function loadSystemInfo() {
 function showError(message) {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error';
-    errorDiv.innerHTML = `<span>❌ ${message}</span>`;
+    const span = document.createElement('span');
+    span.textContent = `❌ ${message}`;
+    errorDiv.appendChild(span);
 
     const container = document.querySelector('.container');
     const statsGrid = document.querySelector('.stats-grid');
@@ -251,7 +253,9 @@ function showError(message) {
 function showSuccess(message) {
     const successDiv = document.createElement('div');
     successDiv.className = 'success';
-    successDiv.innerHTML = `<span>✅ ${message}</span>`;
+    const span = document.createElement('span');
+    span.textContent = `✅ ${message}`;
+    successDiv.appendChild(span);
 
     const container = document.querySelector('.container');
     const statsGrid = document.querySelector('.stats-grid');

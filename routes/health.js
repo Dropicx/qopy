@@ -27,7 +27,7 @@ function registerHealthRoutes(app, { pool }) {
                 timestamp: new Date().toISOString(),
                 version: 'minimal-1.0.0',
                 database: 'disconnected',
-                error: error.message
+                error: 'Database health check failed'
             });
         }
     });

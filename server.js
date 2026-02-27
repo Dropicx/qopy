@@ -17,6 +17,7 @@
  */
 
 const express = require('express');
+const os = require('os');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -128,16 +129,14 @@ async function initializeStorage() {
         await fs.ensureDir(filesDir);
         await fs.ensureDir(tempDir);
         
-        // Fix permissions for upload directories
+        // Fix permissions for upload directories using Node.js APIs (no shell commands)
         try {
-            // Get current user info
-            const { execSync } = require('child_process');
-            const uid = execSync('id -u', { encoding: 'utf8' }).trim();
-            const gid = execSync('id -g', { encoding: 'utf8' }).trim();
-            
-            // Set proper ownership and permissions
-            execSync(`chown -R ${uid}:${gid} ${STORAGE_PATH}`);
-            execSync(`chmod -R 775 ${STORAGE_PATH}`);
+            const { uid, gid } = os.userInfo();
+            const dirs = [STORAGE_PATH, chunksDir, filesDir, tempDir];
+            for (const dir of dirs) {
+                fs.chownSync(dir, uid, gid);
+                fs.chmodSync(dir, 0o775);
+            }
         } catch (permError) {
             // Expected in most environments - permissions managed by platform
         }
@@ -178,7 +177,11 @@ if (!DATABASE_URL) {
 // Create PostgreSQL connection pool with optimized configuration
 const pool = new Pool({
     connectionString: DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    // SSL: verify certificates by default in production to prevent MitM attacks.
+    // Set DATABASE_SSL_REJECT_UNAUTHORIZED=false only if using self-signed certs (e.g., some Railway configs).
+    ssl: process.env.NODE_ENV === 'production'
+        ? { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false' }
+        : false,
     
     // Connection pool sizing: Optimal formula = (average_concurrent_requests * 1.5)
     // For most web applications, 20 connections handle hundreds of concurrent users effectively
@@ -719,7 +722,7 @@ app.use((err, req, res, next) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('❌ Unhandled error:', err);
+  console.error('❌ Unhandled error:', { message: err.message, code: err.code });
   res.status(500).json({
     error: 'Internal server error',
     message: 'Something went wrong'

@@ -128,20 +128,34 @@ class SubscriptionManager {
             if (percentage >= 90) fillClass = 'critical';
             else if (percentage >= 75) fillClass = 'high';
 
-            usageItem.innerHTML = `
-                <div style="min-width: 120px;">
-                    <strong>${this.formatQuotaType(quota.quota_type)}</strong>
-                    <div style="font-size: 12px; color: #64748b;">
-                        ${quota.current_usage.toLocaleString()} / ${quota.quota_limit.toLocaleString()}
-                    </div>
-                </div>
-                <div class="usage-bar">
-                    <div class="usage-fill ${fillClass}" style="width: ${Math.min(percentage, 100)}%"></div>
-                </div>
-                <div style="min-width: 50px; text-align: right; font-weight: 600;">
-                    ${percentage.toFixed(1)}%
-                </div>
-            `;
+            // Build DOM elements safely (no innerHTML with server data)
+            const labelDiv = document.createElement('div');
+            labelDiv.style.minWidth = '120px';
+            const labelStrong = document.createElement('strong');
+            labelStrong.textContent = this.formatQuotaType(quota.quota_type);
+            const labelDetail = document.createElement('div');
+            labelDetail.style.fontSize = '12px';
+            labelDetail.style.color = '#64748b';
+            labelDetail.textContent = `${quota.current_usage.toLocaleString()} / ${quota.quota_limit.toLocaleString()}`;
+            labelDiv.appendChild(labelStrong);
+            labelDiv.appendChild(labelDetail);
+
+            const barDiv = document.createElement('div');
+            barDiv.className = 'usage-bar';
+            const fillDiv = document.createElement('div');
+            fillDiv.className = `usage-fill ${fillClass}`;
+            fillDiv.style.width = `${Math.min(percentage, 100)}%`;
+            barDiv.appendChild(fillDiv);
+
+            const percentDiv = document.createElement('div');
+            percentDiv.style.minWidth = '50px';
+            percentDiv.style.textAlign = 'right';
+            percentDiv.style.fontWeight = '600';
+            percentDiv.textContent = `${percentage.toFixed(1)}%`;
+
+            usageItem.appendChild(labelDiv);
+            usageItem.appendChild(barDiv);
+            usageItem.appendChild(percentDiv);
 
             usageSection.appendChild(usageItem);
         });
