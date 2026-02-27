@@ -45,12 +45,18 @@ flowchart TB
         B5[Store clip: DB row + encrypted file on disk<br/>BYTEA or file_path]
         B6[Return clipId to client]
         B7[Optional: store access_code_hash only<br/>never plaintext access code]
+        B8[Lookup clip in DB<br/>GET /api/clip/:id/info]
+        B9[Return clip metadata + redirectTo<br/>GET or POST /api/clip/:id]
+        B10[Read encrypted file from disk<br/>GET or POST /api/file/:id]
         B1 --> B2
         B2 --> B3
         B3 --> B4
         B4 --> B5
         B5 --> B6
         B5 --> B7
+        B5 --> B8
+        B5 --> B9
+        B5 --> B10
     end
 
     subgraph RECIPIENT["👤 Recipient (Browser)"]
@@ -80,8 +86,13 @@ flowchart TB
     A11 -.->|chunks| B2
     A12 -.->|complete| B3
     B6 -.->|clipId| A13
-    C5 -.->|metadata| B5
-    C6 -.->|encrypted content| B5
+
+    C2 -.->|request| B8
+    B8 -.->|expiry, requiresAccessCode| C2
+    C5 -.->|request| B9
+    B9 -.->|metadata, redirectTo| C5
+    C6 -.->|request| B10
+    B10 -.->|encrypted bytes| C6
 ```
 
 **Takeaways:**

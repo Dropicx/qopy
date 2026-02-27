@@ -9,7 +9,7 @@ class UploadValidator {
      */
     static parseUploadRequest(requestBody) {
         let clientAccessCodeHash, requiresAccessCode, textContent, isTextUpload, contentType;
-        let password, urlSecret; // File upload system
+        let password;
 
         try {
             // Try new text upload system first - check for isTextUpload
@@ -18,22 +18,22 @@ class UploadValidator {
                 ({ accessCodeHash: clientAccessCodeHash, requiresAccessCode,
                    textContent, isTextUpload, contentType } = requestBody);
             } else {
-                ({ password, urlSecret } = requestBody);
-                // Convert old system to new system
+                // Legacy file-upload body: password (access code hash only — urlSecret must never be sent)
+                ({ password } = requestBody);
                 isTextUpload = false;
                 contentType = 'file';
                 requiresAccessCode = !!password;
                 clientAccessCodeHash = password; // Use password as access code hash for legacy
             }
 
+            // Return only fields needed for completion. Never expose or pass urlSecret (zero-knowledge).
             return {
                 clientAccessCodeHash,
                 requiresAccessCode,
                 textContent,
                 isTextUpload,
                 contentType,
-                password,
-                urlSecret
+                password: password ?? undefined
             };
         } catch (destructureError) {
             console.error('Error parsing upload request:', destructureError);

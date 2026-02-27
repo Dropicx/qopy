@@ -133,7 +133,7 @@ describe('UploadValidator', () => {
     });
 
     describe('Legacy File Upload System', () => {
-      test('should parse legacy file upload system', () => {
+      test('should parse legacy file upload system (urlSecret never returned)', () => {
         const requestBody = {
           password: 'legacy-password',
           urlSecret: 'url-secret-123'
@@ -143,13 +143,12 @@ describe('UploadValidator', () => {
 
         expect(result).toMatchObject({
           password: 'legacy-password',
-          urlSecret: 'url-secret-123',
           isTextUpload: false,
           contentType: 'file',
           requiresAccessCode: true,
           clientAccessCodeHash: 'legacy-password'
         });
-
+        expect(result.urlSecret).toBeUndefined(); // Zero-knowledge: never expose urlSecret
       });
 
       test('should handle legacy system without password', () => {
@@ -161,13 +160,12 @@ describe('UploadValidator', () => {
 
         expect(result).toMatchObject({
           password: undefined,
-          urlSecret: 'url-secret-only',
           isTextUpload: false,
           contentType: 'file',
           requiresAccessCode: false,
           clientAccessCodeHash: undefined
         });
-
+        expect(result.urlSecret).toBeUndefined(); // Zero-knowledge: never expose urlSecret
       });
 
       test('should convert legacy system to new system format', () => {
@@ -384,7 +382,7 @@ describe('UploadValidator', () => {
         expect(result.contentType).toBe('text');
       });
 
-      test('should preserve all fields from legacy system', () => {
+      test('should preserve legacy fields but never expose urlSecret (zero-knowledge)', () => {
         const requestBody = {
           password: 'legacy-pwd',
           urlSecret: 'legacy-secret',
@@ -394,7 +392,7 @@ describe('UploadValidator', () => {
         const result = UploadValidator.parseUploadRequest(requestBody);
 
         expect(result.password).toBe('legacy-pwd');
-        expect(result.urlSecret).toBe('legacy-secret');
+        expect(result.urlSecret).toBeUndefined(); // Server must never receive or pass urlSecret
         expect(result.isTextUpload).toBe(false);
         expect(result.contentType).toBe('file');
         expect(result.requiresAccessCode).toBe(true);

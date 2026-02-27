@@ -1047,8 +1047,7 @@ class FileUploadManager {
             FILE_UPLOAD_DEBUG && console.log('🔐 Client-side access code hash generated:', accessCodeHash.substring(0, 16) + '...');
         }
         
-        const urlSecret = this.currentUploadSession?.urlSecret || null;
-        
+        // URL secret is NEVER sent to the server — it stays in the fragment for the share link only.
         FILE_UPLOAD_DEBUG && console.log('🔍 Form state during completion:', {
             checkboxChecked: passwordCheckbox?.checked,
             inputValue: passwordInput?.value ? passwordInput.value.substring(0, 3) + '***' : null,
@@ -1061,20 +1060,19 @@ class FileUploadManager {
         FILE_UPLOAD_DEBUG && console.log('🔐 Sending authentication parameters for upload completion:', {
             requiresAccessCode: !!accessCode,
             accessCode: accessCode ? accessCode.substring(0, 3) + '***' : null,
-            accessCodeLength: accessCode ? accessCode.length : 0,
-            hasUrlSecret: !!urlSecret
+            accessCodeLength: accessCode ? accessCode.length : 0
         });
         
+        // Send only accessCodeHash and requiresAccessCode. Never send urlSecret (zero-knowledge).
         const requestBody = {
-            password: accessCodeHash, // Send hashed access code instead of plaintext
-            urlSecret: urlSecret
-            // checksums can be omitted, server will validate automatically
+            accessCodeHash: accessCodeHash || undefined,
+            requiresAccessCode
         };
         
         FILE_UPLOAD_DEBUG && console.log('📡 Upload completion request body:', {
-            password: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
-            passwordLength: accessCodeHash ? accessCodeHash.length : 0,
-            hasUrlSecret: !!urlSecret,
+            accessCodeHash: accessCodeHash ? accessCodeHash.substring(0, 16) + '...' : null,
+            accessCodeHashLength: accessCodeHash ? accessCodeHash.length : 0,
+            requiresAccessCode,
             isHashed: !!accessCodeHash
         });
         
