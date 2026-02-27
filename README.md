@@ -37,8 +37,9 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 - **6-character codes** for ultra-fast sharing
 - **5-minute expiration** for temporary content
 - **URL secrets** - 6-character secrets in URL fragments (never sent to server)
+- **Same encryption** - AES-256-GCM with PBKDF2, same as Enhanced Security (shorter codes, ideal for quick peer sharing)
 - **True zero-knowledge** - same encryption model as Enhanced Security
-- **Perfect for** - quick code snippets, temporary notes, instant sharing
+- **Perfect for** - quick code snippets, temporary notes, instant sharing with peers
 
 ### Enhanced Security Mode
 - **10-character codes** for enhanced security
