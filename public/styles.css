@@ -1184,6 +1184,8 @@ footer p {
 .comparison-header > div {
   padding: 1rem 0.8rem;
   text-align: center;
+  color: white;
+  background: transparent;
 }
 
 .comparison-row {

@@ -34,7 +34,6 @@ All production endpoints tested and verified:
 - `/features` - Features page renders properly
 - `/features-de` - German features page works
 - `/api/upload/complete/:uploadId` - Upload completion
-- `/api/share` - Share functionality
 - `/api/file/:clipId` - File download
 - Static assets served correctly
 

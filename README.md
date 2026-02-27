@@ -74,13 +74,12 @@ Qopy is a privacy-first, secure temporary text and file sharing web application 
 ## Technical Features
 
 ### API Endpoints
-- **POST /api/share** - Create new encrypted content
 - **POST /api/upload/initiate** - Initialize file upload session
 - **POST /api/upload/chunk/:uploadId/:chunkNumber** - Upload file chunk
 - **POST /api/upload/complete/:uploadId** - Complete file upload
 - **GET /api/clip/:clipId/info** - Get clip information
 - **GET /api/clip/:clipId** - Retrieve encrypted content
-- **GET /api/file/:clipId** - Retrieve file content
+- **POST /api/file/:clipId** - Retrieve file content
 - **GET /health** - Application health check
 - **GET /api/health** - API health check
 - **GET /ping** - Simple ping endpoint
@@ -144,18 +143,28 @@ railway variables set ADMIN_TOKEN=your-secure-admin-token
 
 ## API Documentation
 
-### Create Share
+### Upload Content (3-Step Flow)
 ```http
-POST /api/share
+# Step 1: Initiate upload
+POST /api/upload/initiate
 Content-Type: application/json
 
 {
-  "content": [encrypted-binary-array],
+  "fileName": "message.txt",
+  "fileSize": 26,
+  "totalChunks": 1,
   "expiration": "30min",
   "oneTime": false,
-  "hasPassword": true,
-  "quickShare": false
+  "hasPassword": false
 }
+
+# Step 2: Upload chunk
+POST /api/upload/chunk/{uploadId}/0
+Content-Type: multipart/form-data
+
+# Step 3: Complete upload
+POST /api/upload/complete/{uploadId}
+Content-Type: application/json
 ```
 
 ### Get Clip Info

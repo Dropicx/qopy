@@ -368,24 +368,11 @@ const generalLimiter = rateLimit({
   keyGenerator: getClientIP,
   skip: (req) => {
     // Skip rate limiting for health checks (monitoring) and chunk upload paths.
-    // Chunk uploads are already gated by the upload initiation limiter (shareLimiter),
+    // Chunk uploads are already gated by the upload initiation limiter,
     // so applying the general limiter here would cause legitimate large-file uploads
     // to hit the 100-request cap mid-transfer.
     return req.path === '/health' || req.path === '/api/health' || req.path === '/ping' || req.path.match(/^\/api\/upload\/(chunk|complete)\//);
   }
-});
-
-// Share API rate limiting (stricter for content creation)
-const shareLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 share requests per IP per 15 minutes
-  message: {
-    error: 'Too many share requests',
-    message: 'Share rate limit exceeded. Please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: getClientIP
 });
 
 // Clip retrieval rate limiting (more permissive for reading)
@@ -464,7 +451,6 @@ const fileDownloadLimiter = rateLimit({
 app.use('/api/', logRateLimitEvent); // Logging first
 app.use('/api/', burstLimiter); // Burst protection
 app.use('/api/', generalLimiter); // General protection
-app.use('/api/share', shareLimiter); // Share-specific protection
 app.use('/api/clip/', quickShareLimiter); // Quick Share brute-force protection
 app.use(quickShareProtection.middleware(getClientIP)); // Failed-lookup tracking for short IDs
 app.use('/api/clip/', retrieveLimiter); // Retrieval-specific protection
@@ -647,20 +633,8 @@ registerUploadRoutes(app, {
 const { registerFileRoutes } = require('./routes/files');
 registerFileRoutes(app, { pool, fileService, fileDownloadLimiter, accessValidationMiddleware, updateStatistics });
 
-// ==========================================
-// TEXT SHARING (using new upload system for consistency)
-// ==========================================
-
-// DEPRECATED: /api/share endpoint - replaced by upload system (/api/upload/initiate + /api/upload/complete)
-// This endpoint is no longer used since all text sharing now uses the unified file upload system
-//
-// REFACTORED VERSION: The original 245-line endpoint has been refactored into clean services:
-// - ContentProcessor: /services/ContentProcessor.js (content validation and processing)
-// - StorageService: /services/StorageService.js (database and file operations)  
-// - QuickShareService: /services/QuickShareService.js (Quick Share specific logic)
-// - ShareValidationMiddleware: /services/ShareValidationMiddleware.js (validation logic)
-// Clip retrieval endpoints (GET/POST /api/clip/:clipId, GET /api/clip/:clipId/info)
-// have been moved to routes/clips.js
+// Upload system routes are in routes/uploads.js
+// Clip retrieval routes are in routes/clips.js
 
 // Route for direct clip access (must come after static files)
 app.get('/clip/:clipId([A-Z0-9]{6}|[A-Z0-9]{10})$', (req, res) => {

@@ -307,16 +307,15 @@ Access at `/admin.html` with admin token authentication.
 
 ## API Endpoints
 
-**Content Sharing**:
-- `POST /api/share` - Create encrypted content (text or file metadata)
-- `GET /api/clip/:clipId/info` - Get clip metadata (no decryption)
-- `GET /api/clip/:clipId` - Retrieve encrypted content
-
-**File Operations**:
-- `POST /api/upload/initiate` - Initialize chunked upload
+**Content Upload (3-Step Flow)**:
+- `POST /api/upload/initiate` - Initialize upload session
 - `POST /api/upload/chunk/:uploadId/:chunkNumber` - Upload single chunk
 - `POST /api/upload/complete/:uploadId` - Complete and assemble file
-- `GET /api/file/:clipId` - Stream file content
+
+**Content Retrieval**:
+- `GET /api/clip/:clipId/info` - Get clip metadata (no decryption)
+- `GET /api/clip/:clipId` - Retrieve encrypted content
+- `POST /api/file/:clipId` - Download file content
 
 **Health Checks**:
 - `GET /health` - Application health

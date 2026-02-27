@@ -470,60 +470,72 @@
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer" id="faq-api-usage">
-                        <p><strong>Yes! Qopy provides a complete REST API for programmatic access:</strong></p>
-                        
-                        <h4>Creating Clips (POST /api/share)</h4>
-                        <pre><code>curl -X POST https://qopy.app/api/share \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "Your text content here",
+                        <p><strong>Yes! Qopy provides a complete REST API for programmatic access using a 3-step upload flow:</strong></p>
+
+                        <h4>Step 1: Initiate Upload (POST /api/upload/initiate)</h4>
+                        <pre><code>curl -X POST https://qopy.app/api/upload/initiate  -H "Content-Type: application/json"  -d '{
+    "fileName": "message.txt",
+    "fileSize": 26,
+    "totalChunks": 1,
     "expiration": "1hr",
     "oneTime": false,
     "hasPassword": false
   }'</code></pre>
-                        
-                        <h4>Retrieving Clips (GET /api/clip/:clipId)</h4>
-                        <pre><code>curl https://qopy.app/api/clip/X8K2M9</code></pre>
-                        
-                        <h4>Getting Clip Info (GET /api/clip/:clipId/info)</h4>
-                        <pre><code>curl https://qopy.app/api/clip/X8K2M9/info</code></pre>
-                        
-                        <h4>API Parameters:</h4>
+
+                        <h4>Step 2: Upload Chunk (POST /api/upload/chunk/:uploadId/:chunkNumber)</h4>
+                        <pre><code>curl -X POST https://qopy.app/api/upload/chunk/YOUR_UPLOAD_ID/0  -F "chunk=@message.txt"</code></pre>
+
+                        <h4>Step 3: Complete Upload (POST /api/upload/complete/:uploadId)</h4>
+                        <pre><code>curl -X POST https://qopy.app/api/upload/complete/YOUR_UPLOAD_ID  -H "Content-Type: application/json"  -d '{}'</code></pre>
+
+                        <h4>Retrieving Clips</h4>
+                        <pre><code># Get clip metadata
+curl https://qopy.app/api/clip/X8K2M9/info
+
+# Get clip content
+curl https://qopy.app/api/clip/X8K2M9
+
+# Download file content
+curl -X POST https://qopy.app/api/file/X8K2M9</code></pre>
+
+                        <h4>Upload Parameters:</h4>
                         <ul>
-                            <li><strong>content</strong> - Text content (1-100,000 characters)</li>
+                            <li><strong>fileName</strong> - Name of the file being uploaded</li>
+                            <li><strong>fileSize</strong> - Size of the file in bytes</li>
+                            <li><strong>totalChunks</strong> - Number of chunks (1 for small files)</li>
                             <li><strong>expiration</strong> - "5min", "15min", "30min", "1hr", "6hr", "24hr"</li>
                             <li><strong>oneTime</strong> - Boolean, deletes clip after first access</li>
                             <li><strong>hasPassword</strong> - Boolean, indicates if content is access code-protected</li>
                             <li><strong>quickShare</strong> - Boolean, enables Quick Share mode (6-digit ID, 5min expiry)</li>
                         </ul>
-                        
-                        <h4>Response Format:</h4>
+
+                        <h4>Response Format (from /api/upload/complete):</h4>
                         <pre><code>{
   "success": true,
-  "clipId": "X8K2M9",
-  "url": "https://qopy.app/clip/X8K2M9",
+  "clipId": "X8K2M9R4TL",
+  "url": "https://qopy.app/clip/X8K2M9R4TL",
   "expiresAt": 1703123456789,
   "oneTime": false
 }</code></pre>
-                        
+
                         <h4>Important Security Note:</h4>
-                        <p><strong>Client-side encryption is only available through the web interface.</strong> When using the API directly (e.g., with curl), content is sent as plaintext to the server and then encrypted server-side.</p>
-                        
+                        <p><strong>Client-side encryption is only available through the web interface.</strong> When using the API directly (e.g., with curl), content is sent as plaintext to the server.</p>
+
                         <ul>
                             <li><strong>Web interface</strong> - True client-side encryption (content encrypted in browser)</li>
-                            <li><strong>Direct API calls</strong> - Server-side encryption only (content sent as plaintext)</li>
+                            <li><strong>Direct API calls</strong> - No client-side encryption (content sent as plaintext)</li>
                         </ul>
-                        
+
                         <p><strong>For maximum security, always use the web interface at <a href="https://qopy.app" target="_blank">qopy.app</a> for client-side encryption.</strong></p>
-                        
+
                         <h4>Other API Notes:</h4>
                         <ul>
                             <li><strong>Rate limiting</strong> - API endpoints are subject to the same rate limiting as the web interface</li>
                             <li><strong>Validation</strong> - All inputs are validated and sanitized</li>
                             <li><strong>No authentication</strong> - No API keys required, but rate limits apply per IP</li>
-                            <li><strong>JSON only</strong> - All requests and responses use JSON format</li>
+                            <li><strong>Multipart uploads</strong> - Chunk uploads use multipart/form-data; initiate and complete use JSON</li>
                         </ul>
-                        
+
                         <p><strong>Perfect for:</strong> Automation scripts, integrations, mobile apps, and programmatic content sharing!</p>
                     </div>
                 </div>
