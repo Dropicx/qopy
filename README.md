@@ -315,6 +315,6 @@ This project is dual-licensed:
 
 ---
 
-**Qopy** - Secure, private, temporary text sharing. Developed by Achim Lenz.
+**Qopy** - Secure, private, temporary text and file sharing. Developed by Achim Lenz.
 
-*Version: minimal-1.0.0 | Last Updated: August 2025*
+*Last Updated: February 2026*
