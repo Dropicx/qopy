@@ -83,7 +83,7 @@ jobs:
 
       - name: Upload security artifacts
         if: github.event_name == 'schedule'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: security-reports
           path: |
@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload Snyk results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: snyk-results
           path: snyk-results.json
