@@ -1,5 +1,5 @@
 # Railway-optimized Dockerfile for Qopy with PostgreSQL
-FROM node:20-alpine AS builder
+FROM node:26-alpine AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -28,7 +28,7 @@ RUN node scripts/build-frontend.js
 RUN mkdir -p data
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:26-alpine AS production
 
 # Install curl and other utilities needed for runtime
 RUN apk add --no-cache curl wget
